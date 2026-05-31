@@ -670,7 +670,6 @@ export function DashboardOverview() {
                   {recentBookings.map((b) => (
                     <tr key={b.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
-                      <td className="px-4 py-3 font-medium text-xs text-foreground max-w-[120px] truncate">{b.customerName || b.name || "—"}</td>
                       <td className="px-4 py-3 font-medium text-xs text-foreground">{b.appliance}</td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
