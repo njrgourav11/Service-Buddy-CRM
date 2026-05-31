@@ -1,0 +1,537 @@
+"use client"
+
+import * as React from "react"
+import { useCRM, Customer, compareIdsNumerically } from "@/context/crm-context"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { 
+  Drawer, 
+  DrawerClose, 
+  DrawerContent, 
+  DrawerDescription, 
+  DrawerFooter, 
+  DrawerHeader, 
+  DrawerTitle 
+} from "@/components/ui/drawer"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { 
+  PlusSignCircleIcon, 
+  SearchIcon, 
+  UserGroupIcon,
+  CheckmarkCircle01Icon,
+  HelpCircleIcon
+} from "@hugeicons/core-free-icons"
+
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table"
+
+interface CustomerModuleProps {
+  hideHeader?: boolean
+}
+
+export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
+  const { customers, addCustomer, updateCustomer, deleteCustomer, currentRole } = useCRM()
+  const [search, setSearch] = React.useState("")
+  const [sourceFilter, setSourceFilter] = React.useState("ALL")
+  const [isAddOpen, setIsAddOpen] = React.useState(false)
+  
+  // Custom View Toggle: Table vs Cards
+  const [viewMode, setViewMode] = React.useState<"table" | "cards">("table")
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(8) // Standard card/row allocation
+
+  // Form State
+  const [name, setName] = React.useState("")
+  const [mobile, setMobile] = React.useState("")
+  const [address, setAddress] = React.useState("")
+  const [referralSource, setReferralSource] = React.useState<any>("Ad")
+  const [notes, setNotes] = React.useState("")
+  const [review, setReview] = React.useState("")
+  const [status, setStatus] = React.useState<any>("Active")
+
+  // Filtered List
+  const filteredCustomers = React.useMemo(() => {
+    return customers.filter(c => {
+      const searchString = `${c.id} ${c.name} ${c.mobile} ${c.address}`.toLowerCase()
+      const matchesSearch = searchString.includes(search.toLowerCase())
+      const matchesSource = sourceFilter === "ALL" || c.referralSource === sourceFilter
+
+      return matchesSearch && matchesSource
+    }).sort((a, b) => compareIdsNumerically(a.id, b.id))
+  }, [customers, search, sourceFilter])
+
+  // Pagination Math
+  const totalPages = Math.ceil(filteredCustomers.length / pageSize)
+  const paginatedCustomers = React.useMemo(() => {
+    return filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  }, [filteredCustomers, currentPage, pageSize])
+
+  // Reset page when filter or search changes
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [search, sourceFilter])
+
+  // Submit Customer Add
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    addCustomer({
+      name,
+      mobile,
+      address,
+      referralSource,
+      notes,
+      review,
+      status
+    })
+
+    // Reset Form
+    setName("")
+    setMobile("")
+    setAddress("")
+    setReferralSource("Ad")
+    setNotes("")
+    setReview("")
+    setStatus("Active")
+    setIsAddOpen(false)
+  }
+
+  return (
+    <div className={hideHeader ? "flex flex-col gap-6 animate-in fade-in duration-200" : "flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200"}>
+      
+      {/* Page Header */}
+      {!hideHeader && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">Customer Management</h2>
+            <p className="text-sm text-muted-foreground">Manage client directories, track automated customer ID codes (CIN), and record satisfaction reviews.</p>
+          </div>
+          <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer">
+            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+            Onboard Customer
+          </Button>
+        </div>
+      )}
+
+      {hideHeader && (
+        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-foreground">Customer Directory Registry</h3>
+            <p className="text-xs text-muted-foreground">Monitor client contact records, satisfaction levels, and active status codes.</p>
+          </div>
+          <Button onClick={() => setIsAddOpen(true)} size="sm" className="cursor-pointer">
+            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+            Onboard Customer
+          </Button>
+        </div>
+      )}
+
+      {/* Analytics: Lead Acquisition Source Split */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {["Ad", "Contact", "Repeat Consumer"].map((src) => {
+          const count = customers.filter(c => c.referralSource === src as any).length
+          const percentage = customers.length ? Math.round((count / customers.length) * 100) : 0
+          
+          return (
+            <Card key={src} className="border-border/60">
+              <CardHeader className="py-3">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider">{src} Acquisition</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-3 pt-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold tracking-tight">{count}</span>
+                  <span className="text-xs text-muted-foreground">clients ({percentage}%)</span>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Filter and Table Panel */}
+      <Card className="border-border/60">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:max-w-md">
+            <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by CIN, name, phone or address..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {/* View Mode Segmented Toggler */}
+            <div className="flex bg-muted/40 p-1 rounded-lg border border-border/40 shrink-0">
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+                className="h-7 text-xs font-semibold py-0.5 px-2.5 rounded-md shadow-xs cursor-pointer"
+              >
+                Table View
+              </Button>
+              <Button
+                variant={viewMode === "cards" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("cards")}
+                className="h-7 text-xs font-semibold py-0.5 px-2.5 rounded-md shadow-xs cursor-pointer"
+              >
+                Card View
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-1 md:flex-initial">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Channel:</Label>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="w-full md:w-44">
+                  <SelectValue placeholder="All Referral Channels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Referral Channels</SelectItem>
+                  <SelectItem value="Ad">Ad</SelectItem>
+                  <SelectItem value="Contact">Contact</SelectItem>
+                  <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main Content: Table View vs Card Grid View */}
+      {viewMode === "table" ? (
+        <Card className="border-border/60 overflow-hidden shadow-xs flex flex-col justify-between">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto min-w-0 max-w-full">
+              <Table>
+                <TableHeader className="bg-muted/60 border-b border-border/50">
+                  <TableRow>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">CIN</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Name</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Mobile Number</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Address</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Referral Channel</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Client Feedback</TableHead>
+                    <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
+                    {currentRole === "Super Admin" && <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                        No customer files match query.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedCustomers.map((c) => (
+                      <TableRow key={c.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{c.id}</TableCell>
+                        <TableCell className="px-4 py-4 text-xs font-semibold text-foreground">{c.name}</TableCell>
+                        <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{c.mobile}</TableCell>
+                        <TableCell className="px-4 py-4 max-w-xs text-xs font-medium text-foreground truncate">{c.address}</TableCell>
+                        <TableCell className="px-4 py-4">
+                          <Badge variant="outline" className="text-[10px] font-semibold">{c.referralSource}</Badge>
+                        </TableCell>
+                        <TableCell className="px-4 py-4 max-w-xs">
+                          <div className="flex flex-col gap-0.5">
+                            {c.review ? (
+                              <span className="text-xs italic text-foreground font-medium line-clamp-1">"{c.review}"</span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-medium">No reviews logged yet</span>
+                            )}
+                            {c.notes && <span className="text-[9px] text-muted-foreground font-medium">Notes: {c.notes}</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-4 py-4">
+                          <Badge 
+                            variant="outline"
+                            onClick={() => updateCustomer(c.id, { status: c.status === "Active" ? "Inactive" : "Active" })}
+                            className={`text-[10px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
+                              c.status === "Active" 
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
+                            }`}
+                          >
+                            {c.status}
+                          </Badge>
+                        </TableCell>
+                        {currentRole === "Super Admin" && (
+                          <TableCell className="px-4 py-4 text-right">
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => deleteCustomer(c.id)}
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center ml-auto cursor-pointer"
+                            >
+                              ×
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3.5 border-t border-border/40 bg-muted/20">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(filteredCustomers.length, (currentPage - 1) * pageSize + 1)} to {Math.min(filteredCustomers.length, currentPage * pageSize)} of {filteredCustomers.length} records
+              </span>
+              <div className="flex items-center gap-2.5">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-3 text-xs cursor-pointer select-none"
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-semibold tabular-nums text-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-3 text-xs cursor-pointer select-none"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : (
+        // Grid Card View of Customers
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {paginatedCustomers.length === 0 ? (
+              <Card className="col-span-full border-border/60 py-12 text-center text-muted-foreground font-medium">
+                No customer files match query.
+              </Card>
+            ) : (
+              paginatedCustomers.map((c) => (
+                <Card key={c.id} className="border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[10px] font-bold tabular-nums">
+                        {c.id}
+                      </Badge>
+                      <Badge 
+                        variant="outline"
+                        onClick={() => updateCustomer(c.id, { status: c.status === "Active" ? "Inactive" : "Active" })}
+                        className={`text-[10px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
+                          c.status === "Active" 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                            : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
+                        }`}
+                      >
+                        {c.status}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-sm font-bold text-foreground mt-2.5 truncate">{c.name}</CardTitle>
+                    <CardDescription className="text-[10px] font-semibold text-muted-foreground">
+                      Referral: {c.referralSource}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3 text-xs flex flex-col gap-2">
+                    <div className="flex flex-col gap-1 text-muted-foreground leading-relaxed">
+                      <div><span className="font-bold text-foreground">Mobile:</span> <span className="tabular-nums">{c.mobile}</span></div>
+                      <div className="line-clamp-2"><span className="font-bold text-foreground">Address:</span> {c.address}</div>
+                    </div>
+                    
+                    {(c.review || c.notes) && (
+                      <div className="rounded-lg bg-muted/40 p-2 border border-border/20 flex flex-col gap-1.5 mt-1">
+                        {c.review && (
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wide font-extrabold text-muted-foreground">Feedback</div>
+                            <div className="text-[11px] font-medium italic text-foreground leading-snug line-clamp-2">"{c.review}"</div>
+                          </div>
+                        )}
+                        {c.notes && (
+                          <div>
+                            <div className="text-[8px] uppercase tracking-wide font-extrabold text-muted-foreground">Internal Notes</div>
+                            <div className="text-[11px] leading-snug text-muted-foreground line-clamp-2">{c.notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                  {currentRole === "Super Admin" && (
+                    <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-end">
+                      <Button 
+                        variant="ghost" 
+                        onClick={() => deleteCustomer(c.id)}
+                        className="h-8 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
+                      >
+                        Delete Customer
+                      </Button>
+                    </CardFooter>
+                  )}
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Pagination Controls for Cards */}
+          {totalPages > 1 && (
+            <Card className="border-border/60 bg-muted/20 py-3.5 px-4 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(filteredCustomers.length, (currentPage - 1) * pageSize + 1)} to {Math.min(filteredCustomers.length, currentPage * pageSize)} of {filteredCustomers.length} records
+              </span>
+              <div className="flex items-center gap-2.5">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-3 text-xs cursor-pointer select-none"
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-semibold tabular-nums text-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-3 text-xs cursor-pointer select-none"
+                >
+                  Next
+                </Button>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Customer Add Drawer */}
+      <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
+        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Onboard New Customer Profile</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Log detailed customer parameters. Auto assigns customer codes (CIN) for workflow tracking.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-name" className="text-xs font-bold text-muted-foreground">Full Name</Label>
+                  <Input 
+                    id="cust-name"
+                    placeholder="E.g., Ramesh Sen"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Mobile */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
+                  <Input 
+                    id="cust-mob"
+                    placeholder="E.g., 9911223344"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-address" className="text-xs font-bold text-muted-foreground">Service Address Details</Label>
+                  <Input 
+                    id="cust-address"
+                    placeholder="Street, Tower, Villa details"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Source Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-source" className="text-xs font-bold text-muted-foreground">Referral Acquisition Source</Label>
+                  <Select value={referralSource} onValueChange={setReferralSource}>
+                    <SelectTrigger id="cust-source">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ad">Ad</SelectItem>
+                      <SelectItem value="Contact">Contact</SelectItem>
+                      <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-notes" className="text-xs font-bold text-muted-foreground">Internal CRM Staff Notes</Label>
+                  <Input 
+                    id="cust-notes"
+                    placeholder="Gate codes, timing preferences, dog indicators"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+
+                {/* Review */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review (Optional)</Label>
+                  <Input 
+                    id="cust-review"
+                    placeholder="Client's satisfaction quote"
+                    value={review}
+                    onChange={(e) => setReview(e.target.value)}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Onboard Profile</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Discard Profile</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+    </div>
+  )
+}

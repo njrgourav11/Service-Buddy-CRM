@@ -1,0 +1,93 @@
+"use client"
+
+import * as React from "react"
+import { CRMProvider, useCRM } from "@/context/crm-context"
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { TooltipProvider } from "@/components/ui/tooltip"
+
+// Screen Module Views
+import { DashboardOverview } from "@/components/dashboard-overview"
+import { BookingModule } from "@/components/booking-module"
+import { CustomerModule } from "@/components/customer-module"
+import { LeadsModule } from "@/components/leads-module"
+import { ContactsModule } from "@/components/contacts-module"
+import { ExpenditureModule } from "@/components/expenditure-module"
+import { OutstandingModule } from "@/components/outstanding-module"
+import { PayoutModule } from "@/components/payout-module"
+import { InventoryModule } from "@/components/inventory-module"
+import { AssetsEmployeesModule } from "@/components/assets-employees-module"
+import { RemindersModule } from "@/components/reminders-module"
+import { ReportsModule } from "@/components/reports-module"
+import { ImportModule } from "@/components/import-module"
+
+// Wrapper component to enable useCRM inside the providers
+function DashboardContent() {
+  const { activeTab } = useCRM()
+
+  // Dynamic selector for sub-view rendering
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "overview":
+        return <DashboardOverview />
+      case "bookings":
+        return <BookingModule />
+      case "customers":
+        return <CustomerModule />
+      case "leads":
+        return <LeadsModule />
+      case "contacts":
+        return <ContactsModule />
+      case "expenditures":
+        return <ExpenditureModule />
+      case "outstanding":
+        return <OutstandingModule />
+      case "payouts":
+        return <PayoutModule />
+      case "inventory":
+        return <InventoryModule />
+      case "assets":
+        return <AssetsEmployeesModule initialSubTab="assets" />
+      case "employees":
+        return <AssetsEmployeesModule initialSubTab="employees" />
+      case "reminders":
+        return <RemindersModule />
+      case "reports":
+        return <ReportsModule />
+      case "import":
+        return <ImportModule />
+      default:
+        return <DashboardOverview />
+    }
+  }
+
+  return (
+    <TooltipProvider>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col overflow-y-auto min-w-0 max-w-full">
+            {renderTabContent()}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
+  )
+}
+
+export default function Page() {
+  return (
+    <CRMProvider>
+      <DashboardContent />
+    </CRMProvider>
+  )
+}
