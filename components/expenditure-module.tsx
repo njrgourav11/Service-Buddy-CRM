@@ -93,7 +93,7 @@ export function ExpenditureModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Operational Expenditures</h2>
           <p className="text-sm text-muted-foreground">Reconcile team expenses, track coil cleaning sprays, FLEX banners, recharged lines, and advertisements.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Accountant") && (
+        {currentRole === "Admin" && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Record Expense Voucher
@@ -216,13 +216,13 @@ export function ExpenditureModule() {
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3">Beneficiary</th>
                   <th className="px-4 py-3">Staff Remarks</th>
-                  {currentRole === "Super Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredExpenses.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                       No expense vouchers found.
                     </td>
                   </tr>
@@ -238,7 +238,7 @@ export function ExpenditureModule() {
                       <td className="px-4 py-4 text-right font-bold text-foreground tabular-nums">₹{e.amount}</td>
                       <td className="px-4 py-4 text-xs font-medium text-foreground">{e.beneficiary}</td>
                       <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{e.remarks}</td>
-                      {currentRole === "Super Admin" && (
+                      {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
                           <Button 
                             variant="ghost" 

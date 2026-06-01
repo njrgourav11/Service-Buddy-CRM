@@ -88,7 +88,7 @@ export function InventoryModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Spare Parts Inventory</h2>
           <p className="text-sm text-muted-foreground">Monitor stock balances, configure supplier vs selling costs, and manage reorder thresholds.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Manager") && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Onboard Spare Item
@@ -198,7 +198,7 @@ export function InventoryModule() {
                             >
                               +5 Quick Restock
                             </Button>
-                            {currentRole === "Super Admin" && (
+                            {currentRole === "Admin" && (
                               <Button 
                                 variant="ghost" 
                                 onClick={() => deleteSpare(s.id)}

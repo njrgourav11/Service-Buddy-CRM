@@ -730,7 +730,7 @@ export function BookingModule() {
                               <td className="px-3 py-2.5">
                                 <Select 
                                   value={b.status} 
-                                  disabled={currentRole === "Technician" && b.assignedTechnicianId !== "TECH-1001"}
+                                  disabled={false}
                                   onValueChange={(val) => handleStatusChange(b.id, val)}
                                 >
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
@@ -764,7 +764,7 @@ export function BookingModule() {
                                   >
                                     Edit Row
                                   </Button>
-                                  {currentRole === "Super Admin" && (
+                                  {currentRole === "Admin" && (
                                     <Button 
                                       variant="ghost" 
                                       onClick={() => deleteBooking(b.id)}
@@ -851,7 +851,7 @@ export function BookingModule() {
                               <TableCell className="px-4 py-4">
                                 <Select 
                                   value={b.status} 
-                                  disabled={currentRole === "Technician" && b.assignedTechnicianId !== "TECH-1001"}
+                                  disabled={false}
                                   onValueChange={(val) => handleStatusChange(b.id, val)}
                                 >
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
@@ -883,7 +883,7 @@ export function BookingModule() {
                                   >
                                     Edit Row
                                   </Button>
-                                  {currentRole === "Super Admin" && (
+                                  {currentRole === "Admin" && (
                                     <Button 
                                       variant="ghost" 
                                       onClick={() => deleteBooking(b.id)}
@@ -957,7 +957,7 @@ export function BookingModule() {
                             </div>
                             <Select 
                               value={b.status} 
-                              disabled={currentRole === "Technician" && b.assignedTechnicianId !== "TECH-1001"}
+                              disabled={false}
                               onValueChange={(val) => handleStatusChange(b.id, val)}
                             >
                               <SelectTrigger className={`h-5 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
@@ -1031,7 +1031,7 @@ export function BookingModule() {
                           >
                             Edit Details
                           </Button>
-                          {currentRole === "Super Admin" && (
+                          {currentRole === "Admin" && (
                             <Button 
                               variant="ghost" 
                               size="sm" 

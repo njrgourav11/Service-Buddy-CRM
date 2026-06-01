@@ -116,7 +116,7 @@ export function RemindersModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Reminders & Notifications Feed</h2>
           <p className="text-sm text-muted-foreground">Inspect reactive system alerts, review low inventory indicators, and trigger quick resolution shortcuts.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Manager") && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Create Alert

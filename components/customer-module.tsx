@@ -227,13 +227,13 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Referral Channel</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Client Feedback</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
-                    {currentRole === "Super Admin" && <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>}
+                    {currentRole === "Admin" && <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedCustomers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                      <TableCell colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                         No customer files match query.
                       </TableCell>
                     </TableRow>
@@ -270,7 +270,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                             {c.status}
                           </Badge>
                         </TableCell>
-                        {currentRole === "Super Admin" && (
+                        {currentRole === "Admin" && (
                           <TableCell className="px-4 py-4 text-right">
                             <Button 
                               variant="ghost" 
@@ -377,7 +377,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       </div>
                     )}
                   </CardContent>
-                  {currentRole === "Super Admin" && (
+                  {currentRole === "Admin" && (
                     <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-end">
                       <Button 
                         variant="ghost" 

@@ -77,7 +77,7 @@ export function ContactsModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Contact Directory</h2>
           <p className="text-sm text-muted-foreground">Reconcile business directories, catalog supplier contacts, and inspect historical service timelines.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Manager") && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Create Contact Card
@@ -129,13 +129,13 @@ export function ContactsModule() {
                   <th className="px-4 py-3">Client Type</th>
                   <th className="px-4 py-3">Timeline Check</th>
                   <th className="px-4 py-3">Internal Memo</th>
-                  {currentRole === "Super Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                       No business contacts recorded.
                     </td>
                   </tr>
@@ -162,7 +162,7 @@ export function ContactsModule() {
                       </td>
                       <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">{c.lastServiceDate}</td>
                       <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{c.notes}</td>
-                      {currentRole === "Super Admin" && (
+                      {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
                           <Button 
                             variant="ghost" 

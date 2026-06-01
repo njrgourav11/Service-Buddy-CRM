@@ -110,7 +110,7 @@ export function LeadsModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Lead Management Board</h2>
           <p className="text-sm text-muted-foreground">Track pre-sales customer inquiries, identify high-converting ad networks, and dispatch jobs instantly.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Manager") && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Capture New Lead
@@ -227,7 +227,7 @@ export function LeadsModule() {
                               Convert to Job
                             </Button>
                           )}
-                          {currentRole === "Super Admin" && (
+                          {currentRole === "Admin" && (
                             <Button 
                               variant="ghost" 
                               onClick={() => deleteLead(l.id)}

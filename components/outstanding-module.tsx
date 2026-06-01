@@ -76,7 +76,7 @@ export function OutstandingModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Outstanding & Dues Tracker</h2>
           <p className="text-sm text-muted-foreground">Track pending liabilities, vendor outstanding invoices, and historical technician monthly due balances.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Accountant") && (
+        {currentRole === "Admin" && (
           <Button onClick={() => setIsAddOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Log Outstanding Liability
@@ -112,13 +112,13 @@ export function OutstandingModule() {
                   <th className="px-4 py-3">Outstanding Reason</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3 text-center">Status</th>
-                  {(currentRole === "Super Admin" || currentRole === "Accountant") && <th className="px-4 py-3 text-right">Actions</th>}
+                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredDues.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Super Admin" || currentRole === "Accountant" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
                       No outstanding dues logged.
                     </td>
                   </tr>
@@ -143,7 +143,7 @@ export function OutstandingModule() {
                           {d.status}
                         </Badge>
                       </td>
-                      {(currentRole === "Super Admin" || currentRole === "Accountant") && (
+                      {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
                           <Button 
                             variant="outline" 

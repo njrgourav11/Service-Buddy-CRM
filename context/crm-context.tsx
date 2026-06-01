@@ -172,7 +172,7 @@ export interface Asset {
 export interface Employee {
   id: string // EMP-1001
   name: string
-  role: "Super Admin" | "Admin" | "Manager" | "Technician" | "Accountant"
+  role: "Admin" | "Manager"
   mobile: string
   salary: number
   joiningDate: string
@@ -180,7 +180,7 @@ export interface Employee {
 }
 
 // User Role Options
-export type UserRole = "Super Admin" | "Admin" | "Manager" | "Technician" | "Accountant"
+export type UserRole = "Admin" | "Manager"
 
 // ==========================================
 // 2. Initial Mock Data Definitions
@@ -302,7 +302,7 @@ const CRMContext = createContext<CRMContextProps | undefined>(undefined)
 export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Global View Navigation
   const [activeTab, setActiveTab] = useState<string>("overview")
-  const [currentRole, setCurrentRole] = useState<UserRole>("Super Admin")
+  const [currentRole, setCurrentRole] = useState<UserRole>("Admin")
 
   // Core Module States
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -580,7 +580,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (storedRole) {
           setCurrentRole(storedRole as UserRole)
         } else {
-          setCurrentRole("Super Admin")
+          setCurrentRole("Admin")
         }
       } else {
         if (isFirebaseEnabled) {

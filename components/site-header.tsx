@@ -110,11 +110,8 @@ export function SiteHeader() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end" className="w-40">
-                <SelectItem value="Super Admin">Super Admin</SelectItem>
                 <SelectItem value="Admin">Admin</SelectItem>
                 <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Accountant">Accountant</SelectItem>
-                <SelectItem value="Technician">Technician</SelectItem>
               </SelectContent>
             </Select>
  
@@ -122,12 +119,8 @@ export function SiteHeader() {
             <Badge 
               variant="outline"
               className={`text-[9px] font-extrabold px-1.5 h-5 flex items-center shrink-0 uppercase tracking-wide select-none ${
-                currentRole === "Super Admin" 
+                currentRole === "Admin" 
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                  : currentRole === "Accountant" 
-                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                  : currentRole === "Technician"
-                  ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400"
                   : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
               }`}
             >

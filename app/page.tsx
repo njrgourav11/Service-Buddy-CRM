@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { isFirebaseEnabled, auth } from "@/lib/firebase"
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from "firebase/auth"
 
-type SelectedRole = "Super Admin" | "Admin" | "Manager" | "Accountant" | "Technician"
+type SelectedRole = "Admin" | "Manager"
 type AuthMode = "signin" | "signup"
 
 export default function Home() {
@@ -43,13 +43,10 @@ export default function Home() {
     setLoading(true)
 
     // Automatically determine Sandbox Role based on email prefix/domain
-    let assignedRole: SelectedRole = "Super Admin"
+    let assignedRole: SelectedRole = "Admin"
     const emailLower = email.toLowerCase()
-    if (emailLower.includes("admin")) assignedRole = "Super Admin"
-    else if (emailLower.includes("staff")) assignedRole = "Admin"
-    else if (emailLower.includes("manager")) assignedRole = "Manager"
-    else if (emailLower.includes("accountant") || emailLower.includes("accounts")) assignedRole = "Accountant"
-    else if (emailLower.includes("tech")) assignedRole = "Technician"
+    if (emailLower.includes("manager")) assignedRole = "Manager"
+    else assignedRole = "Admin"
 
     const authPromise = new Promise(async (resolve, reject) => {
       try {

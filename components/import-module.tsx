@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 
-type ImportTarget = "customers" | "bookings" | "technicians" | "spares" | "expenses" | "outstanding" | "leads" | "contacts"
+type ImportTarget = "customers" | "bookings" | "technicians" | "spares" | "expenses" | "outstanding" | "leads" | "contacts" | "payouts"
 
 interface ColumnMapping {
   dbField: string
@@ -91,10 +91,8 @@ export function ImportModule() {
     ],
     technicians: [
       { dbField: "name", label: "Technician Name", required: true, type: "string" },
-      { dbField: "mobile", label: "Mobile Phone", required: true, type: "string" },
-      { dbField: "address", label: "Address", required: true, type: "string" },
-      { dbField: "skills", label: "Skills (Comma separated)", required: true, type: "string" },
-      { dbField: "joiningDate", label: "Joining Date", required: false, type: "date" },
+      { dbField: "dueAmount", label: "Due", required: true, type: "number" },
+      { dbField: "advanceTaken", label: "Total Advance", required: true, type: "number" },
     ],
     spares: [
       { dbField: "name", label: "Spare Part Name", required: true, type: "string" },
@@ -132,6 +130,12 @@ export function ImportModule() {
       { dbField: "address", label: "Address details", required: true, type: "string" },
       { dbField: "customerType", label: "Profile type", required: true, type: "string" },
       { dbField: "notes", label: "Contact Memo Notes", required: false, type: "string" },
+    ],
+    payouts: [
+      { dbField: "technicianName", label: "Technician Name", required: true, type: "string" },
+      { dbField: "dailyEarnings", label: "Total", required: true, type: "number" },
+      { dbField: "due", label: "Due", required: true, type: "number" },
+      { dbField: "advance", label: "Total Advance", required: true, type: "number" }
     ]
   }
 
@@ -405,11 +409,201 @@ export function ImportModule() {
     reader.readAsArrayBuffer(uploaded)
   }
 
+  // Automated parser for complex stacked matrix payout sheets
+  const parsePayoutMatrixSheet = (worksheet: XLSX.WorkSheet) => {
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][]
+    if (jsonData.length === 0) return { headers: [], rows: [] }
+
+    // Find row 0 header (must contain "NAME" and Excel serial dates or similar)
+    const headerRow = jsonData[0] || []
+    
+    // Find all date columns. Date headers are typically numeric (e.g. 46143)
+    const dateCols: { index: number; dateStr: string }[] = []
+    headerRow.forEach((val, idx) => {
+      const num = parseFloat(String(val));
+      if (!isNaN(num) && num > 40000 && num < 50000) {
+        // Convert Excel serial date to YYYY-MM-DD
+        const dateObj = new Date(Date.UTC(1899, 11, 30 + Math.round(num)));
+        const dateStr = dateObj.toISOString().split("T")[0];
+        dateCols.push({ index: idx, dateStr });
+      }
+    });
+
+    if (dateCols.length === 0) {
+      throw new Error("Invalid Payout sheet: Could not find daily date columns (e.g. May 1st to 30th represented as Excel serial numbers).");
+    }
+
+    // Find the end index of the total daily earnings table (Table 1)
+    // Table 1 goes from Row 1 until we hit a row starting with "ADVANCE PAYMENT" or empty.
+    let table1EndRow = jsonData.length;
+    let table2StartRow = -1;
+
+    for (let r = 1; r < jsonData.length; r++) {
+      const firstCell = String(jsonData[r][0] || "").trim().toUpperCase();
+      if (firstCell.includes("ADVANCE PAYMENT") || firstCell.includes("ADVANCE")) {
+        table1EndRow = r;
+        break;
+      }
+    }
+
+    // Table 2 (Advances) starts after the header row inside Table 2.
+    // Let's find the row that has "NAME" inside Table 2.
+    for (let r = table1EndRow; r < jsonData.length; r++) {
+      const firstCell = String(jsonData[r][0] || "").trim().toUpperCase();
+      if (firstCell === "NAME" || firstCell === "NAME ") {
+        table2StartRow = r + 1;
+        break;
+      }
+    }
+
+    if (table2StartRow === -1) {
+      table2StartRow = table1EndRow + 2;
+    }
+
+    // Helper to normalize names for fuzzy matching
+    const normalizeName = (n: string) => {
+      return String(n || "")
+        .toLowerCase()
+        .replace(/[^a-z]/g, "") // remove all non-alphabetic characters
+        .trim();
+    };
+
+    // Extract Table 1 (Daily Earnings) for each technician
+    const earningsMap = new Map<string, {
+      rawName: string;
+      dailyEarnings: number[];
+      totalEarnings: number;
+      due: number;
+    }>();
+
+    // Sum column indexes
+    const totalColIdx = headerRow.findIndex(h => String(h || "").trim().toUpperCase() === "TOTAL" || String(h || "").trim().toUpperCase() === "TOTAL ");
+    const dueColIdx = headerRow.findIndex(h => String(h || "").trim().toUpperCase() === "DUE");
+
+    for (let r = 1; r < table1EndRow; r++) {
+      const row = jsonData[r];
+      if (!row || row.length === 0) continue;
+      const techName = String(row[0] || "").trim();
+      if (!techName || techName.toUpperCase().includes("TOTAL") || techName.toUpperCase().includes("DUE") || techName.toUpperCase().includes("ADVANCE") || techName.toUpperCase().includes("PAYMENT")) continue;
+
+      // Extract daily earnings
+      const dailyEarns = dateCols.map(dc => parseFloat(String(row[dc.index] || "0")) || 0);
+      const totalEarn = parseFloat(String(row[totalColIdx !== -1 ? totalColIdx : 31] || "0")) || dailyEarns.reduce((a, b) => a + b, 0);
+      const dueVal = parseFloat(String(row[dueColIdx !== -1 ? dueColIdx : 32] || "0")) || totalEarn;
+
+      earningsMap.set(normalizeName(techName), {
+        rawName: techName,
+        dailyEarnings: dailyEarns,
+        totalEarnings: totalEarn,
+        due: dueVal
+      });
+    }
+
+    // Extract Table 2 (Daily Advances) for each technician
+    const advancesMap = new Map<string, {
+      rawName: string;
+      dailyAdvances: number[];
+      totalAdvance: number;
+    }>();
+
+    for (let r = table2StartRow; r < jsonData.length; r++) {
+      const row = jsonData[r];
+      if (!row || row.length === 0) continue;
+      const techName = String(row[0] || "").trim();
+      if (!techName || techName.toUpperCase().includes("TOTAL") || techName.toUpperCase().includes("ADVANCE") || techName.toUpperCase().includes("DUE") || techName.toUpperCase().includes("BALANCE")) continue;
+
+      const dailyAdvs = dateCols.map(dc => parseFloat(String(row[dc.index] || "0")) || 0);
+      const totalAdv = parseFloat(String(row[totalColIdx !== -1 ? totalColIdx : 31] || "0")) || dailyAdvs.reduce((a, b) => a + b, 0);
+
+      advancesMap.set(normalizeName(techName), {
+        rawName: techName,
+        dailyAdvances: dailyAdvs,
+        totalAdvance: totalAdv
+      });
+    }
+
+    // Combine both tables
+    const parsedRows: any[] = [];
+    const allNormalizedNames = new Set([...earningsMap.keys(), ...advancesMap.keys()]);
+
+    const lastDateStr = dateCols[dateCols.length - 1]?.dateStr || new Date().toISOString().split("T")[0];
+
+    allNormalizedNames.forEach(normName => {
+      const earnInfo = earningsMap.get(normName);
+      let advInfo = advancesMap.get(normName);
+
+      // Fuzzy matching fallback: if direct match fails, try finding a name that contains or is contained
+      if (!advInfo) {
+        for (const [key, value] of advancesMap.entries()) {
+          if (key.includes(normName) || normName.includes(key)) {
+            advInfo = value;
+            break;
+          }
+        }
+      }
+
+      const displayName = earnInfo ? earnInfo.rawName : (advInfo ? advInfo.rawName : "Unknown Tech");
+      const totalEarnings = earnInfo ? earnInfo.totalEarnings : 0;
+      const totalAdvance = advInfo ? advInfo.totalAdvance : 0;
+      const computedDue = earnInfo ? earnInfo.due : -totalAdvance;
+
+      parsedRows.push({
+        technicianName: displayName.trim(),
+        date: lastDateStr,
+        dailyEarnings: totalEarnings,
+        advance: totalAdvance,
+        due: computedDue,
+        paymentStatus: "Pending"
+      });
+    });
+    return {
+      headers: ["Technician Name", "Total", "Due", "Total Advance"],
+      rows: parsedRows
+    };
+  };
+
   const handleSheetSelection = (sheetName: string, wb = workbook) => {
     if (!wb) return
     setSelectedSheet(sheetName)
     
     const worksheet = wb.Sheets[sheetName]
+    
+    if (importTarget === "payouts" || importTarget === "technicians") {
+      try {
+        const parsed = parsePayoutMatrixSheet(worksheet)
+        if (importTarget === "technicians") {
+          setExcelHeaders(["Technician Name", "Due", "Total Advance"])
+          setExcelRows(parsed.rows.map(row => [
+            row.technicianName,
+            row.due,
+            row.advance
+          ]))
+          setMappings([
+            { dbField: "name", label: "Technician Name", excelHeader: "Technician Name", required: true, type: "string" },
+            { dbField: "dueAmount", label: "Due", excelHeader: "Due", required: true, type: "number" },
+            { dbField: "advanceTaken", label: "Total Advance", excelHeader: "Total Advance", required: true, type: "number" }
+          ])
+        } else {
+          setExcelHeaders(["Technician Name", "Total", "Due", "Total Advance"])
+          setExcelRows(parsed.rows.map(row => [
+            row.technicianName,
+            row.dailyEarnings,
+            row.due,
+            row.advance
+          ]))
+          setMappings([
+            { dbField: "technicianName", label: "Technician Name", excelHeader: "Technician Name", required: true, type: "string" },
+            { dbField: "dailyEarnings", label: "Total", excelHeader: "Total", required: true, type: "number" },
+            { dbField: "due", label: "Due", excelHeader: "Due", required: true, type: "number" },
+            { dbField: "advance", label: "Total Advance", excelHeader: "Total Advance", required: true, type: "number" }
+          ])
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to parse Technician Payout sheet.")
+      }
+      return
+    }
+
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
     
     if (jsonData.length === 0) {
@@ -474,6 +668,13 @@ export function ImportModule() {
     setExcelHeaders(uniqueHeaders)
     setExcelRows(rows)
   }
+
+  // Re-parse when importTarget changes to automatically resolve payout matrix
+  React.useEffect(() => {
+    if (workbook && selectedSheet) {
+      handleSheetSelection(selectedSheet)
+    }
+  }, [importTarget])
 
   // Handle Mappings Changes
   const handleMapChange = (dbField: string, excelHeader: string) => {
@@ -824,19 +1025,18 @@ export function ImportModule() {
             continue
           }
 
-          const skills = String(mappedObj.skills || "AC").split(",").map(s => s.trim())
           const techNum = localTechnicians.length ? Math.max(...localTechnicians.map(t => parseInt(t.id.split("-")[1]))) + 1 : 1001
           const techId = `TECH-${techNum}`
           const techDoc = {
             id: techId,
             name: techName,
-            mobile: mappedObj.mobile || "9800000000",
-            address: mappedObj.address || "Gurugram Block A",
-            skills,
+            mobile: "9800000000",
+            address: "Gurugram Block A",
+            skills: ["AC"],
             status: "Active" as const,
-            joiningDate: mappedObj.joiningDate || new Date().toISOString().split("T")[0],
-            advanceTaken: 0,
-            dueAmount: 0
+            joiningDate: new Date().toISOString().split("T")[0],
+            advanceTaken: parseFloat(mappedObj.advanceTaken) || 0,
+            dueAmount: parseFloat(mappedObj.dueAmount) || 0
           }
           localTechnicians.push(techDoc as any)
           if (isFirebaseEnabled && db) {
@@ -844,7 +1044,7 @@ export function ImportModule() {
           } else {
             crm.addTechnician(techDoc)
           }
-          logs.push(`Row ${rowIndex + 1}: Success - Technician "${techName}" onboarded as Ref "${techId}".`)
+          logs.push(`Row ${rowIndex + 1}: Success - Technician "${techName}" onboarded as Ref "${techId}" (Dues: ₹${techDoc.dueAmount}, Advance: ₹${techDoc.advanceTaken}).`)
           importCount++
         } else if (importTarget === "spares") {
           const spareName = String(mappedObj.name || "").trim()
@@ -1003,6 +1203,82 @@ export function ImportModule() {
           }
           logs.push(`Row ${rowIndex + 1}: Success - Contact index card created for "${contactName}" as Ref "${contId}".`)
           importCount++
+        } else if (importTarget === "payouts") {
+          const techName = String(mappedObj.technicianName || "").trim()
+          if (!techName) {
+            logs.push(`Row ${rowIndex + 1}: Error - Technician Name is empty. Skipping row.`)
+            continue
+          }
+
+          // Match technician or onboard
+          let finalTechId = ""
+          const normalizedTechName = techName.toLowerCase()
+          const techMatch = localTechnicians.find(t => 
+            t.name.toLowerCase().includes(normalizedTechName) || normalizedTechName.includes(t.name.toLowerCase())
+          )
+
+          if (techMatch) {
+            finalTechId = techMatch.id
+            logs.push(`Row ${rowIndex + 1}: Linked to existing technician "${techMatch.name}" (${techMatch.id}).`)
+          } else {
+            const techNum = localTechnicians.length ? Math.max(...localTechnicians.map(t => parseInt(t.id.split("-")[1]))) + 1 : 1001
+            const techId = `TECH-${techNum}`
+            const newTech = {
+              id: techId,
+              name: techName,
+              mobile: "9800000000",
+              address: "Gurugram Block A",
+              skills: ["AC"],
+              status: "Active" as const,
+              joiningDate: new Date().toISOString().split("T")[0],
+              advanceTaken: 0,
+              dueAmount: 0
+            }
+            localTechnicians.push(newTech as any)
+            finalTechId = techId
+            if (isFirebaseEnabled && db) {
+              await writeDoc("technicians", techId, newTech)
+            } else {
+              crm.addTechnician(newTech)
+            }
+            logs.push(`Row ${rowIndex + 1}: Onboarded new technician "${techName}" as Ref "${techId}".`)
+          }
+
+          // Generate sequential PAY-ID
+          const payNum = crm.payouts.length + importCount ? Math.max(...crm.payouts.map(p => parseInt(p.id.split("-")[1])), 1000) + 1 + importCount : 1001
+          const payId = `PAY-${payNum}`
+
+          const dailyEarnings = parseFloat(mappedObj.dailyEarnings) || 0
+          const advance = parseFloat(mappedObj.advance) || 0
+          const due = parseFloat(mappedObj.due) || 0
+
+          const payoutDoc = {
+            id: payId,
+            technicianId: finalTechId,
+            date: mappedObj.date || "2026-05-30",
+            dailyEarnings: dailyEarnings,
+            totalPayout: 0, // cash paid initially 0, all stays as pending dues
+            advance: advance,
+            extra: 0,
+            due: due,
+            paymentStatus: "Pending" as const
+          }
+
+          if (isFirebaseEnabled && db) {
+            await writeDoc("payouts", payId, payoutDoc)
+            // Update technician running balances in Firestore
+            const matchedTech = localTechnicians.find(t => t.id === finalTechId)
+            if (matchedTech) {
+              matchedTech.dueAmount = due
+              matchedTech.advanceTaken = Math.max(0, matchedTech.advanceTaken - advance)
+              await writeDoc("technicians", finalTechId, matchedTech)
+            }
+          } else {
+            crm.addPayout(payoutDoc)
+          }
+
+          logs.push(`Row ${rowIndex + 1}: Success - Payout settlement recorded for "${techName}" as Ref "${payId}" (Dues: ₹${due}).`)
+          importCount++
         }
       }
 
@@ -1106,6 +1382,7 @@ export function ImportModule() {
                     <SelectItem value="outstanding">Outstanding Dues Ledger</SelectItem>
                     <SelectItem value="leads">Sales Leads Funnel</SelectItem>
                     <SelectItem value="contacts">Business Contacts Directory</SelectItem>
+                    <SelectItem value="payouts">Technician Payout Ledger (Matrix Sheet)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1131,37 +1408,56 @@ export function ImportModule() {
               {/* Mapping Card */}
               <Card className="border-border/60">
                 <CardHeader>
-                  <CardTitle className="text-sm font-bold text-foreground">3. Column Schema Mapping Wizard</CardTitle>
+                  <CardTitle className="text-sm font-bold text-foreground">
+                    {(importTarget === "payouts" || importTarget === "technicians") ? "3. Automated Matrix Schema Resolver" : "3. Column Schema Mapping Wizard"}
+                  </CardTitle>
                   <CardDescription className="text-xs">
-                    Match Excel spreadsheet headers on the left to CRM fields on the right. Smart Guessing handles name-similarities automatically.
+                    {(importTarget === "payouts" || importTarget === "technicians") 
+                      ? "Calendar Matrix tables with calendar date columns and vertical stacked sections are automatically resolved by our system. No manual mapping required."
+                      : "Match Excel spreadsheet headers on the left to CRM fields on the right. Smart Guessing handles name-similarities automatically."
+                    }
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {mappings.map(map => (
-                    <div key={map.dbField} className="flex flex-col gap-1 rounded bg-muted/20 border border-border/30 p-2.5">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-foreground flex items-center gap-1.5">
-                          {map.label}
-                          {map.required && <span className="text-rose-600 font-extrabold">*</span>}
-                        </span>
-                        <Badge variant="outline" className="text-[9px] uppercase font-semibold text-muted-foreground">{map.type}</Badge>
-                      </div>
-                      <Select 
-                        value={map.excelHeader} 
-                        onValueChange={(val) => handleMapChange(map.dbField, val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs bg-background border-border/40 mt-1.5 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NONE">(Unmapped Field / None)</SelectItem>
-                          {excelHeaders.map(h => (
-                            <SelectItem key={h} value={h}>{h}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                <CardContent>
+                  {(importTarget === "payouts" || importTarget === "technicians") ? (
+                    <div className="rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-4 flex flex-col gap-2">
+                      <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                        <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2.5} className="size-4" />
+                        Matrix Resolution Successful
+                      </span>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        We have automatically decoded the May calendar columns (**May 1st to May 30th**), isolated the **Daily Earnings** grid from the **Daily Advances** grid, matched technician accounts fuzzy-insensitively, and mapped them directly into our schemas.
+                      </p>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {mappings.map(map => (
+                        <div key={map.dbField} className="flex flex-col gap-1 rounded bg-muted/20 border border-border/30 p-2.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-foreground flex items-center gap-1.5">
+                              {map.label}
+                              {map.required && <span className="text-rose-600 font-extrabold">*</span>}
+                            </span>
+                            <Badge variant="outline" className="text-[9px] uppercase font-semibold text-muted-foreground">{map.type}</Badge>
+                          </div>
+                          <Select 
+                            value={map.excelHeader} 
+                            onValueChange={(val) => handleMapChange(map.dbField, val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs bg-background border-border/40 mt-1.5 w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="NONE">(Unmapped Field / None)</SelectItem>
+                              {excelHeaders.map(h => (
+                                <SelectItem key={h} value={h}>{h}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

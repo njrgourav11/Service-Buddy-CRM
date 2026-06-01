@@ -115,7 +115,7 @@ export function PayoutModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Technician Payout Ledger</h2>
           <p className="text-sm text-muted-foreground">Manage salary payouts, process advances, and reconcile dispatch technician accounts.</p>
         </div>
-        {(currentRole === "Super Admin" || currentRole === "Accountant") && (
+        {currentRole === "Admin" && (
           <Button onClick={() => setIsPayOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Record Payout / Settlement
@@ -238,7 +238,7 @@ export function PayoutModule() {
                         <td className="px-4 py-4">
                           <Badge 
                             variant="outline"
-                            onClick={() => (currentRole === "Super Admin" || currentRole === "Accountant") && handleToggleStatus(p.id, p.paymentStatus)}
+                            onClick={() => currentRole === "Admin" && handleToggleStatus(p.id, p.paymentStatus)}
                             className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
                               p.paymentStatus === "Paid" 
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 

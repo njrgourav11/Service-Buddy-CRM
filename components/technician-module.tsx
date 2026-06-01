@@ -27,7 +27,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 export function TechnicianModule() {
-  const { technicians, bookings, addTechnician, updateTechnician, currentRole } = useCRM()
+  const { technicians, bookings, payouts, addTechnician, updateTechnician, currentRole } = useCRM()
   const [isAddOpen, setIsAddOpen] = React.useState(false)
 
   // Form State
@@ -63,6 +63,14 @@ export function TechnicianModule() {
     setIsAddOpen(false)
   }
 
+  // Running KPI computations
+  const totalPayoutSum = payouts
+    .filter(p => p.paymentStatus === "Paid")
+    .reduce((sum, p) => sum + p.totalPayout, 0)
+  
+  const totalDuesSum = technicians.reduce((sum, t) => sum + t.dueAmount, 0)
+  const totalAdvancesSum = technicians.reduce((sum, t) => sum + t.advanceTaken, 0)
+
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
       
@@ -76,6 +84,39 @@ export function TechnicianModule() {
           <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
           Onboard Technician
         </Button>
+      </div>
+
+      {/* Technician Stat Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Total Settled Payouts */}
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Settled Payouts</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">₹{totalPayoutSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+          </CardContent>
+        </Card>
+
+        {/* Total Outstanding Dues */}
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Outstanding Dues</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-amber-600 dark:text-amber-400">₹{totalDuesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+          </CardContent>
+        </Card>
+
+        {/* Total Active Advances */}
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Running Advances</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">₹{totalAdvancesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Technician Dashboard Cards Grid */}
@@ -107,10 +148,7 @@ export function TechnicianModule() {
                     <div className="size-10 bg-primary/10 text-primary border border-primary/20 text-sm font-black rounded-lg flex items-center justify-center">
                       {t.name.split(" ").map(w => w.charAt(0)).join("")}
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <CardTitle className="text-sm font-bold text-foreground">{t.name}</CardTitle>
-                      <CardDescription className="text-[10px] tabular-nums font-semibold">{t.mobile}</CardDescription>
-                    </div>
+                    <CardTitle className="text-sm font-bold text-foreground">{t.name}</CardTitle>
                   </div>
 
                   <Badge 
@@ -125,57 +163,25 @@ export function TechnicianModule() {
                     {t.status}
                   </Badge>
                 </div>
-
-                <div className="flex flex-wrap gap-1 mt-3">
-                  {t.skills.map(skill => (
-                    <Badge key={skill} variant="secondary" className="text-[9px] font-semibold py-0 px-1 border border-border/50">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
               </CardHeader>
 
               <CardContent className="py-4 flex flex-col gap-3">
-                {/* Job Stats Bar */}
-                <div className="grid grid-cols-3 gap-2 text-center bg-muted/30 p-2 rounded-lg border border-border/40">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total</span>
-                    <span className="text-sm font-black tabular-nums">{totalJobs}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 border-x border-border/50">
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">Done</span>
-                    <span className="text-sm font-black tabular-nums text-emerald-600 dark:text-emerald-400">{completedJobs}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-bold tracking-wider">Pending</span>
-                    <span className="text-sm font-black tabular-nums text-amber-600 dark:text-amber-400">{pendingJobs}</span>
-                  </div>
-                </div>
-
                 {/* Financial balances */}
-                <div className="flex flex-col gap-2 text-xs font-semibold pt-1">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Historical Earnings:</span>
-                    <span className="font-bold tabular-nums text-foreground">₹{completedEarnings.toFixed(2)}</span>
+                <div className="flex flex-col gap-2.5 text-xs font-semibold">
+                  <div className="flex justify-between items-center bg-muted/20 px-2 py-1.5 rounded border border-border/40">
+                    <span className="text-muted-foreground font-medium">Total:</span>
+                    <span className="font-bold tabular-nums text-foreground">₹{completedEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Spare Commission Gain:</span>
-                    <span className="font-bold tabular-nums text-foreground">₹{totalCommission.toFixed(2)}</span>
+                  <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 bg-amber-500/5 px-2 py-1.5 rounded border border-amber-500/10">
+                    <span className="font-medium">Due:</span>
+                    <span className="font-black tabular-nums">₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10">
-                    <span>Outstanding Dues (Due):</span>
-                    <span className="font-black tabular-nums">₹{t.dueAmount}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 bg-rose-500/5 px-2 py-1 rounded border border-rose-500/10">
-                    <span>Salary Advance Balance:</span>
-                    <span className="font-black tabular-nums">₹{t.advanceTaken}</span>
+                  <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 bg-rose-500/5 px-2 py-1.5 rounded border border-rose-500/10">
+                    <span className="font-medium">Total Advance:</span>
+                    <span className="font-black tabular-nums">₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </CardContent>
-
-              <CardFooter className="pt-0 text-[10px] text-muted-foreground border-t border-border/40 py-2">
-                Onboarded: {t.joiningDate}
-              </CardFooter>
             </Card>
           )
         })}

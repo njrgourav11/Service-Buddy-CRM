@@ -146,7 +146,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
               </TabsTrigger>
             </TabsList>
 
-            {currentRole === "Super Admin" && (
+            {currentRole === "Admin" && (
               activeTab === "assets" ? (
                 <Button onClick={() => setIsAssetOpen(true)} className="h-9 text-xs">
                   <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
@@ -192,13 +192,13 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                       <th className="px-4 py-3 text-right">Cost</th>
                       <th className="px-4 py-3">Issued To</th>
                       <th className="px-4 py-3">Operational Status</th>
-                      {currentRole === "Super Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                      {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {filteredAssets.length === 0 ? (
                       <tr>
-                        <td colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                        <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                           No company assets cataloged.
                         </td>
                       </tr>
@@ -216,7 +216,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                           <td className="px-4 py-4">
                             <Badge 
                               variant="outline"
-                              onClick={() => currentRole === "Super Admin" && updateAsset(a.id, { status: a.status === "Active" ? "In Repair" : a.status === "In Repair" ? "Retired" : "Active" })}
+                              onClick={() => currentRole === "Admin" && updateAsset(a.id, { status: a.status === "Active" ? "In Repair" : a.status === "In Repair" ? "Retired" : "Active" })}
                               className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
                                 a.status === "Active" 
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
@@ -228,7 +228,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                               {a.status}
                             </Badge>
                           </td>
-                          {currentRole === "Super Admin" && (
+                          {currentRole === "Admin" && (
                             <td className="px-4 py-4 text-right">
                               <Button 
                                 variant="ghost" 
@@ -264,13 +264,13 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                       <th className="px-4 py-3 text-right">Monthly Salary</th>
                       <th className="px-4 py-3">Joining Date</th>
                       <th className="px-4 py-3">Roster Status</th>
-                      {currentRole === "Super Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                      {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {filteredEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={currentRole === "Super Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                        <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                           No employees onboarding files found.
                         </td>
                       </tr>
@@ -288,7 +288,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                           <td className="px-4 py-4">
                             <Badge 
                               variant="outline"
-                              onClick={() => currentRole === "Super Admin" && updateEmployee(emp.id, { status: emp.status === "Active" ? "Inactive" : "Active" })}
+                              onClick={() => currentRole === "Admin" && updateEmployee(emp.id, { status: emp.status === "Active" ? "Inactive" : "Active" })}
                               className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
                                 emp.status === "Active" 
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
@@ -298,7 +298,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                               {emp.status}
                             </Badge>
                           </td>
-                          {currentRole === "Super Admin" && (
+                          {currentRole === "Admin" && (
                             <td className="px-4 py-4 text-right">
                               <Button 
                                 variant="ghost" 
@@ -425,11 +425,8 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Super Admin">Super Admin</SelectItem>
                       <SelectItem value="Admin">Admin</SelectItem>
                       <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Accountant">Accountant</SelectItem>
-                      <SelectItem value="Technician">Technician</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
