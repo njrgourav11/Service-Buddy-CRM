@@ -464,7 +464,7 @@ export function BookingModule() {
             <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Bookings</CardDescription>
-                <div className="p-1.5 rounded-lg bg-indigo-50/20 border border-indigo-200/20 text-indigo-600 dark:text-indigo-400">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2.5} className="size-4" />
                 </div>
               </CardHeader>
@@ -473,8 +473,8 @@ export function BookingModule() {
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{bookings.length}</span>
                   <span className="text-xs text-muted-foreground font-medium">jobs logged</span>
                 </div>
-                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block animate-pulse"></span>
                   {bookings.filter(b => b.status === "Completed").length} completed successfully
                 </div>
               </CardContent>
@@ -483,7 +483,7 @@ export function BookingModule() {
             <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Workload</CardDescription>
-                <div className="p-1.5 rounded-lg bg-blue-50/20 border border-blue-200/20 text-blue-600 dark:text-blue-400">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={Loading03Icon} strokeWidth={2.5} className="size-4 animate-spin" />
                 </div>
               </CardHeader>
@@ -494,7 +494,7 @@ export function BookingModule() {
                   </span>
                   <span className="text-xs text-muted-foreground font-medium">pending jobs</span>
                 </div>
-                <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1.5 flex items-center gap-1">
+                <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
                   {bookings.filter(b => b.status === "In Progress").length} currently in progress on site
                 </div>
               </CardContent>
@@ -503,7 +503,7 @@ export function BookingModule() {
             <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gross Billing</CardDescription>
-                <div className="p-1.5 rounded-lg bg-emerald-50/20 border border-emerald-200/20 text-emerald-600 dark:text-emerald-400">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2.5} className="size-4" />
                 </div>
               </CardHeader>
@@ -523,13 +523,13 @@ export function BookingModule() {
             <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Net Company Profit</CardDescription>
-                <div className="p-1.5 rounded-lg bg-cyan-50/20 border border-cyan-200/20 text-cyan-600 dark:text-cyan-400">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={Database01Icon} strokeWidth={2.5} className="size-4" />
                 </div>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground text-cyan-600 dark:text-cyan-400">
+                  <span className="text-2xl font-bold tracking-tight tabular-nums text-primary">
                     ₹{bookings.reduce((sum, b) => sum + (b.totalCompanyAmount || 0), 0).toLocaleString()}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium">30% share profit</span>

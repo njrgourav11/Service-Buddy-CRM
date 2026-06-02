@@ -142,7 +142,7 @@ export default function Home() {
       
       {/* Mesh decorative backdrops */}
       <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#18181b_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none" />
       <div className="absolute top-1/4 right-1/4 size-[400px] rounded-full bg-emerald-500/5 blur-3xl pointer-events-none" />
 
       {/* Main Centered Auth card container */}
@@ -153,7 +153,7 @@ export default function Home() {
           <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-950 border border-zinc-800 overflow-hidden shadow-sm shrink-0">
             <img src="/icon.png" alt="ServiceBuddy Logo" className="size-full object-cover" />
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-white mt-1">ServiceBuddy CRM</h2>
+          <h1 className="text-xl font-bold tracking-tight text-white mt-1">ServiceBuddy CRM</h1>
           <p className="text-xs text-zinc-400 max-w-[280px]">
             Appliance Repairs, Payouts & Spreadsheet Reconciliation Hub
           </p>
@@ -166,7 +166,7 @@ export default function Home() {
             onClick={() => setAuthMode("signin")}
             className={`py-1.5 text-xs font-semibold rounded-md cursor-pointer transition-all ${
               authMode === "signin"
-                ? "bg-zinc-800 text-white shadow-xs"
+                ? "bg-primary/20 text-primary shadow-xs border border-primary/30"
                 : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
@@ -177,7 +177,7 @@ export default function Home() {
             onClick={() => setAuthMode("signup")}
             className={`py-1.5 text-xs font-semibold rounded-md cursor-pointer transition-all ${
               authMode === "signup"
-                ? "bg-zinc-800 text-white shadow-xs"
+                ? "bg-primary/20 text-primary shadow-xs border border-primary/30"
                 : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
@@ -202,7 +202,7 @@ export default function Home() {
                   placeholder="John Doe"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-zinc-700 text-xs h-10 w-full"
+                  className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-primary/50 text-xs h-10 w-full"
                   required
                 />
               </div>
@@ -220,7 +220,7 @@ export default function Home() {
                 placeholder="email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-zinc-700 text-xs h-10 w-full"
+                className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-primary/50 text-xs h-10 w-full"
                 required
               />
             </div>
@@ -237,7 +237,7 @@ export default function Home() {
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-zinc-700 text-xs h-10 w-full"
+                className="pl-9 bg-zinc-950 border-zinc-800 text-white focus:border-primary/50 text-xs h-10 w-full"
                 required
               />
             </div>
@@ -249,10 +249,10 @@ export default function Home() {
           <Button 
             type="submit" 
             disabled={loading}
-            className="w-full h-10 bg-white hover:bg-zinc-200 text-black font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all mt-3 cursor-pointer"
+            className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all mt-3 cursor-pointer"
           >
             {loading ? "Authenticating session..." : authMode === "signin" ? "Unlock Workspace Console" : "Provision New Sandbox Account"}
-            <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2.5} className="size-4 text-black animate-in fade-in" />
+            <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2.5} className="size-4 text-primary-foreground animate-in fade-in" />
           </Button>
 
         </form>

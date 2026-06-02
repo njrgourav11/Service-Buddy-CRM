@@ -39,7 +39,7 @@ const fmt = (n: number) =>
 const pct = (n: number) =>
   `${isFinite(n) ? n.toFixed(1) : "0.0"}%`
 
-// ─── Mini Stat Card ───────────────────────────────────────────────────────────
+// ─── Stat Card ───────────────────────────────────────────────────────────
 
 interface StatCardProps {
   label: string
@@ -48,11 +48,25 @@ interface StatCardProps {
   accent: string   // tailwind bg + text classes for the icon bubble
   icon: React.ComponentType<{ className?: string }>
   negative?: boolean
+  onClick?: () => void
+  selected?: boolean
+  clickable?: boolean
 }
 
-function StatCard({ label, value, sub, accent, icon: Icon, negative }: StatCardProps) {
+function StatCard({ label, value, sub, accent, icon: Icon, negative, onClick, selected, clickable }: StatCardProps) {
   return (
-    <Card className="group relative overflow-hidden border border-border/70 bg-card shadow-xs hover:shadow-sm hover:border-border transition-all duration-200">
+    <Card 
+      onClick={onClick}
+      className={`group relative overflow-hidden border shadow-xs transition-all duration-200 select-none ${
+        clickable 
+          ? "cursor-pointer hover:shadow-md hover:border-primary/50" 
+          : "border-border/70 bg-card"
+      } ${
+        selected 
+          ? "ring-2 ring-primary border-primary bg-primary/5 dark:bg-primary/10 shadow-sm" 
+          : "border-border/70 bg-card hover:border-border"
+      }`}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1 min-w-0">
@@ -60,32 +74,36 @@ function StatCard({ label, value, sub, accent, icon: Icon, negative }: StatCardP
               {label}
             </span>
             <span
-              className={`text-xl font-bold tabular-nums tracking-tight leading-none ${negative ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}
+              className={`text-xl font-bold tabular-nums tracking-tight leading-none ${
+                negative ? "text-rose-600 dark:text-rose-400" : "text-foreground"
+              }`}
             >
               {value}
             </span>
             {sub && (
               <span className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{sub}</span>
             )}
+            {clickable && (
+              <span className="text-[9px] text-primary font-bold mt-1.5 flex items-center gap-1">
+                {selected ? (
+                  <span className="flex items-center gap-1 text-primary">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+                    Showing breakdown
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/60 group-hover:text-primary transition-colors">
+                    Click to view breakdown
+                  </span>
+                )}
+              </span>
+            )}
           </div>
-          <div className={`shrink-0 rounded-xl p-2.5 ${accent}`}>
+          <div className={`shrink-0 rounded-xl p-2.5 ${accent} transition-transform duration-200 group-hover:scale-105`}>
             <Icon className="size-4" />
           </div>
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-// ─── Section Header ───────────────────────────────────────────────────────────
-
-function SectionHeader({ title, color }: { title: string; color: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className={`h-1 w-6 rounded-full ${color}`} />
-      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{title}</h3>
-      <div className={`flex-1 h-px ${color} opacity-20`} />
-    </div>
   )
 }
 
@@ -106,80 +124,61 @@ export function DashboardOverview() {
     setActiveTab,
   } = useCRM()
 
+  // Breakdown state managers: Initial states are null so no detailed breakdown is shown by default
+  const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "profit" | "expenses" | "operations" | null>(null)
+  const [activeManagerBreakdown, setActiveManagerBreakdown] = React.useState<"bookings" | "clients" | "resources" | null>(null)
+
+  const handleCardClick = (category: "revenue" | "profit" | "expenses" | "operations") => {
+    setActiveBreakdown(prev => prev === category ? null : category)
+  }
+
+  const handleManagerCardClick = (category: "bookings" | "clients" | "resources") => {
+    setActiveManagerBreakdown(prev => prev === category ? null : category)
+  }
+
   // ════════════════════════════════════════════
   // REVENUE CALCULATIONS
-  // Verified against: Booking sheet - May 2026 (1).xlsx
   // ════════════════════════════════════════════
-
-  // SPARE = SUM(actualSpare / spareCost) — supplier cost column, all bookings
   const spareRevenue = bookings.reduce((s, b) => s + (b.spareCost || 0), 0)
-
-  // TECHNICIAN AMT = SUM(totalTechnicianAmount) — all bookings
   const technicianRevenue = bookings.reduce((s, b) => s + (b.totalTechnicianAmount || 0), 0)
-
-  // COMPANY AMT = SUM(totalCompanyAmount) — all bookings
   const companyRevenue = bookings.reduce((s, b) => s + (b.totalCompanyAmount || 0), 0)
-
-  // TOTAL REVENUE = SUM(totalConsumerAmount) — all bookings (NOT spare+tech+company)
-  // Confirmed: 630086 = SUM(col27) in the sheet
   const totalRevenue = bookings.reduce((s, b) => s + (b.totalConsumerAmount || 0), 0)
-
-  // Booking counts
   const completedJobs = bookings.filter((b) => b.status === "Completed").length
   const avgBookingValue = bookings.length > 0 ? totalRevenue / bookings.length : 0
 
   // ════════════════════════════════════════════
   // EXPENSE CALCULATIONS
-  // Each category maps to a separate column in the expense sheet
   // ════════════════════════════════════════════
-
   const sumCat = (cat: string) =>
     expenses
       .filter((e) => e.category === cat)
       .reduce((s, e) => s + (e.amount || 0), 0)
 
-  const workingExpenses        = sumCat("Working expenses (beneficiary)")  // WORKING EXP col
-  const expItems               = sumCat("Exp item")                        // EXP col
-  const toolsMaintenance       = sumCat("Tools and maintenance")            // TOOLS & MAIN col
-  const officeExpenses         = sumCat("Office expenses")                  // OFFICE EXP col
-  const toolsSubscriptions     = sumCat("Tools and subscriptions")          // TOOLS & SUB col
-  const refunds                = sumCat("Refunds")                          // REFUNDS col
-  const nonBeneficiaryExpenses = sumCat("Non beneficiary items")            // NON-BENIFICIARY col
-  const outstandingAmount      = sumCat("Outstanding")                      // OUTSTANDING col (liability, excluded from totalExpenditure)
+  const workingExpenses        = sumCat("Working expenses (beneficiary)")
+  const expItems               = sumCat("Exp item")
+  const toolsMaintenance       = sumCat("Tools and maintenance")
+  const officeExpenses         = sumCat("Office expenses")
+  const toolsSubscriptions     = sumCat("Tools and subscriptions")
+  const refunds                = sumCat("Refunds")
+  const nonBeneficiaryExpenses = sumCat("Non beneficiary items")
+  const outstandingAmount      = sumCat("Outstanding")
 
-  // TOTAL EXPENDITURE = operating expenses ONLY — Outstanding is a liability tracked separately
-  // Confirmed: 16110+22268+13120+10030+8455+3690+0 = 73673
   const totalExpenditure =
     workingExpenses + expItems + toolsMaintenance + officeExpenses +
     toolsSubscriptions + refunds + nonBeneficiaryExpenses
 
   // ════════════════════════════════════════════
   // PROFIT CALCULATIONS
-  // Verified formulas from financial grid:
   // ════════════════════════════════════════════
-
-  // BALANCE = companyAmt - totalExpenditure - outstanding
-  // = 213310.8 - 73673 - 15350 = 124287.8 ✓
   const balance = companyRevenue - totalExpenditure - outstandingAmount
-
-  // NET AMT = COM AMT-TE = companyAmt - totalExpenditure (without outstanding deduction)
-  // = 213310.8 - 73673 = 139637.8 ✓
   const netAmt = companyRevenue - totalExpenditure
-
-  // NET PROFIT = totalRevenue - totalExpenditure (full picture)
   const netProfit = totalRevenue - totalExpenditure
-
-  // Profit margin
   const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
-
-  // REVENUE (LESS JOBS) = totalRevenue - completedJobsCount
-  // = 630086 - 90 = 629996 ✓ (matches sheet row 13 col 38)
   const revenueLessJobs = totalRevenue - completedJobs
 
   // ════════════════════════════════════════════
-  // BOOKING METRICS
+  // OPERATIONS METRICS
   // ════════════════════════════════════════════
-
   const totalBookings  = bookings.length
   const pendingJobs    = bookings.filter((b) => b.status !== "Completed").length
   const completionRate = totalBookings > 0 ? (completedJobs / totalBookings) * 100 : 0
@@ -187,9 +186,7 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // TECHNICIAN METRICS
   // ════════════════════════════════════════════
-
   const totalTechnicianEarnings = technicianRevenue
-
   const pendingPayouts = payouts
     .filter((p) => p.paymentStatus === "Pending")
     .reduce((s, p) => s + (p.totalPayout || 0), 0)
@@ -201,21 +198,17 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // CUSTOMER METRICS
   // ════════════════════════════════════════════
-
   const totalCustomers = customers.length
-
   const repeatCustomers = customers.filter((c) => {
     const count = bookings.filter((b) => b.customerId === c.id).length
     return count > 1
   }).length
-
   const customerRetentionRate =
     totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0
 
   // ════════════════════════════════════════════
   // LEAD METRICS
   // ════════════════════════════════════════════
-
   const totalLeads     = leads.length
   const convertedLeads = leads.filter((l) => l.status === "Converted").length
   const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0
@@ -223,7 +216,6 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // INVENTORY METRICS
   // ════════════════════════════════════════════
-
   const inventoryValue  = spares.reduce((s, sp) => s + (sp.stockQty || 0) * (sp.unitCost || 0), 0)
   const lowStockItems   = spares.filter((sp) => sp.stockQty <= sp.reorderLevel).length
   const outOfStockItems = spares.filter((sp) => sp.stockQty === 0).length
@@ -231,7 +223,6 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // CHART DATA
   // ════════════════════════════════════════════
-
   const chartData = [
     { name: "Jan", Revenue: 42000, Expenses: 18000, Profit: 24000 },
     { name: "Feb", Revenue: 51000, Expenses: 22000, Profit: 29000 },
@@ -242,11 +233,9 @@ export function DashboardOverview() {
 
   const recentBookings = [...bookings].reverse().slice(0, 5)
 
-
   // ════════════════════════════════════════════
-  // RENDER
+  // RENDER: MANAGER ROLE VIEW
   // ════════════════════════════════════════════
-
   if (currentRole === "Manager") {
     const managerChartData = [
       { name: "Jan", Bookings: 45, Leads: 60, Completed: 38 },
@@ -257,15 +246,16 @@ export function DashboardOverview() {
     ]
 
     return (
-      <div className="flex flex-col gap-7 p-4 lg:p-6 animate-in fade-in duration-300">
+      <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-300">
+        
         {/* Welcome Banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/70 p-6 text-white shadow-md dark:from-zinc-900 dark:to-zinc-950 dark:border dark:border-zinc-800">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/80 p-6 text-white shadow-md">
           <div className="relative z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
                 Welcome back, {currentRole}!
               </h2>
-              <p className="text-sm text-white/75 dark:text-zinc-400 mt-0.5">
+              <p className="text-sm text-white/80 mt-0.5">
                 ServiceBuddy CRM — operational metrics & technician status ledger.
               </p>
             </div>
@@ -273,7 +263,7 @@ export function DashboardOverview() {
               variant="secondary"
               size="sm"
               onClick={() => setActiveTab("bookings")}
-              className="w-fit bg-white text-primary hover:bg-white/90 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+              className="w-fit bg-white text-primary hover:bg-white/90 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 cursor-pointer font-bold"
             >
               New Work Order
               <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-4" />
@@ -283,96 +273,167 @@ export function DashboardOverview() {
           <div className="absolute right-20 -top-8 size-24 rounded-full bg-white/5 blur-xl pointer-events-none" />
         </div>
 
-        {/* Operational KPI Grid */}
-        <div className="flex flex-col gap-3">
-          <SectionHeader title="Operational KPIs" color="bg-indigo-500" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* Primary Interactive Cards (3 columns for Manager) */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-3.5 bg-primary rounded-full" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Metrics Category</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
-              label="Total Bookings"
-              value={totalBookings.toLocaleString()}
-              sub="Total service requests"
-              accent="bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400"
+              label="Bookings Overview"
+              value={`${totalBookings.toLocaleString()} Requests`}
+              sub={`${pct(completionRate)} jobs completed`}
+              accent="bg-primary/10 text-primary border border-primary/20"
               icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
+              onClick={() => handleManagerCardClick("bookings")}
+              selected={activeManagerBreakdown === "bookings"}
+              clickable
             />
             <StatCard
-              label="Completed Jobs"
-              value={completedJobs.toLocaleString()}
-              sub="Status = Completed"
-              accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-              icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Pending Jobs"
-              value={pendingJobs.toLocaleString()}
-              sub="Not yet completed"
-              accent="bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-              icon={(p) => <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Completion Rate"
-              value={pct(completionRate)}
-              sub="Completed / Bookings ratio"
-              accent="bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400"
-              icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Total Customers"
-              value={totalCustomers.toLocaleString()}
-              sub="Registered contacts"
-              accent="bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400"
+              label="Customers & Leads"
+              value={`${totalCustomers.toLocaleString()} Contacts`}
+              sub={`${totalLeads} inbound leads logged`}
+              accent="bg-primary/10 text-primary border border-primary/20"
               icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+              onClick={() => handleManagerCardClick("clients")}
+              selected={activeManagerBreakdown === "clients"}
+              clickable
             />
             <StatCard
-              label="Retention Rate"
-              value={pct(customerRetentionRate)}
-              sub="Repeat / Total customers"
-              accent="bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
-              icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Total Leads"
-              value={totalLeads.toLocaleString()}
-              sub="Inbound customer queries"
-              accent="bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
-              icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Converted Leads"
-              value={convertedLeads.toLocaleString()}
-              sub="Status = Converted"
-              accent="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
-              icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Conversion Rate"
-              value={pct(conversionRate)}
-              sub="Converted / Leads ratio"
-              accent="bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400"
-              icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Total Technicians"
-              value={totalTechnicians.toLocaleString()}
-              sub="Active field staff"
-              accent="bg-cyan-50 text-cyan-600 dark:bg-cyan-950/30 dark:text-cyan-400"
-              icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Low Stock Items"
-              value={lowStockItems.toLocaleString()}
-              sub="Spares at/below reorder"
-              accent="bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400"
-              icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
-            />
-            <StatCard
-              label="Out of Stock"
-              value={outOfStockItems.toLocaleString()}
-              sub="Zero quantity spares"
-              accent="bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"
+              label="Staff & Inventory"
+              value={`${totalTechnicians.toLocaleString()} Technicians`}
+              sub={`${lowStockItems} spares low in stock`}
+              accent="bg-primary/10 text-primary border border-primary/20"
               icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+              onClick={() => handleManagerCardClick("resources")}
+              selected={activeManagerBreakdown === "resources"}
+              clickable
             />
           </div>
         </div>
+
+        {/* Detailed Breakdown for Manager (Renders below metric selection only if active) */}
+        {activeManagerBreakdown && (
+          <div className="flex flex-col gap-3.5 p-5 bg-card/45 backdrop-blur-md rounded-2xl border border-border/80 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                  {activeManagerBreakdown === "bookings" && "Bookings Breakdown Detail"}
+                  {activeManagerBreakdown === "clients" && "Customers & Leads Detail"}
+                  {activeManagerBreakdown === "resources" && "Staff & Resources Detail"}
+                </h3>
+              </div>
+              <span className="text-[9px] text-muted-foreground font-semibold">
+                {activeManagerBreakdown === "bookings" && "3 items tracking"}
+                {activeManagerBreakdown === "clients" && "5 items tracking"}
+                {activeManagerBreakdown === "resources" && "4 items tracking"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {activeManagerBreakdown === "bookings" && (
+                <>
+                  <StatCard
+                    label="Total Bookings"
+                    value={totalBookings.toLocaleString()}
+                    sub="Service bookings ledger"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Completed Jobs"
+                    value={completedJobs.toLocaleString()}
+                    sub="Successful repairs"
+                    accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
+                    icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Pending Jobs"
+                    value={pendingJobs.toLocaleString()}
+                    sub="Awaiting completion"
+                    accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
+                    icon={(p) => <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} {...p} />}
+                  />
+                </>
+              )}
+
+              {activeManagerBreakdown === "clients" && (
+                <>
+                  <StatCard
+                    label="Total Customers"
+                    value={totalCustomers.toLocaleString()}
+                    sub="Registered contacts"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Retention Rate"
+                    value={pct(customerRetentionRate)}
+                    sub="Repeat clients ratio"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Total Leads"
+                    value={totalLeads.toLocaleString()}
+                    sub="Inbound query pipeline"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Converted Leads"
+                    value={convertedLeads.toLocaleString()}
+                    sub="Successfully booked"
+                    accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
+                    icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Conversion Rate"
+                    value={pct(conversionRate)}
+                    sub="Converted / Leads ratio"
+                    accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
+                    icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
+                  />
+                </>
+              )}
+
+              {activeManagerBreakdown === "resources" && (
+                <>
+                  <StatCard
+                    label="Total Technicians"
+                    value={totalTechnicians.toLocaleString()}
+                    sub="Active staff in field"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Low Stock Items"
+                    value={lowStockItems.toLocaleString()}
+                    sub="At/below reorder mark"
+                    accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
+                    icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Out of Stock"
+                    value={outOfStockItems.toLocaleString()}
+                    sub="Zero stock inventory"
+                    accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                    icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+                  />
+                  <StatCard
+                    label="Inventory Value"
+                    value={fmt(inventoryValue)}
+                    sub="Total units cost valuation"
+                    accent="bg-primary/10 text-primary border border-primary/20"
+                    icon={(p) => <HugeiconsIcon icon={Package01Icon} strokeWidth={2} {...p} />}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Operational Chart + Reminders */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -472,7 +533,7 @@ export function DashboardOverview() {
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab("reminders")}
-                className="w-full text-xs font-medium"
+                className="w-full text-xs font-medium cursor-pointer"
               >
                 Open Reminders Board
               </Button>
@@ -493,7 +554,7 @@ export function DashboardOverview() {
                 variant="link"
                 size="sm"
                 onClick={() => setActiveTab("bookings")}
-                className="text-xs font-semibold px-0 text-primary"
+                className="text-xs font-semibold px-0 text-primary cursor-pointer"
               >
                 View All
               </Button>
@@ -596,7 +657,7 @@ export function DashboardOverview() {
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab("technicians")}
-                className="w-full text-xs font-medium"
+                className="w-full text-xs font-medium cursor-pointer"
               >
                 Manage Technicians
               </Button>
@@ -607,17 +668,20 @@ export function DashboardOverview() {
     )
   }
 
+  // ════════════════════════════════════════════
+  // RENDER: ADMIN ROLE VIEW
+  // ════════════════════════════════════════════
   return (
-    <div className="flex flex-col gap-7 p-4 lg:p-6 animate-in fade-in duration-300">
+    <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-300">
 
-      {/* ── Welcome Banner ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/70 p-6 text-white shadow-md dark:from-zinc-900 dark:to-zinc-950 dark:border dark:border-zinc-800">
+      {/* Welcome Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/80 p-6 text-white shadow-md">
         <div className="relative z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
               Welcome back, {currentRole}!
             </h2>
-            <p className="text-sm text-white/75 dark:text-zinc-400 mt-0.5">
+            <p className="text-sm text-white/85 mt-0.5">
               ServiceBuddy CRM — live financial data from Firebase across all modules.
             </p>
           </div>
@@ -625,7 +689,7 @@ export function DashboardOverview() {
             variant="secondary"
             size="sm"
             onClick={() => setActiveTab("bookings")}
-            className="w-fit bg-white text-primary hover:bg-white/90 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+            className="w-fit bg-white text-primary hover:bg-white/90 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 cursor-pointer font-bold"
           >
             New Work Order
             <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-4" />
@@ -635,256 +699,288 @@ export function DashboardOverview() {
         <div className="absolute right-20 -top-8 size-24 rounded-full bg-white/5 blur-xl pointer-events-none" />
       </div>
 
-      {/* ══════════════════════════════════════
-          SECTION 1 — REVENUE
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Revenue" color="bg-emerald-500" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Simplified Summary Metrics (Clickable Categories) */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-3.5 bg-primary rounded-full" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Financial/Operations Category</h3>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Total Revenue"
             value={fmt(totalRevenue)}
-            sub={`SUM(totalConsumerAmount) · ${totalBookings} bookings`}
-            accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
+            sub={`${totalBookings} booked services`}
+            accent="bg-primary/10 text-primary border border-primary/20"
             icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+            onClick={() => handleCardClick("revenue")}
+            selected={activeBreakdown === "revenue"}
+            clickable
           />
-          <StatCard
-            label="Spare (Actual Cost)"
-            value={fmt(spareRevenue)}
-            sub="SUM(actualSpare) — supplier cost"
-            accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-            icon={(p) => <HugeiconsIcon icon={Package01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Company Amount"
-            value={fmt(companyRevenue)}
-            sub="SUM(totalCompanyAmount)"
-            accent="bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400"
-            icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Technician Amount"
-            value={fmt(technicianRevenue)}
-            sub="SUM(totalTechnicianAmount)"
-            accent="bg-cyan-50 text-cyan-600 dark:bg-cyan-950/30 dark:text-cyan-400"
-            icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Avg Booking Value"
-            value={fmt(avgBookingValue)}
-            sub="Total Revenue ÷ total bookings"
-            accent="bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400"
-            icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
-          />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          SECTION 2 — PROFIT
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Profit" color="bg-blue-500" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <StatCard
             label="Net Profit"
             value={fmt(netProfit)}
-            sub="Total Revenue − Expenditure"
-            accent={netProfit >= 0 ? "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"}
-            icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+            sub={`${pct(profitMargin)} net margin`}
+            accent={netProfit >= 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
+            icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+            onClick={() => handleCardClick("profit")}
+            selected={activeBreakdown === "profit"}
+            clickable
             negative={netProfit < 0}
           />
           <StatCard
-            label="Balance"
-            value={fmt(balance)}
-            sub="CompanyAmt − Expenditure − Outstanding"
-            accent={balance >= 0 ? "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"}
-            icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-            negative={balance < 0}
-          />
-          <StatCard
-            label="Net Amount (COM−TE)"
-            value={fmt(netAmt)}
-            sub="CompanyAmt − Expenditure"
-            accent={netAmt >= 0 ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"}
-            icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-            negative={netAmt < 0}
-          />
-          <StatCard
-            label="Revenue (Less Jobs)"
-            value={fmt(revenueLessJobs)}
-            sub={`Total Revenue − ${completedJobs} completed jobs`}
-            accent="bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400"
-            icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Profit Margin"
-            value={pct(profitMargin)}
-            sub="(Net Profit ÷ Total Revenue) × 100"
-            accent={profitMargin >= 0 ? "bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"}
-            icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
-            negative={profitMargin < 0}
-          />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          SECTION 3 — EXPENSES
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Expenses" color="bg-rose-500" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatCard
-            label="Total Expenditure"
+            label="Operating Expenses"
             value={fmt(totalExpenditure)}
-            sub="Working+Exp+Tools+Office+Sub+Refunds+Non-Benef"
-            accent="bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"
+            sub="Exclude outstanding dues"
+            accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
             icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
+            onClick={() => handleCardClick("expenses")}
+            selected={activeBreakdown === "expenses"}
+            clickable
           />
           <StatCard
-            label="Working Expenses"
-            value={fmt(workingExpenses)}
-            sub="Beneficiary payouts"
-            accent="bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400"
-            icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Office Expenses"
-            value={fmt(officeExpenses)}
-            sub="Office & admin costs"
-            accent="bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-            icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Outstanding"
-            value={fmt(outstandingAmount)}
-            sub="Liability — excluded from expenditure"
-            accent="bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
-            icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Refunds"
-            value={fmt(refunds)}
-            sub="Customer refunds issued"
-            accent="bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400"
-            icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
-          />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          SECTION 4 — OPERATIONS
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Operations" color="bg-violet-500" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatCard
-            label="Total Bookings"
-            value={totalBookings.toLocaleString()}
-            sub={`${pct(completionRate)} completion rate`}
-            accent="bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400"
+            label="Operations & Inventory"
+            value={`${totalBookings} Jobs`}
+            sub={`${pct(completionRate)} completed jobs`}
+            accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
             icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Completed Jobs"
-            value={completedJobs.toLocaleString()}
-            sub="Status = Completed"
-            accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-            icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Pending Jobs"
-            value={pendingJobs.toLocaleString()}
-            sub="Not yet completed"
-            accent="bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-            icon={(p) => <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Total Customers"
-            value={totalCustomers.toLocaleString()}
-            sub={`${pct(customerRetentionRate)} retention`}
-            accent="bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400"
-            icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Total Leads"
-            value={totalLeads.toLocaleString()}
-            sub={`${pct(conversionRate)} conversion`}
-            accent="bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
-            icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+            onClick={() => handleCardClick("operations")}
+            selected={activeBreakdown === "operations"}
+            clickable
           />
         </div>
       </div>
 
-      {/* ══════════════════════════════════════
-          SECTION 5 — TECHNICIAN
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Technician" color="bg-cyan-500" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard
-            label="Total Technicians"
-            value={totalTechnicians.toLocaleString()}
-            sub="Active field staff"
-            accent="bg-cyan-50 text-cyan-600 dark:bg-cyan-950/30 dark:text-cyan-400"
-            icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Tech Earnings"
-            value={fmt(totalTechnicianEarnings)}
-            sub="SUM of technician amounts"
-            accent="bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400"
-            icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Pending Payouts"
-            value={fmt(pendingPayouts)}
-            sub="Unpaid payout balances"
-            accent="bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400"
-            icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Avg Tech Earnings"
-            value={fmt(avgTechnicianEarnings)}
-            sub="Per technician"
-            accent="bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400"
-            icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
-          />
-        </div>
-      </div>
+      {/* Expandable Detailed Breakdown Grid (Renders only if active) */}
+      {activeBreakdown && (
+        <div className="flex flex-col gap-3.5 p-5 bg-card/45 backdrop-blur-md rounded-2xl border border-border/80 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between border-b border-border/40 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                {activeBreakdown === "revenue" && "Total Revenue breakdown details"}
+                {activeBreakdown === "profit" && "Net Profit breakdown details"}
+                {activeBreakdown === "expenses" && "Operating Expenses details"}
+                {activeBreakdown === "operations" && "Operations & Inventory status ledger"}
+              </h3>
+            </div>
+            <span className="text-[9px] text-muted-foreground font-semibold">
+              {activeBreakdown === "revenue" && "4 parameters logged"}
+              {activeBreakdown === "profit" && "5 parameters logged"}
+              {activeBreakdown === "expenses" && "5 parameters logged"}
+              {activeBreakdown === "operations" && "12 parameters logged"}
+            </span>
+          </div>
 
-      {/* ══════════════════════════════════════
-          SECTION 6 — INVENTORY
-      ══════════════════════════════════════ */}
-      <div className="flex flex-col gap-3">
-        <SectionHeader title="Inventory" color="bg-amber-500" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StatCard
-            label="Inventory Value"
-            value={fmt(inventoryValue)}
-            sub={`${spares.length} SKUs tracked`}
-            accent="bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-            icon={(p) => <HugeiconsIcon icon={Package01Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Low Stock Items"
-            value={lowStockItems.toLocaleString()}
-            sub="At or below reorder level"
-            accent="bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400"
-            icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
-          />
-          <StatCard
-            label="Out of Stock"
-            value={outOfStockItems.toLocaleString()}
-            sub="Zero quantity items"
-            accent="bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"
-            icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
-          />
-        </div>
-      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5 mt-1">
+            {activeBreakdown === "revenue" && (
+              <>
+                <StatCard
+                  label="Spare (Actual Cost)"
+                  value={fmt(spareRevenue)}
+                  sub="SUM(actualSpare) supplier cost"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={Package01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Company Amount"
+                  value={fmt(companyRevenue)}
+                  sub="SUM(totalCompanyAmount)"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Technician Amount"
+                  value={fmt(technicianRevenue)}
+                  sub="SUM(totalTechnicianAmount)"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Avg Booking Value"
+                  value={fmt(avgBookingValue)}
+                  sub="Total Revenue ÷ total bookings"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+              </>
+            )}
 
-      {/* ══════════════════════════════════════
-          CHART + REMINDERS
-      ══════════════════════════════════════ */}
+            {activeBreakdown === "profit" && (
+              <>
+                <StatCard
+                  label="Net Profit"
+                  value={fmt(netProfit)}
+                  sub="Total Revenue − Expenditure"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Balance"
+                  value={fmt(balance)}
+                  sub="CompanyAmt − Exp − Outstanding"
+                  accent={balance >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
+                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+                  negative={balance < 0}
+                />
+                <StatCard
+                  label="Net Amount (COM−TE)"
+                  value={fmt(netAmt)}
+                  sub="CompanyAmt − Expenditure"
+                  accent={netAmt >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
+                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+                  negative={netAmt < 0}
+                />
+                <StatCard
+                  label="Revenue (Less Jobs)"
+                  value={fmt(revenueLessJobs)}
+                  sub={`Total Revenue − ${completedJobs} jobs`}
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Profit Margin"
+                  value={pct(profitMargin)}
+                  sub="Net Profit ÷ Total Revenue"
+                  accent={profitMargin >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
+                  icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
+                  negative={profitMargin < 0}
+                />
+              </>
+            )}
+
+            {activeBreakdown === "expenses" && (
+              <>
+                <StatCard
+                  label="Total Expenditure"
+                  value={fmt(totalExpenditure)}
+                  sub="All operating expenses"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Working Expenses"
+                  value={fmt(workingExpenses)}
+                  sub="Beneficiary payouts"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Office Expenses"
+                  value={fmt(officeExpenses)}
+                  sub="Office & admin costs"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Outstanding"
+                  value={fmt(outstandingAmount)}
+                  sub="Liability (unpaid costs)"
+                  accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
+                  icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Refunds"
+                  value={fmt(refunds)}
+                  sub="Customer refunds issued"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+              </>
+            )}
+
+            {activeBreakdown === "operations" && (
+              <>
+                <StatCard
+                  label="Total Bookings"
+                  value={totalBookings.toLocaleString()}
+                  sub="Total service requests"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Completed Jobs"
+                  value={completedJobs.toLocaleString()}
+                  sub="Service status Completed"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Pending Jobs"
+                  value={pendingJobs.toLocaleString()}
+                  sub="Not yet completed"
+                  accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
+                  icon={(p) => <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Completion Rate"
+                  value={pct(completionRate)}
+                  sub="Completed / Bookings ratio"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Total Customers"
+                  value={totalCustomers.toLocaleString()}
+                  sub="Registered client contacts"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Retention Rate"
+                  value={pct(customerRetentionRate)}
+                  sub="Repeat customer ratio"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Total Leads"
+                  value={totalLeads.toLocaleString()}
+                  sub="Inbound customer queries"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Converted Leads"
+                  value={convertedLeads.toLocaleString()}
+                  sub="Converted lead status"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Conversion Rate"
+                  value={pct(conversionRate)}
+                  sub="Converted / Leads ratio"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Total Technicians"
+                  value={totalTechnicians.toLocaleString()}
+                  sub="Active staff in field"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Low Stock Items"
+                  value={lowStockItems.toLocaleString()}
+                  sub="Spares at/below reorder"
+                  accent="bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400"
+                  icon={(p) => <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Out of Stock"
+                  value={outOfStockItems.toLocaleString()}
+                  sub="Zero quantity items"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chart + Reminders */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
         {/* Monthly Trend Chart */}
@@ -983,7 +1079,7 @@ export function DashboardOverview() {
               variant="outline"
               size="sm"
               onClick={() => setActiveTab("reminders")}
-              className="w-full text-xs font-medium"
+              className="w-full text-xs font-medium cursor-pointer"
             >
               Open Reminders Board
             </Button>
@@ -992,9 +1088,7 @@ export function DashboardOverview() {
 
       </div>
 
-      {/* ══════════════════════════════════════
-          RECENT BOOKINGS + TECHNICIANS
-      ══════════════════════════════════════ */}
+      {/* RECENT BOOKINGS + TECHNICIANS */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
         {/* Recent Bookings Table */}
@@ -1008,7 +1102,7 @@ export function DashboardOverview() {
               variant="link"
               size="sm"
               onClick={() => setActiveTab("bookings")}
-              className="text-xs font-semibold px-0 text-primary"
+              className="text-xs font-semibold px-0 text-primary cursor-pointer"
             >
               View All
             </Button>
@@ -1115,7 +1209,7 @@ export function DashboardOverview() {
               variant="outline"
               size="sm"
               onClick={() => setActiveTab("technicians")}
-              className="w-full text-xs font-medium"
+              className="w-full text-xs font-medium cursor-pointer"
             >
               Manage Technicians
             </Button>
