@@ -41,6 +41,7 @@ export function NavUser({
         await signOut(auth)
       }
       localStorage.removeItem("servicebuddy_role")
+      localStorage.removeItem("servicebuddy_active_tab")
       window.location.href = "/"
     } catch (err) {
       console.error("Logout failed:", err)

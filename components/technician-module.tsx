@@ -27,7 +27,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 export function TechnicianModule() {
-  const { technicians, bookings, payouts, addTechnician, updateTechnician, currentRole } = useCRM()
+  const { technicians, bookings, payouts, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
   const [isAddOpen, setIsAddOpen] = React.useState(false)
 
   // Form State
@@ -80,10 +80,25 @@ export function TechnicianModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Technician Management</h2>
           <p className="text-sm text-muted-foreground">Manage dispatch staff profiles, skills directories, active job workloads, and running commissions.</p>
         </div>
-        <Button onClick={() => setIsAddOpen(true)} className="w-fit">
-          <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-          Onboard Technician
-        </Button>
+        <div className="flex items-center gap-2">
+          {currentRole === "Admin" && technicians.length > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (confirm("Are you sure you want to remove all technicians?")) {
+                  technicians.forEach(t => deleteTechnician(t.id))
+                }
+              }} 
+              className="w-fit cursor-pointer font-bold"
+            >
+              Clear All Technicians
+            </Button>
+          )}
+          <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer">
+            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+            Onboard Technician
+          </Button>
+        </div>
       </div>
 
       {/* Technician Stat Cards */}
@@ -182,6 +197,17 @@ export function TechnicianModule() {
                   </div>
                 </div>
               </CardContent>
+              {currentRole === "Admin" && (
+                <CardFooter className="pt-0 border-t border-border/40 py-2 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    onClick={() => deleteTechnician(t.id)}
+                    className="h-7 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
+                  >
+                    Delete Profile
+                  </Button>
+                </CardFooter>
+              )}
             </Card>
           )
         })}
@@ -189,7 +215,7 @@ export function TechnicianModule() {
 
       {/* Technician Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[85vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Onboard New Dispatch Technician</DrawerTitle>

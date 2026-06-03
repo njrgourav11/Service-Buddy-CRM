@@ -26,10 +26,12 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
 export function ExpenditureModule() {
-  const { expenses, addExpense, deleteExpense, currentRole } = useCRM()
+  const { expenses, addExpense, updateExpense, deleteExpense, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedExpense, setSelectedExpense] = React.useState<Expense | null>(null)
 
   // Form State
   const [item, setItem] = React.useState("")
@@ -38,6 +40,43 @@ export function ExpenditureModule() {
   const [beneficiary, setBeneficiary] = React.useState("")
   const [remarks, setRemarks] = React.useState("")
   const [date, setDate] = React.useState(new Date().toISOString().split("T")[0])
+
+  // Edit Form State
+  const [editItem, setEditItem] = React.useState("")
+  const [editCategory, setEditCategory] = React.useState<any>("Working expenses (beneficiary)")
+  const [editAmount, setEditAmount] = React.useState(0)
+  const [editBeneficiary, setEditBeneficiary] = React.useState("")
+  const [editRemarks, setEditRemarks] = React.useState("")
+  const [editDate, setEditDate] = React.useState("")
+
+  // Open Edit Drawer
+  const handleOpenEdit = (e: Expense) => {
+    setSelectedExpense(e)
+    setEditItem(e.item)
+    setEditCategory(e.category)
+    setEditAmount(e.amount)
+    setEditBeneficiary(e.beneficiary || "")
+    setEditRemarks(e.remarks || "")
+    setEditDate(e.date)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Expense
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedExpense) return
+
+    updateExpense(selectedExpense.id, {
+      date: editDate,
+      item: editItem,
+      category: editCategory,
+      amount: editAmount,
+      beneficiary: editBeneficiary,
+      remarks: editRemarks
+    })
+
+    setIsEditOpen(false)
+  }
 
   // Filtered List
   const filteredExpenses = expenses.filter(e => {
@@ -240,13 +279,23 @@ export function ExpenditureModule() {
                       <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{e.remarks}</td>
                       {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => deleteExpense(e.id)}
-                            className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center ml-auto"
-                          >
-                            ×
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenEdit(e)}
+                              className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
+                            >
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => deleteExpense(e.id)}
+                              className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                            >
+                              ×
+                            </Button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -260,7 +309,7 @@ export function ExpenditureModule() {
 
       {/* Expense Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Record Expense Voucher Receipt</DrawerTitle>
@@ -335,13 +384,12 @@ export function ExpenditureModule() {
 
                 {/* Beneficiary */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="exp-beneficiary" className="text-xs font-bold text-muted-foreground">Beneficiary / Merchant Name</Label>
+                  <Label htmlFor="exp-beneficiary" className="text-xs font-bold text-muted-foreground">Beneficiary / Merchant Name (Optional)</Label>
                   <Input 
                     id="exp-beneficiary"
                     placeholder="Merchant, Supplier or technician name"
                     value={beneficiary}
                     onChange={(e) => setBeneficiary(e.target.value)}
-                    required
                   />
                 </div>
 
@@ -363,6 +411,116 @@ export function ExpenditureModule() {
               <Button type="submit" className="flex-1">Log Expenditure</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Voucher</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Expense Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Expense Voucher Receipt</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify recorded internal operational expenditures.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Item */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-item" className="text-xs font-bold text-muted-foreground">Item Description</Label>
+                  <Input 
+                    id="edit-exp-item"
+                    placeholder="E.g., Coil cleaning sprays, Flex printing"
+                    value={editItem}
+                    onChange={(e) => setEditItem(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Category Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-cat" className="text-xs font-bold text-muted-foreground">Expense Category</Label>
+                  <Select value={editCategory} onValueChange={setEditCategory}>
+                    <SelectTrigger id="edit-exp-cat">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Working expenses (beneficiary)">Working expenses (beneficiary)</SelectItem>
+                      <SelectItem value="Outstanding">Outstanding</SelectItem>
+                      <SelectItem value="Tools and maintenance">Tools and maintenance</SelectItem>
+                      <SelectItem value="Exp item">Exp item</SelectItem>
+                      <SelectItem value="Non beneficiary items">Non beneficiary items</SelectItem>
+                      <SelectItem value="Office expenses">Office expenses</SelectItem>
+                      <SelectItem value="Tools and subscriptions">Tools and subscriptions</SelectItem>
+                      <SelectItem value="Refunds">Refunds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-date" className="text-xs font-bold text-muted-foreground">Expense Date</Label>
+                  <Input 
+                    type="date"
+                    id="edit-exp-date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Amount */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-amt" className="text-xs font-bold text-muted-foreground">Voucher Cost Amount (₹)</Label>
+                  <Input 
+                    type="number"
+                    id="edit-exp-amt"
+                    min="0"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+                {/* Beneficiary */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-beneficiary" className="text-xs font-bold text-muted-foreground">Beneficiary / Merchant Name (Optional)</Label>
+                  <Input 
+                    id="edit-exp-beneficiary"
+                    placeholder="Merchant, Supplier or technician name"
+                    value={editBeneficiary}
+                    onChange={(e) => setEditBeneficiary(e.target.value)}
+                  />
+                </div>
+
+                {/* Remarks */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-exp-remarks" className="text-xs font-bold text-muted-foreground">Administrative Staff Remarks</Label>
+                  <Input 
+                    id="edit-exp-remarks"
+                    placeholder="Additional context about this expenditure..."
+                    value={editRemarks}
+                    onChange={(e) => setEditRemarks(e.target.value)}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

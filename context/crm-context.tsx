@@ -273,7 +273,7 @@ export interface CRMContextProps {
   updateEmployee: (id: string, updates: Partial<Employee>) => void
   deleteEmployee: (id: string) => void
 
-  // Formula Calculations Helper (Live Sandbox Test)
+  // Formula Calculations Helper
   calculateBookingFinance: (spareCost: number, sparePrice: number, serviceCharge: number) => {
     totalCommission: number
     technicianCommission: number
@@ -318,13 +318,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [assets, setAssets] = useState<Asset[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
 
-  // Redirect to login if role is missing (unauthorized access check)
+  // Redirect to login if role is missing (unauthorized access check) and load active tab
   useEffect(() => {
     const role = localStorage.getItem("servicebuddy_role")
     if (!role) {
       window.location.href = "/"
+    } else {
+      const savedTab = localStorage.getItem("servicebuddy_active_tab")
+      if (savedTab) {
+        setActiveTab(savedTab)
+      }
     }
   }, [])
+
+  // Persist active tab to LocalStorage on change
+  useEffect(() => {
+    localStorage.setItem("servicebuddy_active_tab", activeTab)
+  }, [activeTab])
 
   // ==========================================
   // 4. Financial Calculations Engine
@@ -575,7 +585,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Listen to Firebase Auth state
     const authUnsub = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Retrieve sandbox role logged locally
+        // Retrieve active user role logged locally
         const storedRole = localStorage.getItem("servicebuddy_role")
         if (storedRole) {
           setCurrentRole(storedRole as UserRole)
@@ -692,6 +702,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Customers ---
   const addCustomer = (cust: Omit<Customer, "id" | "createdAt"> & { id?: string }) => {
+    const duplicate = customers.find(c => c.name.toLowerCase() === cust.name.toLowerCase() && c.mobile === cust.mobile)
+    if (duplicate) {
+      toast.error(`Customer ${cust.name} with mobile ${cust.mobile} already exists!`)
+      return duplicate
+    }
+
     let finalId = cust.id
     if (!finalId) {
       const cinNum = customers.length ? Math.max(...customers.map(c => parseInt(c.id.split("-")[1]))) + 1 : 1001
@@ -724,6 +740,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
+    if (updates.name !== undefined || updates.mobile !== undefined) {
+      const current = customers.find(c => c.id === id)
+      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const duplicate = customers.find(c => c.id !== id && c.name.toLowerCase().trim() === nameToCheck && c.mobile === mobileToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Another customer "${duplicate.name}" with mobile ${duplicate.mobile} already exists!`)
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "customers", id), updates)
     } else {
@@ -743,6 +770,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Service Bookings ---
   const addBooking = (book: Omit<Booking, "id"> & { id?: string }) => {
+    const duplicate = bookings.find(
+      b => b.customerId === book.customerId && 
+           b.date === book.date && 
+           b.appliance === book.appliance && 
+           b.serviceType === book.serviceType
+    )
+    if (duplicate) {
+      toast.error(`A booking for this customer on this date for ${book.appliance} (${book.serviceType}) already exists!`)
+      return duplicate
+    }
+
     let finalId = book.id
     if (!finalId) {
       const parsedNums = bookings.map(b => {
@@ -795,6 +833,23 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateBooking = (id: string, updates: Partial<Booking>) => {
     const b = bookings.find(item => item.id === id)
     if (!b) return
+
+    const customerIdToCheck = updates.customerId !== undefined ? updates.customerId : b.customerId
+    const dateToCheck = updates.date !== undefined ? updates.date : b.date
+    const applianceToCheck = updates.appliance !== undefined ? updates.appliance : b.appliance
+    const serviceTypeToCheck = updates.serviceType !== undefined ? updates.serviceType : b.serviceType
+
+    const duplicate = bookings.find(item => 
+      item.id !== id && 
+      item.customerId === customerIdToCheck && 
+      item.date === dateToCheck && 
+      item.appliance === applianceToCheck && 
+      item.serviceType === serviceTypeToCheck
+    )
+    if (duplicate) {
+      toast.error("Cannot update: A booking for this customer on this date for this service already exists!")
+      return
+    }
 
     const oldStatus = b.status
     const newStatus = updates.status || b.status
@@ -859,6 +914,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Technicians ---
   const addTechnician = (tech: Omit<Technician, "id" | "advanceTaken" | "dueAmount">) => {
+    const duplicate = technicians.find(t => t.name.toLowerCase() === tech.name.toLowerCase() && t.mobile === tech.mobile)
+    if (duplicate) {
+      toast.error(`Technician ${tech.name} with mobile ${tech.mobile} already exists!`)
+      return duplicate
+    }
+
     const techNum = technicians.length ? Math.max(...technicians.map(t => parseInt(t.id.split("-")[1]))) + 1 : 1001
     const newTech: Technician = {
       ...tech,
@@ -877,6 +938,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateTechnician = (id: string, updates: Partial<Technician>) => {
+    if (updates.name !== undefined || updates.mobile !== undefined) {
+      const current = technicians.find(t => t.id === id)
+      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const duplicate = technicians.find(t => t.id !== id && t.name.toLowerCase().trim() === nameToCheck && t.mobile === mobileToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Another technician "${duplicate.name}" with mobile ${duplicate.mobile} already exists!`)
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "technicians", id), updates)
     } else {
@@ -895,6 +967,18 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Technician Payouts ---
   const addPayout = (pay: Omit<Payout, "id" | "due">) => {
+    const duplicate = payouts.find(
+      p => p.technicianId === pay.technicianId && 
+           p.date === pay.date && 
+           p.totalPayout === pay.totalPayout && 
+           p.advance === pay.advance && 
+           p.extra === pay.extra
+    )
+    if (duplicate) {
+      toast.error(`A matching payout transaction for this technician has already been logged.`)
+      return duplicate
+    }
+
     const payNum = payouts.length ? Math.max(...payouts.map(p => parseInt(p.id.split("-")[1]))) + 1 : 1001
     
     // Get technician record to fetch running balances
@@ -929,23 +1013,88 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updatePayout = (id: string, updates: Partial<Payout>) => {
-    if (isFirebaseEnabled && db) {
-      updateDoc(doc(db, "payouts", id), updates)
-    } else {
-      setPayouts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
+    const oldPay = payouts.find(p => p.id === id)
+    if (!oldPay) return
+
+    const techIdToCheck = updates.technicianId !== undefined ? updates.technicianId : oldPay.technicianId
+    const dateToCheck = updates.date !== undefined ? updates.date : oldPay.date
+    const dailyEarningsToCheck = updates.dailyEarnings !== undefined ? updates.dailyEarnings : oldPay.dailyEarnings
+    const totalPayoutToCheck = updates.totalPayout !== undefined ? updates.totalPayout : oldPay.totalPayout
+    const advanceToCheck = updates.advance !== undefined ? updates.advance : oldPay.advance
+    const extraToCheck = updates.extra !== undefined ? updates.extra : oldPay.extra
+
+    const duplicate = payouts.find(p => 
+      p.id !== id && 
+      p.technicianId === techIdToCheck && 
+      p.date === dateToCheck && 
+      p.dailyEarnings === dailyEarningsToCheck && 
+      p.totalPayout === totalPayoutToCheck && 
+      p.advance === advanceToCheck && 
+      p.extra === extraToCheck
+    )
+    if (duplicate) {
+      toast.error("Cannot update: A matching payout transaction for this technician has already been logged.")
+      return
     }
+
+    const combined = { ...oldPay, ...updates }
+
+    if (isFirebaseEnabled && db) {
+      setDoc(doc(db, "payouts", id), combined)
+    } else {
+      setPayouts(prev => prev.map(p => p.id === id ? combined : p))
+    }
+
+    // Reconcile technician dues
+    const tech = technicians.find(t => t.id === oldPay.technicianId)
+    if (tech) {
+      // First, undo old payout impact
+      const undowedDue = tech.dueAmount - oldPay.extra + oldPay.totalPayout + oldPay.advance
+      const undowedAdvance = tech.advanceTaken + oldPay.advance
+      
+      // Then, apply new payout impact
+      const finalDue = Math.max(0, undowedDue + (updates.extra !== undefined ? updates.extra : oldPay.extra) - (updates.totalPayout !== undefined ? updates.totalPayout : oldPay.totalPayout) - (updates.advance !== undefined ? updates.advance : oldPay.advance))
+      const finalAdvance = Math.max(0, undowedAdvance - (updates.advance !== undefined ? updates.advance : oldPay.advance))
+
+      updateTechnician(oldPay.technicianId, {
+        dueAmount: finalDue,
+        advanceTaken: finalAdvance
+      })
+    }
+    toast.success("Payout details updated and technician balance reconciled.")
   }
 
   const deletePayout = (id: string) => {
+    const oldPay = payouts.find(p => p.id === id)
+    if (!oldPay) return
+
     if (isFirebaseEnabled && db) {
       deleteDoc(doc(db, "payouts", id))
     } else {
       setPayouts(prev => prev.filter(p => p.id !== id))
     }
+
+    // Reconcile technician dues by undoing the payout
+    const tech = technicians.find(t => t.id === oldPay.technicianId)
+    if (tech) {
+      const finalDue = tech.dueAmount - oldPay.extra + oldPay.totalPayout + oldPay.advance
+      const finalAdvance = tech.advanceTaken + oldPay.advance
+      updateTechnician(oldPay.technicianId, {
+        dueAmount: finalDue,
+        advanceTaken: finalAdvance
+      })
+    }
+    toast.info("Payout entry deleted and technician balance restored.")
   }
 
   // --- Spares (Inventory) ---
   const addSpare = (spare: Omit<Spare, "id" | "availableQty">) => {
+    const duplicate = spares.find(s => s.name.toLowerCase() === spare.name.toLowerCase())
+    if (duplicate) {
+      toast.error(`Spare part '${spare.name}' is already in catalog!`)
+      return duplicate
+    }
+
     const spareNum = spares.length ? Math.max(...spares.map(s => parseInt(s.id.split("-")[1]))) + 1 : 1001
     const newSpare: Spare = {
       ...spare,
@@ -965,6 +1114,15 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSpare = (id: string, updates: Partial<Spare>) => {
     const s = spares.find(item => item.id === id)
     if (!s) return
+
+    if (updates.name !== undefined) {
+      const nameToCheck = updates.name.toLowerCase().trim()
+      const duplicate = spares.find(item => item.id !== id && item.name.toLowerCase().trim() === nameToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Spare part '${updates.name}' is already in catalog!`)
+        return
+      }
+    }
 
     const combined = { ...s, ...updates }
     const finalUpdate = {
@@ -990,6 +1148,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Expenditures ---
   const addExpense = (expense: Omit<Expense, "id">) => {
+    const duplicate = expenses.find(
+      e => e.item.toLowerCase() === expense.item.toLowerCase() && 
+           e.amount === expense.amount && 
+           e.date === expense.date && 
+           e.beneficiary === expense.beneficiary
+    )
+    if (duplicate) {
+      toast.error(`This expense voucher has already been logged.`)
+      return duplicate
+    }
+
     const expNum = expenses.length ? Math.max(...expenses.map(e => parseInt(e.id.split("-")[1]))) + 1 : 1001
     const newExpense: Expense = {
       ...expense,
@@ -1006,6 +1175,26 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
+    const current = expenses.find(e => e.id === id)
+    if (current && (updates.item !== undefined || updates.amount !== undefined || updates.date !== undefined || updates.beneficiary !== undefined)) {
+      const itemToCheck = (updates.item !== undefined ? updates.item : current.item).toLowerCase().trim()
+      const amountToCheck = updates.amount !== undefined ? updates.amount : current.amount
+      const dateToCheck = updates.date !== undefined ? updates.date : current.date
+      const beneficiaryToCheck = (updates.beneficiary !== undefined ? updates.beneficiary : current.beneficiary).toLowerCase().trim()
+
+      const duplicate = expenses.find(e => 
+        e.id !== id && 
+        e.item.toLowerCase().trim() === itemToCheck && 
+        e.amount === amountToCheck && 
+        e.date === dateToCheck && 
+        e.beneficiary.toLowerCase().trim() === beneficiaryToCheck
+      )
+      if (duplicate) {
+        toast.error("Cannot update: A matching expense voucher has already been logged.")
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "expenses", id), updates)
     } else {
@@ -1024,6 +1213,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Outstanding Dues ---
   const addOutstandingDue = (due: Omit<OutstandingDue, "id">) => {
+    const duplicate = outstandingDues.find(
+      d => d.recipient.toLowerCase() === due.recipient.toLowerCase() && 
+           d.amount === due.amount && 
+           d.reason.toLowerCase() === due.reason.toLowerCase() && 
+           d.date === due.date
+    )
+    if (duplicate) {
+      toast.error(`This outstanding due entry has already been logged.`)
+      return duplicate
+    }
+
     const dueNum = outstandingDues.length ? Math.max(...outstandingDues.map(d => parseInt(d.id.split("-")[1]))) + 1 : 1001
     const newDue: OutstandingDue = {
       ...due,
@@ -1040,6 +1240,26 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateOutstandingDue = (id: string, updates: Partial<OutstandingDue>) => {
+    const current = outstandingDues.find(d => d.id === id)
+    if (current && (updates.recipient !== undefined || updates.amount !== undefined || updates.reason !== undefined || updates.date !== undefined)) {
+      const recipientToCheck = (updates.recipient !== undefined ? updates.recipient : current.recipient).toLowerCase().trim()
+      const amountToCheck = updates.amount !== undefined ? updates.amount : current.amount
+      const reasonToCheck = (updates.reason !== undefined ? updates.reason : current.reason).toLowerCase().trim()
+      const dateToCheck = updates.date !== undefined ? updates.date : current.date
+
+      const duplicate = outstandingDues.find(d => 
+        d.id !== id && 
+        d.recipient.toLowerCase().trim() === recipientToCheck && 
+        d.amount === amountToCheck && 
+        d.reason.toLowerCase().trim() === reasonToCheck && 
+        d.date === dateToCheck
+      )
+      if (duplicate) {
+        toast.error("Cannot update: A matching outstanding due entry has already been logged.")
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "outstanding", id), updates)
     } else {
@@ -1057,6 +1277,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Leads ---
   const addLead = (lead: Omit<Lead, "id" | "createdAt">) => {
+    const duplicate = leads.find(
+      l => l.name.toLowerCase() === lead.name.toLowerCase() && 
+           l.mobile === lead.mobile && 
+           l.appliance === lead.appliance
+    )
+    if (duplicate) {
+      toast.error(`A lead with this name, mobile, and appliance already exists!`)
+      return duplicate
+    }
+
     const leadNum = leads.length ? Math.max(...leads.map(l => parseInt(l.id.split("-")[1]))) + 1 : 1001
     const newLead: Lead = {
       ...lead,
@@ -1074,6 +1304,24 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
+    const current = leads.find(l => l.id === id)
+    if (current && (updates.name !== undefined || updates.mobile !== undefined || updates.appliance !== undefined)) {
+      const nameToCheck = (updates.name !== undefined ? updates.name : current.name).toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current.mobile).trim()
+      const applianceToCheck = (updates.appliance !== undefined ? updates.appliance : current.appliance).toLowerCase().trim()
+
+      const duplicate = leads.find(l => 
+        l.id !== id && 
+        l.name.toLowerCase().trim() === nameToCheck && 
+        l.mobile === mobileToCheck && 
+        l.appliance.toLowerCase().trim() === applianceToCheck
+      )
+      if (duplicate) {
+        toast.error("Cannot update: A lead with this name, mobile, and appliance already exists!")
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "leads", id), updates)
     } else {
@@ -1140,6 +1388,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Contacts ---
   const addContact = (contact: Omit<Contact, "id">) => {
+    const duplicate = contacts.find(c => c.name.toLowerCase() === contact.name.toLowerCase() && c.mobile === contact.mobile)
+    if (duplicate) {
+      return duplicate
+    }
+
     const contactNum = contacts.length ? Math.max(...contacts.map(c => parseInt(c.id.split("-")[1]))) + 1 : 1001
     const newCont: Contact = {
       ...contact,
@@ -1155,6 +1408,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateContact = (id: string, updates: Partial<Contact>) => {
+    if (updates.name !== undefined || updates.mobile !== undefined) {
+      const current = contacts.find(c => c.id === id)
+      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const duplicate = contacts.find(c => c.id !== id && c.name.toLowerCase().trim() === nameToCheck && c.mobile === mobileToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Another contact "${duplicate.name}" with mobile ${duplicate.mobile} already exists!`)
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "contacts", id), updates)
     } else {
@@ -1188,6 +1452,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Assets ---
   const addAsset = (asset: Omit<Asset, "id">) => {
+    const duplicate = assets.find(a => a.name.toLowerCase() === asset.name.toLowerCase() && a.purchaseDate === asset.purchaseDate)
+    if (duplicate) {
+      toast.error(`Asset '${asset.name}' is already registered on this date!`)
+      return duplicate
+    }
+
     const assetNum = assets.length ? Math.max(...assets.map(a => parseInt(a.id.split("-")[1]))) + 1 : 1001
     const newAsset: Asset = {
       ...asset,
@@ -1204,6 +1474,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateAsset = (id: string, updates: Partial<Asset>) => {
+    const current = assets.find(a => a.id === id)
+    if (current && (updates.name !== undefined || updates.purchaseDate !== undefined)) {
+      const nameToCheck = (updates.name !== undefined ? updates.name : current.name).toLowerCase().trim()
+      const dateToCheck = updates.purchaseDate !== undefined ? updates.purchaseDate : current.purchaseDate
+      const duplicate = assets.find(a => a.id !== id && a.name.toLowerCase().trim() === nameToCheck && a.purchaseDate === dateToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Asset '${updates.name || current.name}' is already registered on this date!`)
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "assets", id), updates)
     } else {
@@ -1222,6 +1503,12 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- Employees ---
   const addEmployee = (emp: Omit<Employee, "id">) => {
+    const duplicate = employees.find(e => e.name.toLowerCase() === emp.name.toLowerCase() && e.mobile === emp.mobile)
+    if (duplicate) {
+      toast.error(`Staff profile for ${emp.name} already exists!`)
+      return duplicate
+    }
+
     const empNum = employees.length ? Math.max(...employees.map(e => parseInt(e.id.split("-")[1]))) + 1 : 1001
     const newEmp: Employee = {
       ...emp,
@@ -1238,6 +1525,17 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateEmployee = (id: string, updates: Partial<Employee>) => {
+    if (updates.name !== undefined || updates.mobile !== undefined) {
+      const current = employees.find(e => e.id === id)
+      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const duplicate = employees.find(e => e.id !== id && e.name.toLowerCase().trim() === nameToCheck && e.mobile === mobileToCheck)
+      if (duplicate) {
+        toast.error(`Cannot update: Staff profile for ${updates.name || current?.name} already exists!`)
+        return
+      }
+    }
+
     if (isFirebaseEnabled && db) {
       updateDoc(doc(db, "employees", id), updates)
     } else {

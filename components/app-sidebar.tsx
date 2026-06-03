@@ -99,6 +99,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Employees",
       icon: <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} />,
     },
+    {
+      id: "technicians",
+      title: "Technicians",
+      icon: <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} />,
+    },
   ]
 
   const navAnalytics = [
@@ -121,8 +126,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   ]
 
   const simulatedUser = {
-    name: "Administrator",
-    email: `${currentRole} Sandbox`,
+    name: currentRole === "Admin" ? "System Administrator" : "Operation Manager",
+    email: `${currentRole.toLowerCase()}@servicebuddy.in`,
     avatar: "/avatars/admin.jpg",
   }
 

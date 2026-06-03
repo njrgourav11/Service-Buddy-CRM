@@ -44,6 +44,8 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [search, setSearch] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
   
   // Custom View Toggle: Table vs Cards
   const [viewMode, setViewMode] = React.useState<"table" | "cards">("table")
@@ -60,6 +62,46 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [notes, setNotes] = React.useState("")
   const [review, setReview] = React.useState("")
   const [status, setStatus] = React.useState<any>("Active")
+
+  // Edit Form State
+  const [editName, setEditName] = React.useState("")
+  const [editMobile, setEditMobile] = React.useState("")
+  const [editAddress, setEditAddress] = React.useState("")
+  const [editReferralSource, setEditReferralSource] = React.useState<any>("Ad")
+  const [editNotes, setEditNotes] = React.useState("")
+  const [editReview, setEditReview] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState<any>("Active")
+
+  // Open Edit Drawer
+  const handleOpenEdit = (c: Customer) => {
+    setSelectedCustomer(c)
+    setEditName(c.name)
+    setEditMobile(c.mobile)
+    setEditAddress(c.address)
+    setEditReferralSource(c.referralSource)
+    setEditNotes(c.notes || "")
+    setEditReview(c.review || "")
+    setEditStatus(c.status)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Customer
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCustomer) return
+
+    updateCustomer(selectedCustomer.id, {
+      name: editName,
+      mobile: editMobile,
+      address: editAddress,
+      referralSource: editReferralSource,
+      notes: editNotes,
+      review: editReview,
+      status: editStatus
+    })
+
+    setIsEditOpen(false)
+  }
 
   // Filtered List
   const filteredCustomers = React.useMemo(() => {
@@ -227,7 +269,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Referral Channel</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Client Feedback</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
-                    {currentRole === "Admin" && <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>}
+                    {(currentRole === "Admin" || currentRole === "Manager") && <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -270,15 +312,27 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                             {c.status}
                           </Badge>
                         </TableCell>
-                        {currentRole === "Admin" && (
+                        {(currentRole === "Admin" || currentRole === "Manager") && (
                           <TableCell className="px-4 py-4 text-right">
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => deleteCustomer(c.id)}
-                              className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center ml-auto cursor-pointer"
-                            >
-                              ×
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleOpenEdit(c)}
+                                className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted cursor-pointer"
+                              >
+                                Edit
+                              </Button>
+                              {currentRole === "Admin" && (
+                                <Button 
+                                  variant="ghost" 
+                                  onClick={() => deleteCustomer(c.id)}
+                                  className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
+                                >
+                                  ×
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
@@ -377,15 +431,24 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       </div>
                     )}
                   </CardContent>
-                  {currentRole === "Admin" && (
-                    <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-end">
+                  {(currentRole === "Admin" || currentRole === "Manager") && (
+                    <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-end gap-2">
                       <Button 
-                        variant="ghost" 
-                        onClick={() => deleteCustomer(c.id)}
-                        className="h-8 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
+                        variant="outline" 
+                        onClick={() => handleOpenEdit(c)}
+                        className="h-8 text-xs font-bold bg-background hover:bg-muted cursor-pointer px-2.5"
                       >
-                        Delete Customer
+                        Edit Customer
                       </Button>
+                      {currentRole === "Admin" && (
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => deleteCustomer(c.id)}
+                          className="h-8 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
+                        >
+                          Delete Customer
+                        </Button>
+                      )}
                     </CardFooter>
                   )}
                 </Card>
@@ -429,7 +492,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
 
       {/* Customer Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Onboard New Customer Profile</DrawerTitle>
@@ -526,6 +589,125 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
               <Button type="submit" className="flex-1">Onboard Profile</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Profile</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Customer Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Customer Profile</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify detailed customer profile parameters.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-name" className="text-xs font-bold text-muted-foreground">Full Name</Label>
+                  <Input 
+                    id="edit-cust-name"
+                    placeholder="E.g., Ramesh Sen"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Mobile */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
+                  <Input 
+                    id="edit-cust-mob"
+                    placeholder="E.g., 9911223344"
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-address" className="text-xs font-bold text-muted-foreground">Service Address Details</Label>
+                  <Input 
+                    id="edit-cust-address"
+                    placeholder="Street, Tower, Villa details"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Status Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-status" className="text-xs font-bold text-muted-foreground">Customer Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger id="edit-cust-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Source Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-source" className="text-xs font-bold text-muted-foreground">Referral Acquisition Source</Label>
+                  <Select value={editReferralSource} onValueChange={setEditReferralSource}>
+                    <SelectTrigger id="edit-cust-source">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ad">Ad</SelectItem>
+                      <SelectItem value="Contact">Contact</SelectItem>
+                      <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-notes" className="text-xs font-bold text-muted-foreground">Internal CRM Staff Notes</Label>
+                  <Input 
+                    id="edit-cust-notes"
+                    placeholder="Gate codes, timing preferences, dog indicators"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                  />
+                </div>
+
+                {/* Review */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review (Optional)</Label>
+                  <Input 
+                    id="edit-cust-review"
+                    placeholder="Client's satisfaction quote"
+                    value={editReview}
+                    onChange={(e) => setEditReview(e.target.value)}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

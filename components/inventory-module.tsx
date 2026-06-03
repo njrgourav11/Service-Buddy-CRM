@@ -32,6 +32,8 @@ export function InventoryModule() {
   const [search, setSearch] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedSpare, setSelectedSpare] = React.useState<Spare | null>(null)
 
   // Form State
   const [name, setName] = React.useState("")
@@ -40,6 +42,43 @@ export function InventoryModule() {
   const [unitCost, setUnitCost] = React.useState(0)
   const [sellingCost, setSellingCost] = React.useState(0)
   const [reorderLevel, setReorderLevel] = React.useState(3)
+
+  // Edit Form State
+  const [editName, setEditName] = React.useState("")
+  const [editCategory, setEditCategory] = React.useState("Capacitors")
+  const [editStockQty, setEditStockQty] = React.useState(0)
+  const [editUnitCost, setEditUnitCost] = React.useState(0)
+  const [editSellingCost, setEditSellingCost] = React.useState(0)
+  const [editReorderLevel, setEditReorderLevel] = React.useState(0)
+
+  // Open Edit Drawer
+  const handleOpenEdit = (s: Spare) => {
+    setSelectedSpare(s)
+    setEditName(s.name)
+    setEditCategory(s.category)
+    setEditStockQty(s.stockQty)
+    setEditUnitCost(s.unitCost)
+    setEditSellingCost(s.sellingCost)
+    setEditReorderLevel(s.reorderLevel)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Spare
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedSpare) return
+
+    updateSpare(selectedSpare.id, {
+      name: editName,
+      category: editCategory,
+      stockQty: editStockQty,
+      unitCost: editUnitCost,
+      sellingCost: editSellingCost,
+      reorderLevel: editReorderLevel
+    })
+
+    setIsEditOpen(false)
+  }
 
   // Filtered catalog spares list
   const filteredSpares = spares.filter(s => {
@@ -198,11 +237,21 @@ export function InventoryModule() {
                             >
                               +5 Quick Restock
                             </Button>
+                            {(currentRole === "Admin" || currentRole === "Manager") && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleOpenEdit(s)}
+                                className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
+                              >
+                                Edit
+                              </Button>
+                            )}
                             {currentRole === "Admin" && (
                               <Button 
                                 variant="ghost" 
                                 onClick={() => deleteSpare(s.id)}
-                                className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center"
+                                className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                               >
                                 ×
                               </Button>
@@ -221,7 +270,7 @@ export function InventoryModule() {
 
       {/* Spare Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Onboard Spare parts item into catalog</DrawerTitle>
@@ -339,6 +388,132 @@ export function InventoryModule() {
               <Button type="submit" className="flex-1">Add Spare Item</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Entry</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Spare Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Spare parts item details</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify detailed inventory item parameters and thresholds.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-spare-name" className="text-xs font-bold text-muted-foreground">Part Item Name</Label>
+                  <Input 
+                    id="edit-spare-name"
+                    placeholder="E.g., Fan Capacitor, Copper Pipe"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Category Selector */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-spare-cat" className="text-xs font-bold text-muted-foreground">Part Category</Label>
+                  <Select value={editCategory} onValueChange={setEditCategory}>
+                    <SelectTrigger id="edit-spare-cat">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Capacitors">Capacitors</SelectItem>
+                      <SelectItem value="Tools">Tools</SelectItem>
+                      <SelectItem value="Cables">Cables</SelectItem>
+                      <SelectItem value="General">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Initial Stock Count */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-spare-stock" className="text-xs font-bold text-muted-foreground">Stock Count</Label>
+                  <Input 
+                    type="number"
+                    id="edit-spare-stock"
+                    min="0"
+                    value={editStockQty}
+                    onChange={(e) => setEditStockQty(parseInt(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Supplier Cost R */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-spare-unit" className="text-xs font-bold text-muted-foreground">Supplier Cost (R)</Label>
+                    <Input 
+                      type="number"
+                      id="edit-spare-unit"
+                      min="0"
+                      value={editUnitCost}
+                      onChange={(e) => setEditUnitCost(parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
+
+                  {/* Selling Cost S */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-spare-selling" className="text-xs font-bold text-muted-foreground">Consumer Cost (S)</Label>
+                    <Input 
+                      type="number"
+                      id="edit-spare-selling"
+                      min="0"
+                      value={editSellingCost}
+                      onChange={(e) => setEditSellingCost(parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Reorder limit count */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-spare-limit" className="text-xs font-bold text-muted-foreground">Low Stock Alert Reorder Limit</Label>
+                  <Input 
+                    type="number"
+                    id="edit-spare-limit"
+                    min="0"
+                    value={editReorderLevel}
+                    onChange={(e) => setEditReorderLevel(parseInt(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+                {/* Profit Margin Preview */}
+                <div className="mt-2 rounded-lg bg-emerald-500/5 p-3.5 border border-emerald-500/10 flex flex-col gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-wider">Acquisition Profit Split Preview</span>
+                  <div className="flex justify-between">
+                    <span>Retail Profit Gain (S - R):</span>
+                    <span className="font-semibold text-foreground">₹{Math.max(0, editSellingCost - editUnitCost)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-foreground">
+                    <span>Gross Markup Margin:</span>
+                    <span className="text-emerald-600 font-extrabold">{editUnitCost ? Math.round(((editSellingCost - editUnitCost) / editUnitCost) * 100) : 0}%</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

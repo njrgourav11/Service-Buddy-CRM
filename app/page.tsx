@@ -42,7 +42,7 @@ export default function Home() {
     e.preventDefault()
     setLoading(true)
 
-    // Automatically determine Sandbox Role based on email prefix/domain
+    // Automatically determine Account Role based on email prefix/domain
     let assignedRole: SelectedRole = "Admin"
     const emailLower = email.toLowerCase()
     if (emailLower.includes("manager")) assignedRole = "Manager"
@@ -78,7 +78,7 @@ export default function Home() {
                 err.code === "auth/user-not-found" || 
                 err.code === "auth/invalid-credential"
               ) {
-                // If account does not exist, auto-provision sandbox account seamlessly!
+                // If account does not exist, auto-create account seamlessly!
                 try {
                   const userCredential = await createUserWithEmailAndPassword(auth, email, password)
                   if (userCredential.user) {
@@ -99,7 +99,7 @@ export default function Home() {
             }
           }
         } else {
-          // Offline local sandbox testing delay
+          // Offline local testing delay
           await new Promise((r) => setTimeout(r, 1000))
         }
         resolve(true)
@@ -251,7 +251,7 @@ export default function Home() {
             disabled={loading}
             className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-all mt-3 cursor-pointer"
           >
-            {loading ? "Authenticating session..." : authMode === "signin" ? "Unlock Workspace Console" : "Provision New Sandbox Account"}
+            {loading ? "Authenticating session..." : authMode === "signin" ? "Unlock Workspace Console" : "Create Official Account"}
             <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2.5} className="size-4 text-primary-foreground animate-in fade-in" />
           </Button>
 

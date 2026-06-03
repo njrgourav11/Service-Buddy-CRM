@@ -99,12 +99,12 @@ export function SiteHeader() {
           </h1>
         </div>
  
-        {/* Right Side: Role Switcher Sandbox and Alert Alerts */}
+        {/* Right Side: Role Switcher and Alerts */}
         <div className="flex items-center gap-3">
           
-          {/* Sandbox Role Switcher Selector */}
+          {/* User Role Switcher Selector */}
           <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/40">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase px-1.5 hidden md:inline">Sandbox Role:</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase px-1.5 hidden md:inline">Active Role:</span>
             <Select value={currentRole} onValueChange={handleRoleChange}>
               <SelectTrigger className="h-7 text-xs font-semibold py-0.5 px-2 bg-background border-border/50 select-none shadow-none w-28 md:w-36">
                 <SelectValue />

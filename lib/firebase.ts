@@ -39,7 +39,7 @@ if (isConfigured) {
   }
 } else {
   console.warn(
-    "⚠️ ServiceBuddy running in OFFLINE Sandbox mode. To hook up live Cloud databases, populate standard credentials inside your .env.local configuration file!"
+    "⚠️ ServiceBuddy running in OFFLINE Local mode. To hook up live Cloud databases, populate standard credentials inside your .env.local configuration file!"
   )
 }
 

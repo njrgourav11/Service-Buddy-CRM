@@ -25,10 +25,12 @@ import {
 } from "@hugeicons/core-free-icons"
 
 export function ContactsModule() {
-  const { contacts, addContact, deleteContact, currentRole } = useCRM()
+  const { contacts, addContact, updateContact, deleteContact, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedContact, setSelectedContact] = React.useState<Contact | null>(null)
 
   // Form State
   const [name, setName] = React.useState("")
@@ -36,6 +38,43 @@ export function ContactsModule() {
   const [address, setAddress] = React.useState("")
   const [customerType, setCustomerType] = React.useState<any>("Regular")
   const [notes, setNotes] = React.useState("")
+
+  // Edit Form State
+  const [editName, setEditName] = React.useState("")
+  const [editMobile, setEditMobile] = React.useState("")
+  const [editAddress, setEditAddress] = React.useState("")
+  const [editCustomerType, setEditCustomerType] = React.useState<any>("Regular")
+  const [editNotes, setEditNotes] = React.useState("")
+  const [editLastServiceDate, setEditLastServiceDate] = React.useState("")
+
+  // Open Edit Drawer
+  const handleOpenEdit = (c: Contact) => {
+    setSelectedContact(c)
+    setEditName(c.name)
+    setEditMobile(c.mobile)
+    setEditAddress(c.address)
+    setEditCustomerType(c.customerType)
+    setEditNotes(c.notes || "")
+    setEditLastServiceDate(c.lastServiceDate)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Contact
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedContact) return
+
+    updateContact(selectedContact.id, {
+      name: editName,
+      mobile: editMobile,
+      address: editAddress,
+      customerType: editCustomerType,
+      notes: editNotes,
+      lastServiceDate: editLastServiceDate
+    })
+
+    setIsEditOpen(false)
+  }
 
   // Filtered List
   const filteredContacts = contacts.filter(c => {
@@ -129,7 +168,7 @@ export function ContactsModule() {
                   <th className="px-4 py-3">Client Type</th>
                   <th className="px-4 py-3">Timeline Check</th>
                   <th className="px-4 py-3">Internal Memo</th>
-                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                  {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -162,15 +201,27 @@ export function ContactsModule() {
                       </td>
                       <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">{c.lastServiceDate}</td>
                       <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{c.notes}</td>
-                      {currentRole === "Admin" && (
+                      {(currentRole === "Admin" || currentRole === "Manager") && (
                         <td className="px-4 py-4 text-right">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => deleteContact(c.id)}
-                            className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center ml-auto"
-                          >
-                            ×
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenEdit(c)}
+                              className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
+                            >
+                              Edit
+                            </Button>
+                            {currentRole === "Admin" && (
+                              <Button 
+                                variant="ghost" 
+                                onClick={() => deleteContact(c.id)}
+                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                              >
+                                ×
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -184,7 +235,7 @@ export function ContactsModule() {
 
       {/* Contact Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[85vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Onboard Business Contact Card</DrawerTitle>
@@ -269,6 +320,111 @@ export function ContactsModule() {
               <Button type="submit" className="flex-1">Create Contact Card</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Card</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Contact Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Business Contact Card</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify recorded external stakeholder details.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-name" className="text-xs font-bold text-muted-foreground">Full Name</Label>
+                  <Input 
+                    id="edit-cont-name"
+                    placeholder="E.g., Vikram Sharma"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Mobile */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-phone" className="text-xs font-bold text-muted-foreground">Primary Mobile Phone</Label>
+                  <Input 
+                    id="edit-cont-phone"
+                    placeholder="E.g., 9911223344"
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-address" className="text-xs font-bold text-muted-foreground">Primary Service/Office Address</Label>
+                  <Input 
+                    id="edit-cont-address"
+                    placeholder="Street, Tower, Location details"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Type selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-type" className="text-xs font-bold text-muted-foreground">Contact Profile Type</Label>
+                  <Select value={editCustomerType} onValueChange={setEditCustomerType}>
+                    <SelectTrigger id="edit-cont-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Regular">Regular Stakeholder</SelectItem>
+                      <SelectItem value="VIP">VIP Client</SelectItem>
+                      <SelectItem value="Corporate">Corporate Entity</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Last Service Date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-date" className="text-xs font-bold text-muted-foreground">Last Service Date</Label>
+                  <Input 
+                    id="edit-cont-date"
+                    placeholder="E.g., 2026-05-15 or No service logged yet"
+                    value={editLastServiceDate}
+                    onChange={(e) => setEditLastServiceDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cont-notes" className="text-xs font-bold text-muted-foreground">Memo Notes</Label>
+                  <Input 
+                    id="edit-cont-notes"
+                    placeholder="Key specifications, pricing agreements, references..."
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

@@ -757,6 +757,12 @@ export function ImportModule() {
       const localCustomers = [...crm.customers]
       const localBookings = [...crm.bookings]
       const localTechnicians = [...crm.technicians]
+      const localSpares = [...crm.spares]
+      const localExpenses = [...crm.expenses]
+      const localOutstanding = [...crm.outstandingDues]
+      const localLeads = [...crm.leads]
+      const localContacts = [...crm.contacts]
+      const localPayouts = [...crm.payouts]
 
       let maxCustId = localCustomers.reduce((max, c) => {
         const num = parseInt(c.id.split("-")[1])
@@ -818,12 +824,19 @@ export function ImportModule() {
             continue
           }
 
+          const custMobile = String(mappedObj.mobile || "9900000000").trim()
+          const exists = localCustomers.some(c => c.name.toLowerCase().trim() === custName.toLowerCase() && c.mobile === custMobile)
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate customer "${custName}" with mobile "${custMobile}" already exists. Skipping duplicate.`)
+            continue
+          }
+
           maxCustId++
           const custId = `CUST-${maxCustId}`
           const custDoc = {
             id: custId,
             name: custName,
-            mobile: mappedObj.mobile || "9900000000",
+            mobile: custMobile,
             address: mappedObj.address || "Imported Address",
             referralSource: (mappedObj.referralSource || "Other") as any,
             notes: mappedObj.notes || "Imported via Excel migration",
@@ -831,6 +844,7 @@ export function ImportModule() {
             status: "Active" as const,
             createdAt: new Date().toISOString().split("T")[0]
           }
+          localCustomers.push(custDoc as any)
           if (isFirebaseEnabled && db) {
             await writeDoc("customers", custId, custDoc)
           } else {
@@ -1025,6 +1039,12 @@ export function ImportModule() {
             continue
           }
 
+          const exists = localTechnicians.some(t => t.name.toLowerCase().trim() === techName.toLowerCase())
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate technician "${techName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
           const techNum = localTechnicians.length ? Math.max(...localTechnicians.map(t => parseInt(t.id.split("-")[1]))) + 1 : 1001
           const techId = `TECH-${techNum}`
           const techDoc = {
@@ -1053,7 +1073,13 @@ export function ImportModule() {
             continue
           }
 
-          const spareNum = crm.spares.length ? Math.max(...crm.spares.map(s => parseInt(s.id.split("-")[1]))) + 1 : 1001
+          const exists = localSpares.some(s => s.name.toLowerCase().trim() === spareName.toLowerCase())
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate spare part "${spareName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
+          const spareNum = localSpares.length ? Math.max(...localSpares.map(s => parseInt(s.id.split("-")[1]))) + 1 : 1001
           const spareId = `SPIN-${spareNum}`
           const spareDoc = {
             id: spareId,
@@ -1065,6 +1091,7 @@ export function ImportModule() {
             availableQty: mappedObj.stockQty || 10,
             reorderLevel: mappedObj.reorderLevel || 3
           }
+          localSpares.push(spareDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("spares", spareId, spareDoc)
           } else {
@@ -1082,6 +1109,21 @@ export function ImportModule() {
           // Skip total rows at the bottom of the ledger
           if (expenseItem.toUpperCase() === "TOTAL" || expenseItem.toUpperCase() === "GRAND TOTAL") {
             logs.push(`Row ${rowIndex + 1}: Summary row skipped (Item: "${expenseItem}").`)
+            continue
+          }
+
+          const amountVal = parseFloat(mappedObj.amount) || 0
+          const dateVal = mappedObj.date || new Date().toISOString().split("T")[0]
+          const beneficiaryVal = String(mappedObj.beneficiary || expenseItem || "Reconciled Supplier").trim()
+
+          const exists = localExpenses.some(e => 
+            e.item.toLowerCase().trim() === expenseItem.toLowerCase() && 
+            e.amount === amountVal && 
+            e.date === dateVal && 
+            e.beneficiary.toLowerCase().trim() === beneficiaryVal.toLowerCase()
+          )
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate expense voucher "${expenseItem}" for amount ₹${amountVal} already exists. Skipping duplicate.`)
             continue
           }
 
@@ -1108,17 +1150,18 @@ export function ImportModule() {
             }
           }
 
-          const expNum = crm.expenses.length ? Math.max(...crm.expenses.map(e => parseInt(e.id.split("-")[1]))) + 1 : 1001
+          const expNum = localExpenses.length ? Math.max(...localExpenses.map(e => parseInt(e.id.split("-")[1]))) + 1 : 1001
           const expId = `EXP-${expNum}`
           const expenseDoc = {
             id: expId,
-            date: mappedObj.date || new Date().toISOString().split("T")[0],
+            date: dateVal,
             item: expenseItem,
             category: detectedCategory as any,
-            amount: mappedObj.amount || 0,
-            beneficiary: mappedObj.beneficiary || expenseItem || "Reconciled Supplier",
+            amount: amountVal,
+            beneficiary: beneficiaryVal,
             remarks: mappedObj.remarks || "Imported expense"
           }
+          localExpenses.push(expenseDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("expenses", expId, expenseDoc)
           } else {
@@ -1133,16 +1176,32 @@ export function ImportModule() {
             continue
           }
 
-          const dueNum = crm.outstandingDues.length ? Math.max(...crm.outstandingDues.map(o => parseInt(o.id.split("-")[1]))) + 1 : 1001
+          const amountVal = parseFloat(mappedObj.amount) || 0
+          const reasonVal = String(mappedObj.reason || "Historical due balance").trim()
+          const dateVal = mappedObj.date || new Date().toISOString().split("T")[0]
+
+          const exists = localOutstanding.some(d => 
+            d.recipient.toLowerCase().trim() === recipientName.toLowerCase() && 
+            d.amount === amountVal && 
+            d.reason.toLowerCase().trim() === reasonVal.toLowerCase() && 
+            d.date === dateVal
+          )
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate outstanding due entry for "${recipientName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
+          const dueNum = localOutstanding.length ? Math.max(...localOutstanding.map(o => parseInt(o.id.split("-")[1]))) + 1 : 1001
           const dueId = `DUE-${dueNum}`
           const dueDoc = {
             id: dueId,
             recipient: recipientName,
-            amount: mappedObj.amount || 0,
-            reason: mappedObj.reason || "Historical due balance",
-            date: mappedObj.date || new Date().toISOString().split("T")[0],
+            amount: amountVal,
+            reason: reasonVal,
+            date: dateVal,
             status: "Pending" as const
           }
+          localOutstanding.push(dueDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("outstanding", dueId, dueDoc)
           } else {
@@ -1157,20 +1216,34 @@ export function ImportModule() {
             continue
           }
 
-          const leadNum = crm.leads.length ? Math.max(...crm.leads.map(l => parseInt(l.id.split("-")[1]))) + 1 : 1001
+          const leadMobile = String(mappedObj.mobile || "9900000000").trim()
+          const leadAppliance = String(mappedObj.appliance || "AC").trim()
+
+          const exists = localLeads.some(l => 
+            l.name.toLowerCase().trim() === leadName.toLowerCase() && 
+            l.mobile === leadMobile && 
+            l.appliance.toLowerCase().trim() === leadAppliance.toLowerCase()
+          )
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate lead for "${leadName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
+          const leadNum = localLeads.length ? Math.max(...localLeads.map(l => parseInt(l.id.split("-")[1]))) + 1 : 1001
           const leadId = `LEAD-${leadNum}`
           const leadDoc = {
             id: leadId,
             name: leadName,
-            mobile: mappedObj.mobile || "9900000000",
+            mobile: leadMobile,
             address: mappedObj.address || "Imported Address",
             source: (mappedObj.source || "Other") as any,
-            appliance: mappedObj.appliance || "AC",
+            appliance: leadAppliance,
             requirement: mappedObj.requirement || "AC repair",
             assignedTo: "Manager",
             status: "New" as const,
             createdAt: new Date().toISOString().split("T")[0]
           }
+          localLeads.push(leadDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("leads", leadId, leadDoc)
           } else {
@@ -1185,17 +1258,29 @@ export function ImportModule() {
             continue
           }
 
-          const contNum = crm.contacts.length ? Math.max(...crm.contacts.map(c => parseInt(c.id.split("-")[1]))) + 1 : 1001
+          const contactMobile = String(mappedObj.mobile || "9900000000").trim()
+
+          const exists = localContacts.some(c => 
+            c.name.toLowerCase().trim() === contactName.toLowerCase() && 
+            c.mobile === contactMobile
+          )
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate contact card for "${contactName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
+          const contNum = localContacts.length ? Math.max(...localContacts.map(c => parseInt(c.id.split("-")[1]))) + 1 : 1001
           const contId = `CONT-${contNum}`
           const contactDoc = {
             id: contId,
             name: contactName,
-            mobile: mappedObj.mobile || "9900000000",
+            mobile: contactMobile,
             address: mappedObj.address || "Imported Address",
             customerType: (mappedObj.customerType || "Regular") as any,
             notes: mappedObj.notes || "Imported contact card",
             lastServiceDate: "No service logged"
           }
+          localContacts.push(contactDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("contacts", contId, contactDoc)
           } else {
@@ -1244,40 +1329,54 @@ export function ImportModule() {
             logs.push(`Row ${rowIndex + 1}: Onboarded new technician "${techName}" as Ref "${techId}".`)
           }
 
-          // Generate sequential PAY-ID
-          const payNum = crm.payouts.length + importCount ? Math.max(...crm.payouts.map(p => parseInt(p.id.split("-")[1])), 1000) + 1 + importCount : 1001
-          const payId = `PAY-${payNum}`
+          const dateVal = mappedObj.date || "2026-05-30"
+          const dailyEarningsVal = parseFloat(mappedObj.dailyEarnings) || 0
+          const advanceVal = parseFloat(mappedObj.advance) || 0
+          const dueVal = parseFloat(mappedObj.due) || 0
 
-          const dailyEarnings = parseFloat(mappedObj.dailyEarnings) || 0
-          const advance = parseFloat(mappedObj.advance) || 0
-          const due = parseFloat(mappedObj.due) || 0
+          const exists = localPayouts.some(p => 
+            p.technicianId === finalTechId && 
+            p.date === dateVal && 
+            p.dailyEarnings === dailyEarningsVal && 
+            p.advance === advanceVal && 
+            p.due === dueVal
+          )
+          if (exists) {
+            logs.push(`Row ${rowIndex + 1}: Warning - Duplicate payout transaction for technician "${techName}" already exists. Skipping duplicate.`)
+            continue
+          }
+
+          // Generate sequential PAY-ID
+          const payNum = localPayouts.length ? Math.max(...localPayouts.map(p => parseInt(p.id.split("-")[1])), 1000) + 1 : 1001
+          const payId = `PAY-${payNum}`
 
           const payoutDoc = {
             id: payId,
             technicianId: finalTechId,
-            date: mappedObj.date || "2026-05-30",
-            dailyEarnings: dailyEarnings,
+            date: dateVal,
+            dailyEarnings: dailyEarningsVal,
             totalPayout: 0, // cash paid initially 0, all stays as pending dues
-            advance: advance,
+            advance: advanceVal,
             extra: 0,
-            due: due,
+            due: dueVal,
             paymentStatus: "Pending" as const
           }
 
+          localPayouts.push(payoutDoc)
           if (isFirebaseEnabled && db) {
             await writeDoc("payouts", payId, payoutDoc)
             // Update technician running balances in Firestore
             const matchedTech = localTechnicians.find(t => t.id === finalTechId)
             if (matchedTech) {
-              matchedTech.dueAmount = due
-              matchedTech.advanceTaken = Math.max(0, matchedTech.advanceTaken - advance)
+              matchedTech.dueAmount = dueVal
+              matchedTech.advanceTaken = Math.max(0, matchedTech.advanceTaken - advanceVal)
               await writeDoc("technicians", finalTechId, matchedTech)
             }
           } else {
             crm.addPayout(payoutDoc)
           }
 
-          logs.push(`Row ${rowIndex + 1}: Success - Payout settlement recorded for "${techName}" as Ref "${payId}" (Dues: ₹${due}).`)
+          logs.push(`Row ${rowIndex + 1}: Success - Payout settlement recorded for "${techName}" as Ref "${payId}" (Dues: ₹${dueVal}).`)
           importCount++
         }
       }

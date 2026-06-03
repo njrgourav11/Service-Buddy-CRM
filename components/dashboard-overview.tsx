@@ -572,36 +572,41 @@ export function DashboardOverview() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {recentBookings.map((b) => (
-                      <tr key={b.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
-                        <td className="px-4 py-3 font-medium text-xs text-foreground">{b.appliance}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
-                            {b.serviceType}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-bold py-0.5 px-1.5 flex w-fit items-center gap-1 ${
-                              b.status === "Completed"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
-                                : b.status === "In Progress"
-                                ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                                : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                            }`}
-                          >
-                            <HugeiconsIcon
-                              icon={b.status === "Completed" ? CheckmarkCircle01Icon : Loading03Icon}
-                              strokeWidth={2.5}
-                              className="size-3"
-                            />
-                            {b.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
+                    {recentBookings.map((b) => {
+                      const cust = customers.find((c) => c.id === b.customerId)
+                      const customerName = cust ? cust.name : "Unknown Customer"
+                      return (
+                        <tr key={b.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
+                          <td className="px-4 py-3 font-semibold text-xs text-foreground">{customerName}</td>
+                          <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
+                              {b.serviceType}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-bold py-0.5 px-1.5 flex w-fit items-center gap-1 ${
+                                b.status === "Completed"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
+                                  : b.status === "In Progress"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                  : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                              }`}
+                            >
+                              <HugeiconsIcon
+                                icon={b.status === "Completed" ? CheckmarkCircle01Icon : Loading03Icon}
+                                strokeWidth={2.5}
+                                className="size-3"
+                              />
+                              {b.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {recentBookings.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-xs text-muted-foreground">
@@ -1121,39 +1126,44 @@ export function DashboardOverview() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {recentBookings.map((b) => (
-                    <tr key={b.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
-                      <td className="px-4 py-3 font-medium text-xs text-foreground">{b.appliance}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
-                          {b.serviceType}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
-                        ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-bold py-0.5 px-1.5 flex w-fit items-center gap-1 ${
-                            b.status === "Completed"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
-                              : b.status === "In Progress"
-                              ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                              : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                          }`}
-                        >
-                          <HugeiconsIcon
-                            icon={b.status === "Completed" ? CheckmarkCircle01Icon : Loading03Icon}
-                            strokeWidth={2.5}
-                            className="size-3"
-                          />
-                          {b.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {recentBookings.map((b) => {
+                    const cust = customers.find((c) => c.id === b.customerId)
+                    const customerName = cust ? cust.name : "Unknown Customer"
+                    return (
+                      <tr key={b.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
+                        <td className="px-4 py-3 font-semibold text-xs text-foreground">{customerName}</td>
+                        <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
+                            {b.serviceType}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
+                          ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-bold py-0.5 px-1.5 flex w-fit items-center gap-1 ${
+                              b.status === "Completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400"
+                                : b.status === "In Progress"
+                                ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                            }`}
+                          >
+                            <HugeiconsIcon
+                              icon={b.status === "Completed" ? CheckmarkCircle01Icon : Loading03Icon}
+                              strokeWidth={2.5}
+                              className="size-3"
+                            />
+                            {b.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {recentBookings.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">

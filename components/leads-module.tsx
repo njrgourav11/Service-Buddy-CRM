@@ -36,6 +36,51 @@ export function LeadsModule() {
   
   // Add modal state
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null)
+
+  // Edit Form State
+  const [editName, setEditName] = React.useState("")
+  const [editMobile, setEditMobile] = React.useState("")
+  const [editAddress, setEditAddress] = React.useState("")
+  const [editSource, setEditSource] = React.useState<any>("Ad")
+  const [editAppliance, setEditAppliance] = React.useState("AC")
+  const [editRequirement, setEditRequirement] = React.useState("")
+  const [editAssignedTo, setEditAssignedTo] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState<any>("New")
+
+  // Open Edit Drawer
+  const handleOpenEdit = (l: Lead) => {
+    setSelectedLead(l)
+    setEditName(l.name)
+    setEditMobile(l.mobile)
+    setEditAddress(l.address)
+    setEditSource(l.source)
+    setEditAppliance(l.appliance)
+    setEditRequirement(l.requirement)
+    setEditAssignedTo(l.assignedTo)
+    setEditStatus(l.status)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Lead
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedLead) return
+
+    updateLead(selectedLead.id, {
+      name: editName,
+      mobile: editMobile,
+      address: editAddress,
+      source: editSource,
+      appliance: editAppliance,
+      requirement: editRequirement,
+      assignedTo: editAssignedTo,
+      status: editStatus
+    })
+
+    setIsEditOpen(false)
+  }
   
   // Conversion state
   const [isConvertOpen, setIsConvertOpen] = React.useState(false)
@@ -227,11 +272,21 @@ export function LeadsModule() {
                               Convert to Job
                             </Button>
                           )}
+                          {(currentRole === "Admin" || currentRole === "Manager") && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenEdit(l)}
+                              className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
+                            >
+                              Edit
+                            </Button>
+                          )}
                           {currentRole === "Admin" && (
                             <Button 
                               variant="ghost" 
                               onClick={() => deleteLead(l.id)}
-                              className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center"
+                              className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                             >
                               ×
                             </Button>
@@ -249,7 +304,7 @@ export function LeadsModule() {
 
       {/* Lead Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Capture New Customer Lead</DrawerTitle>
@@ -371,7 +426,7 @@ export function LeadsModule() {
           CONVERSION DIALOG
          ========================================== */}
       <Drawer open={isConvertOpen} onOpenChange={setIsConvertOpen} direction="bottom">
-        <DrawerContent className="max-h-[85vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleConvertConfirm} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Convert Lead to Work Order</DrawerTitle>
@@ -426,6 +481,143 @@ export function LeadsModule() {
               <Button type="submit" className="flex-1">Confirm Conversion</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Cancel Conversion</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Lead Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Customer Lead Details</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify details of lead inquiry or advertisement referrals.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-name" className="text-xs font-bold text-muted-foreground">Lead Customer Name</Label>
+                  <Input 
+                    id="edit-lead-name"
+                    placeholder="E.g., Anil Kumar"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Phone */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-phone" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
+                  <Input 
+                    id="edit-lead-phone"
+                    placeholder="E.g., 9555112233"
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-address" className="text-xs font-bold text-muted-foreground">Customer Location / Address</Label>
+                  <Input 
+                    id="edit-lead-address"
+                    placeholder="Flat/Villa, Sector, Gurugram"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Lead Status */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-status" className="text-xs font-bold text-muted-foreground">Lead Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger id="edit-lead-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="New">New Inquiries</SelectItem>
+                      <SelectItem value="Contacted">Contacted</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Converted">Converted to Jobs</SelectItem>
+                      <SelectItem value="Lost">Lost Deals</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Lead Source */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-lead-source" className="text-xs font-bold text-muted-foreground">Acquisition Channel</Label>
+                    <Select value={editSource} onValueChange={setEditSource}>
+                      <SelectTrigger id="edit-lead-source">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ad">Ad</SelectItem>
+                        <SelectItem value="Contact">Contact</SelectItem>
+                        <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Appliance */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-lead-appliance" className="text-xs font-bold text-muted-foreground">Appliance Type</Label>
+                    <Input 
+                      id="edit-lead-appliance"
+                      placeholder="E.g., AC, TV, Refrigerator"
+                      value={editAppliance}
+                      onChange={(e) => setEditAppliance(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Requirement Description */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-req" className="text-xs font-bold text-muted-foreground">Client Requirements</Label>
+                  <Input 
+                    id="edit-lead-req"
+                    placeholder="E.g., Complete installation or regular AMC service"
+                    value={editRequirement}
+                    onChange={(e) => setEditRequirement(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Assigned To staff */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-agent" className="text-xs font-bold text-muted-foreground">Assigned Sales Agent</Label>
+                  <Input 
+                    id="edit-lead-agent"
+                    placeholder="E.g., Megha Manager"
+                    value={editAssignedTo}
+                    onChange={(e) => setEditAssignedTo(e.target.value)}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3 max-w-lg mx-auto w-full">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

@@ -90,6 +90,7 @@ export function BookingModule() {
 
   // Creation Form State
   const [formCustomerId, setFormCustomerId] = React.useState("")
+  const [customerSearch, setCustomerSearch] = React.useState("")
   const [customerMode, setCustomerMode] = React.useState<"existing" | "new">("existing")
   const [newCustName, setNewCustName] = React.useState("")
   const [newCustMobile, setNewCustMobile] = React.useState("")
@@ -282,6 +283,14 @@ export function BookingModule() {
     return filteredBookings.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   }, [filteredBookings, currentPage, pageSize])
 
+  // Filter registered customers for selection in create booking form
+  const filteredCustomers = React.useMemo(() => {
+    return customers.filter(c => {
+      const searchStr = `${c.name} ${c.mobile} ${c.address} ${c.id}`.toLowerCase()
+      return searchStr.includes(customerSearch.toLowerCase())
+    })
+  }, [customers, customerSearch])
+
   // Reset page index when search or filters change
   React.useEffect(() => {
     setCurrentPage(1)
@@ -340,6 +349,7 @@ export function BookingModule() {
 
     // Reset Form
     setFormCustomerId("")
+    setCustomerSearch("")
     setNewCustName("")
     setNewCustMobile("")
     setNewCustAddress("")
@@ -1088,7 +1098,7 @@ export function BookingModule() {
           5. DETAILS SLIDE-OUT PANEL (Editable CRM & Payouts control)
          ======================================================== */}
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen} direction="right">
-        <DrawerContent className="h-full w-full max-w-md ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
+        <DrawerContent className="h-full w-full max-w-xl ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
           {selectedBooking && (
             <form onSubmit={handleSaveDetailsEdit} className="h-full flex flex-col overflow-hidden">
               <DrawerHeader className="border-b border-border/40 p-4 gap-1">
@@ -1382,7 +1392,7 @@ export function BookingModule() {
           6. BOOKING CREATION MODAL / DIALOG
          ========================================== */}
       <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen} direction="bottom">
-        <DrawerContent className="max-h-[92vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleCreateSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">New Appliance Service Booking</DrawerTitle>
@@ -1425,19 +1435,56 @@ export function BookingModule() {
                 </div>
 
                 {customerMode === "existing" ? (
-                  /* Existing customer list Selector */
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="cust" className="text-xs font-bold text-muted-foreground">Select Customer (CIN)</Label>
-                    <Select value={formCustomerId} onValueChange={setFormCustomerId}>
-                      <SelectTrigger id="cust">
-                        <SelectValue placeholder="Search Registered Customer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.id})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  /* Existing customer list Selector with Search */
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="cust-search" className="text-xs font-bold text-muted-foreground">Select Registered Customer</Label>
+                    <div className="relative">
+                      <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <Input
+                        id="cust-search"
+                        placeholder="Search by name, mobile, address or CIN..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="pl-9 bg-background h-9 text-xs border-border/60"
+                      />
+                    </div>
+                    
+                    <div className="border border-border/60 rounded-lg max-h-40 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                      {filteredCustomers.length === 0 ? (
+                        <div className="p-3 text-xs text-muted-foreground text-center">No customers found matching "{customerSearch}"</div>
+                      ) : (
+                        filteredCustomers.map(c => {
+                          const isSelected = formCustomerId === c.id
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setFormCustomerId(c.id)}
+                              className={`w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors ${
+                                isSelected 
+                                  ? "bg-primary/20 text-primary font-semibold" 
+                                  : "hover:bg-muted/50 text-foreground"
+                              }`}
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                  <span>{c.name}</span>
+                                  <span className="text-[10px] text-muted-foreground">({c.id})</span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                  <span>{c.mobile}</span>
+                                  <span className="text-border">•</span>
+                                  <span className="truncate max-w-[200px]">{c.address}</span>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2.5} className="size-4 text-primary shrink-0" />
+                              )}
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
                   </div>
                 ) : (
                   /* Inline Client Form */

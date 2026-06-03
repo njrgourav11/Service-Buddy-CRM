@@ -18,6 +18,7 @@ import { OutstandingModule } from "@/components/outstanding-module"
 import { PayoutModule } from "@/components/payout-module"
 import { InventoryModule } from "@/components/inventory-module"
 import { AssetsEmployeesModule } from "@/components/assets-employees-module"
+import { TechnicianModule } from "@/components/technician-module"
 import { RemindersModule } from "@/components/reminders-module"
 import { ReportsModule } from "@/components/reports-module"
 import { ImportModule } from "@/components/import-module"
@@ -51,6 +52,8 @@ function DashboardContent() {
         return <AssetsEmployeesModule initialSubTab="assets" />
       case "employees":
         return <AssetsEmployeesModule initialSubTab="employees" />
+      case "technicians":
+        return <TechnicianModule />
       case "reminders":
         return <RemindersModule />
       case "reports":

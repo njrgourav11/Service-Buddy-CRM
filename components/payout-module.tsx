@@ -33,6 +33,8 @@ export function PayoutModule() {
   const [search, setSearch] = React.useState("")
   const [techFilter, setTechFilter] = React.useState("ALL")
   const [isPayOpen, setIsPayOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedPayout, setSelectedPayout] = React.useState<Payout | null>(null)
 
   // Form State
   const [formTechId, setFormTechId] = React.useState("")
@@ -42,6 +44,15 @@ export function PayoutModule() {
   const [formAdvance, setFormAdvance] = React.useState(0)
   const [formExtra, setFormExtra] = React.useState(0)
   const [formStatus, setFormStatus] = React.useState<any>("Paid")
+
+  // Edit Form State
+  const [editTechId, setEditTechId] = React.useState("")
+  const [editDate, setEditDate] = React.useState("")
+  const [editDailyEarnings, setEditDailyEarnings] = React.useState(0)
+  const [editTotalPayout, setEditTotalPayout] = React.useState(0)
+  const [editAdvance, setEditAdvance] = React.useState(0)
+  const [editExtra, setEditExtra] = React.useState(0)
+  const [editStatus, setEditStatus] = React.useState<any>("Paid")
 
   // Auto-fill daily earnings if a technician is selected
   React.useEffect(() => {
@@ -104,6 +115,37 @@ export function PayoutModule() {
   const handleToggleStatus = (id: string, current: string) => {
     updatePayout(id, { paymentStatus: current === "Paid" ? "Pending" : "Paid" })
     toast.success("Payout status modified.")
+  }
+
+  // Action: Open Edit Drawer
+  const handleOpenEdit = (p: Payout) => {
+    setSelectedPayout(p)
+    setEditTechId(p.technicianId)
+    setEditDate(p.date)
+    setEditDailyEarnings(p.dailyEarnings)
+    setEditTotalPayout(p.totalPayout)
+    setEditAdvance(p.advance)
+    setEditExtra(p.extra)
+    setEditStatus(p.paymentStatus)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Form
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedPayout) return
+
+    updatePayout(selectedPayout.id, {
+      technicianId: editTechId,
+      date: editDate,
+      dailyEarnings: editDailyEarnings,
+      totalPayout: editTotalPayout,
+      advance: editAdvance,
+      extra: editExtra,
+      paymentStatus: editStatus
+    })
+
+    setIsEditOpen(false)
   }
 
   return (
@@ -212,12 +254,13 @@ export function PayoutModule() {
                   <th className="px-4 py-3">Total Paid</th>
                   <th className="px-4 py-3">Remaining Due</th>
                   <th className="px-4 py-3">Payment Status</th>
+                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredPayouts.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 10 : 9} className="text-center py-12 text-muted-foreground font-medium">
                       No payout logs found.
                     </td>
                   </tr>
@@ -249,6 +292,27 @@ export function PayoutModule() {
                             {p.paymentStatus}
                           </Badge>
                         </td>
+                        {currentRole === "Admin" && (
+                          <td className="px-4 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleOpenEdit(p)}
+                                className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
+                              >
+                                Edit
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                onClick={() => deletePayout(p.id)}
+                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     )
                   })
@@ -261,7 +325,7 @@ export function PayoutModule() {
 
       {/* Record Payout Dialog */}
       <Drawer open={isPayOpen} onOpenChange={setIsPayOpen} direction="bottom">
-        <DrawerContent className="max-h-[90vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Process Technician Payout Settlement</DrawerTitle>
@@ -394,6 +458,143 @@ export function PayoutModule() {
               <Button type="submit" className="flex-1">Clear Settlement</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Cancel Transaction</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Edit Payout Dialog */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Technician Payout / Settlement</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify transaction parameter logs. Dues and advances will automatically reconcile.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Tech Selection (Disabled) */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-pay-tech" className="text-xs font-bold text-muted-foreground">Select Technician</Label>
+                  <Select value={editTechId} onValueChange={setEditTechId} disabled>
+                    <SelectTrigger id="edit-pay-tech">
+                      <SelectValue placeholder="Select Technician..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {technicians.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Daily Earnings */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-earn" className="text-xs font-bold text-muted-foreground">Earnings Unpaid</Label>
+                    <Input 
+                      type="number"
+                      id="edit-pay-earn"
+                      min="0"
+                      value={editDailyEarnings}
+                      onChange={(e) => setEditDailyEarnings(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+
+                  {/* Cash Paid */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-cash" className="text-xs font-bold text-muted-foreground">Settlement Amount Paid</Label>
+                    <Input 
+                      type="number"
+                      id="edit-pay-cash"
+                      min="0"
+                      value={editTotalPayout}
+                      onChange={(e) => setEditTotalPayout(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                {/* Settlement Date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-pay-date" className="text-xs font-bold text-muted-foreground">Settlement Date</Label>
+                  <Input 
+                    type="date"
+                    id="edit-pay-date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Advance Deductions */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-adv" className="text-xs font-bold text-muted-foreground">Advance Reclaimed</Label>
+                    <Input 
+                      type="number"
+                      id="edit-pay-adv"
+                      min="0"
+                      value={editAdvance}
+                      onChange={(e) => setEditAdvance(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+
+                  {/* Extra Compensation */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-extra" className="text-xs font-bold text-muted-foreground">Extra Bonus/Expense</Label>
+                    <Input 
+                      type="number"
+                      id="edit-pay-extra"
+                      min="0"
+                      value={editExtra}
+                      onChange={(e) => setEditExtra(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                {/* Status Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-pay-status" className="text-xs font-bold text-muted-foreground">Payment Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger id="edit-pay-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Paid">Paid / Cleared</SelectItem>
+                      <SelectItem value="Pending">Pending / Scheduled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Reconcile Preview */}
+                <div className="mt-2 rounded-lg bg-emerald-500/5 p-3.5 border border-emerald-500/10 flex flex-col gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-wider">Adjustment Audit Preview</span>
+                  <div className="flex justify-between">
+                    <span>Audit Status:</span>
+                    <span className="font-semibold text-foreground">Revising Transaction {selectedPayout?.id}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-foreground">
+                    <span>New Net Settlement:</span>
+                    <span className="text-emerald-600 font-extrabold">₹{editTotalPayout}</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Discard Changes</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

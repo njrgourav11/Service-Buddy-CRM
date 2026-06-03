@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Drawer, 
   DrawerClose, 
@@ -26,15 +27,51 @@ import {
 import { toast } from "sonner"
 
 export function OutstandingModule() {
-  const { outstandingDues, addOutstandingDue, updateOutstandingDue, currentRole } = useCRM()
+  const { outstandingDues, addOutstandingDue, updateOutstandingDue, deleteOutstandingDue, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedDue, setSelectedDue] = React.useState<OutstandingDue | null>(null)
 
   // Form State
   const [recipient, setRecipient] = React.useState("")
   const [amount, setAmount] = React.useState(0)
   const [reason, setReason] = React.useState("")
   const [date, setDate] = React.useState(new Date().toISOString().split("T")[0])
+
+  // Edit Form State
+  const [editRecipient, setEditRecipient] = React.useState("")
+  const [editAmount, setEditAmount] = React.useState(0)
+  const [editReason, setEditReason] = React.useState("")
+  const [editDate, setEditDate] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState<any>("Pending")
+
+  // Open Edit Drawer
+  const handleOpenEdit = (d: OutstandingDue) => {
+    setSelectedDue(d)
+    setEditRecipient(d.recipient)
+    setEditAmount(d.amount)
+    setEditReason(d.reason)
+    setEditDate(d.date)
+    setEditStatus(d.status)
+    setIsEditOpen(true)
+  }
+
+  // Submit Edit Due
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedDue) return
+
+    updateOutstandingDue(selectedDue.id, {
+      recipient: editRecipient,
+      amount: editAmount,
+      reason: editReason,
+      date: editDate,
+      status: editStatus
+    })
+
+    setIsEditOpen(false)
+  }
 
   // Filtered List
   const filteredDues = outstandingDues.filter(d => {
@@ -145,14 +182,31 @@ export function OutstandingModule() {
                       </td>
                       {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleToggleSettle(d.id, d.status)}
-                            className="h-7 text-xs font-semibold px-2 ml-auto"
-                          >
-                            {d.status === "Pending" ? "Reconcile / Settle" : "Mark Pending"}
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleToggleSettle(d.id, d.status)}
+                              className="h-7 text-xs font-semibold px-2"
+                            >
+                              {d.status === "Pending" ? "Reconcile / Settle" : "Mark Pending"}
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenEdit(d)}
+                              className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
+                            >
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => deleteOutstandingDue(d.id)}
+                              className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                            >
+                              ×
+                            </Button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -166,7 +220,7 @@ export function OutstandingModule() {
 
       {/* Outstanding Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">
-        <DrawerContent className="max-h-[85vh] flex flex-col rounded-t-2xl border-t bg-card">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
           <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
             <DrawerHeader className="border-b border-border/40 p-4">
               <DrawerTitle className="text-base font-bold">Log Outstanding Liability / Due Balance</DrawerTitle>
@@ -238,6 +292,100 @@ export function OutstandingModule() {
               <Button type="submit" className="flex-1">Log Liability</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Entry</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Outstanding Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Outstanding Liability / Due Balance</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify details of liabilities or balances for technicians/vendors.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Recipient */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-due-recipient" className="text-xs font-bold text-muted-foreground">Recipient Name (Vendor/Tech)</Label>
+                  <Input 
+                    id="edit-due-recipient"
+                    placeholder="E.g., Apex Copper Spares, Suresh Kumar"
+                    value={editRecipient}
+                    onChange={(e) => setEditRecipient(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Amount */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-due-amt" className="text-xs font-bold text-muted-foreground">Outstanding Amount (₹)</Label>
+                  <Input 
+                    type="number"
+                    id="edit-due-amt"
+                    min="0"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+                {/* Status */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-due-status" className="text-xs font-bold text-muted-foreground">Payment Status</Label>
+                  <Select value={editStatus} onValueChange={setEditStatus}>
+                    <SelectTrigger id="edit-due-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Settled">Settled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-due-date" className="text-xs font-bold text-muted-foreground">Outstanding Date</Label>
+                  <Input 
+                    type="date"
+                    id="edit-due-date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Reason */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-due-reason" className="text-xs font-bold text-muted-foreground">Detailed Reason / Comments</Label>
+                  <Input 
+                    id="edit-due-reason"
+                    placeholder="E.g., Invoice balances, extra spares purchase"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    required
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Save Changes</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>
