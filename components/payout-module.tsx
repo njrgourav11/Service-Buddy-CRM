@@ -54,12 +54,12 @@ export function PayoutModule() {
   const [editExtra, setEditExtra] = React.useState(0)
   const [editStatus, setEditStatus] = React.useState<any>("Paid")
 
-  // Auto-fill daily earnings if a technician is selected
+  // Auto-fill total payout if a technician is selected
   React.useEffect(() => {
     if (formTechId) {
       const match = technicians.find(t => t.id === formTechId)
       if (match) {
-        setFormDailyEarnings(match.dueAmount)
+        setFormDailyEarnings(0)
         setFormTotalPayout(match.dueAmount)
       }
     }
@@ -148,6 +148,9 @@ export function PayoutModule() {
     setIsEditOpen(false)
   }
 
+  const selectedTechForForm = technicians.find(t => t.id === formTechId)
+  const currentTechDue = selectedTechForForm ? selectedTechForForm.dueAmount : 0
+
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
       
@@ -157,7 +160,7 @@ export function PayoutModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Technician Payout Ledger</h2>
           <p className="text-sm text-muted-foreground">Manage salary payouts, process advances, and reconcile dispatch technician accounts.</p>
         </div>
-        {currentRole === "Admin" && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <Button onClick={() => setIsPayOpen(true)} className="w-fit">
             <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
             Record Payout / Settlement
@@ -247,6 +250,8 @@ export function PayoutModule() {
                 <tr>
                   <th className="px-4 py-3">Transaction ID</th>
                   <th className="px-4 py-3">Technician</th>
+                  <th className="px-4 py-3">Customer Name</th>
+                  <th className="px-4 py-3">CIN Number</th>
                   <th className="px-4 py-3">Settlement Date</th>
                   <th className="px-4 py-3">Daily Earnings</th>
                   <th className="px-4 py-3">Advance Deduction</th>
@@ -254,13 +259,13 @@ export function PayoutModule() {
                   <th className="px-4 py-3">Total Paid</th>
                   <th className="px-4 py-3">Remaining Due</th>
                   <th className="px-4 py-3">Payment Status</th>
-                  {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                  {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredPayouts.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" ? 10 : 9} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={(currentRole === "Admin" || currentRole === "Manager") ? 12 : 11} className="text-center py-12 text-muted-foreground font-medium">
                       No payout logs found.
                     </td>
                   </tr>
@@ -272,6 +277,8 @@ export function PayoutModule() {
                       <tr key={p.id} className="hover:bg-muted/20 transition-colors">
                         <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{p.id}</td>
                         <td className="px-4 py-4 font-semibold text-xs text-foreground">{tech?.name || "Unknown Technician"}</td>
+                        <td className="px-4 py-4 text-xs text-muted-foreground">{p.customerName || "—"}</td>
+                        <td className="px-4 py-4 text-xs font-semibold text-muted-foreground tabular-nums">{p.cinNumber || "—"}</td>
                         <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{p.date}</td>
                         <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">₹{p.dailyEarnings}</td>
                         <td className="px-4 py-4 text-xs font-medium text-rose-600 dark:text-rose-400 tabular-nums">-₹{p.advance}</td>
@@ -281,7 +288,7 @@ export function PayoutModule() {
                         <td className="px-4 py-4">
                           <Badge 
                             variant="outline"
-                            onClick={() => currentRole === "Admin" && handleToggleStatus(p.id, p.paymentStatus)}
+                            onClick={() => (currentRole === "Admin" || currentRole === "Manager") && handleToggleStatus(p.id, p.paymentStatus)}
                             className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
                               p.paymentStatus === "Paid" 
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
@@ -292,7 +299,7 @@ export function PayoutModule() {
                             {p.paymentStatus}
                           </Badge>
                         </td>
-                        {currentRole === "Admin" && (
+                        {(currentRole === "Admin" || currentRole === "Manager") && (
                           <td className="px-4 py-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <Button 
@@ -302,13 +309,6 @@ export function PayoutModule() {
                                 className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
                               >
                                 Edit
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                onClick={() => deletePayout(p.id)}
-                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                              >
-                                ×
                               </Button>
                             </div>
                           </td>
@@ -355,7 +355,7 @@ export function PayoutModule() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Daily Earnings (calculated from tech dues) */}
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="pay-earn" className="text-xs font-bold text-muted-foreground">Earnings Unpaid</Label>
+                    <Label htmlFor="pay-earn" className="text-xs font-bold text-muted-foreground">New Earnings (Optional)</Label>
                     <Input 
                       type="number"
                       id="pay-earn"
@@ -439,15 +439,15 @@ export function PayoutModule() {
                   <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-wider">Audit Adjustment Preview</span>
                   <div className="flex justify-between">
                     <span>Outstanding Due (Before):</span>
-                    <span className="font-semibold text-foreground">₹{formDailyEarnings}</span>
+                    <span className="font-semibold text-foreground">₹{currentTechDue}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Reconciliation Formula:</span>
-                    <span className="font-medium text-muted-foreground">Dues + Extra - Paid - Adv</span>
+                    <span className="font-medium text-muted-foreground">Dues + New Earnings + Extra - Paid - Reclaimed</span>
                   </div>
                   <div className="flex justify-between font-bold text-foreground">
                     <span>Remaining Due (After):</span>
-                    <span className="text-emerald-600 font-extrabold">₹{Math.max(0, formDailyEarnings + formExtra - formTotalPayout - formAdvance)}</span>
+                    <span className="text-emerald-600 font-extrabold">₹{Math.max(0, currentTechDue + formDailyEarnings + formExtra - formTotalPayout - formAdvance)}</span>
                   </div>
                 </div>
 
@@ -496,7 +496,7 @@ export function PayoutModule() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Daily Earnings */}
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="edit-pay-earn" className="text-xs font-bold text-muted-foreground">Earnings Unpaid</Label>
+                    <Label htmlFor="edit-pay-earn" className="text-xs font-bold text-muted-foreground">New Earnings (Commission)</Label>
                     <Input 
                       type="number"
                       id="edit-pay-earn"

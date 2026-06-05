@@ -173,24 +173,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
 
         {/* Financials Section */}
-        {currentRole === "Admin" && (
+        {(currentRole === "Admin" || currentRole === "Manager") && (
           <SidebarGroup className="mt-2">
             <SidebarGroupLabel className="text-[10px] font-bold text-muted-foreground/80 tracking-widest uppercase px-3 py-1">Financials</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navFinancials.map((item) => (
-                  <SidebarMenuItem key={item.id}>
-                    <SidebarMenuButton 
-                      onClick={() => setActiveTab(item.id)}
-                      isActive={activeTab === item.id}
-                      tooltip={item.title}
-                      className="transition-colors duration-150"
-                    >
-                      {item.icon}
-                      <span className="font-medium">{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {navFinancials
+                  .filter((item) => currentRole === "Admin" || (currentRole === "Manager" && item.id === "payouts"))
+                  .map((item) => (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton 
+                        onClick={() => setActiveTab(item.id)}
+                        isActive={activeTab === item.id}
+                        tooltip={item.title}
+                        className="transition-colors duration-150"
+                      >
+                        {item.icon}
+                        <span className="font-medium">{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

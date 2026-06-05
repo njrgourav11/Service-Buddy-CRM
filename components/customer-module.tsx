@@ -35,6 +35,14 @@ import {
   TableRow 
 } from "@/components/ui/table"
 
+const getReviewDotColor = (status: string) => {
+  const s = status || "Review not done"
+  if (s === "Positive") return "bg-emerald-500"
+  if (s === "Negative") return "bg-rose-500"
+  if (s === "Call didn't receive") return "bg-orange-500"
+  return "bg-blue-500" // Review not done
+}
+
 interface CustomerModuleProps {
   hideHeader?: boolean
 }
@@ -61,6 +69,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [referralSource, setReferralSource] = React.useState<any>("Ad")
   const [notes, setNotes] = React.useState("")
   const [review, setReview] = React.useState("")
+  const [reviewStatus, setReviewStatus] = React.useState<any>("Review not done")
   const [status, setStatus] = React.useState<any>("Active")
 
   // Edit Form State
@@ -70,6 +79,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [editReferralSource, setEditReferralSource] = React.useState<any>("Ad")
   const [editNotes, setEditNotes] = React.useState("")
   const [editReview, setEditReview] = React.useState("")
+  const [editReviewStatus, setEditReviewStatus] = React.useState<any>("Review not done")
   const [editStatus, setEditStatus] = React.useState<any>("Active")
 
   // Open Edit Drawer
@@ -81,6 +91,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     setEditReferralSource(c.referralSource)
     setEditNotes(c.notes || "")
     setEditReview(c.review || "")
+    setEditReviewStatus(c.reviewStatus || "Review not done")
     setEditStatus(c.status)
     setIsEditOpen(true)
   }
@@ -97,6 +108,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
       referralSource: editReferralSource,
       notes: editNotes,
       review: editReview,
+      reviewStatus: editReviewStatus,
       status: editStatus
     })
 
@@ -135,6 +147,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
       referralSource,
       notes,
       review,
+      reviewStatus,
       status
     })
 
@@ -145,6 +158,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     setReferralSource("Ad")
     setNotes("")
     setReview("")
+    setReviewStatus("Review not done")
     setStatus("Active")
     setIsAddOpen(false)
   }
@@ -291,11 +305,14 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                         </TableCell>
                         <TableCell className="px-4 py-4 max-w-xs">
                           <div className="flex flex-col gap-0.5">
-                            {c.review ? (
-                              <span className="text-xs italic text-foreground font-medium line-clamp-1">"{c.review}"</span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground font-medium">No reviews logged yet</span>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(c.reviewStatus || "Review not done")}`} title={c.reviewStatus || "Review not done"} />
+                              {c.review ? (
+                                <span className="text-xs italic text-foreground font-semibold line-clamp-1">"{c.review}"</span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground font-medium">No review comments yet</span>
+                              )}
+                            </div>
                             {c.notes && <span className="text-[9px] text-muted-foreground font-medium">Notes: {c.notes}</span>}
                           </div>
                         </TableCell>
@@ -573,13 +590,29 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
 
                 {/* Review */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review (Optional)</Label>
+                  <Label htmlFor="cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review Comments (Optional)</Label>
                   <Input 
                     id="cust-review"
                     placeholder="Client's satisfaction quote"
                     value={review}
                     onChange={(e) => setReview(e.target.value)}
                   />
+                </div>
+
+                {/* Satisfaction Status */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cust-review-status" className="text-xs font-bold text-muted-foreground">Satisfaction Status</Label>
+                  <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                    <SelectTrigger id="cust-review-status" className="h-8 text-xs">
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Review not done">Review not done</SelectItem>
+                      <SelectItem value="Positive">Positive</SelectItem>
+                      <SelectItem value="Negative">Negative</SelectItem>
+                      <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
               </div>
@@ -692,13 +725,29 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
 
                 {/* Review */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="edit-cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review (Optional)</Label>
+                  <Label htmlFor="edit-cust-review" className="text-xs font-bold text-muted-foreground">Satisfaction Review Comments (Optional)</Label>
                   <Input 
                     id="edit-cust-review"
                     placeholder="Client's satisfaction quote"
                     value={editReview}
                     onChange={(e) => setEditReview(e.target.value)}
                   />
+                </div>
+
+                {/* Satisfaction Status */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-cust-review-status" className="text-xs font-bold text-muted-foreground">Satisfaction Status</Label>
+                  <Select value={editReviewStatus} onValueChange={setEditReviewStatus}>
+                    <SelectTrigger id="edit-cust-review-status" className="h-8 text-xs">
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Review not done">Review not done</SelectItem>
+                      <SelectItem value="Positive">Positive</SelectItem>
+                      <SelectItem value="Negative">Negative</SelectItem>
+                      <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
               </div>

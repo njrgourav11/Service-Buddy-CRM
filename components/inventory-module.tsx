@@ -37,7 +37,7 @@ export function InventoryModule() {
 
   // Form State
   const [name, setName] = React.useState("")
-  const [category, setCategory] = React.useState("Capacitors")
+  const [category, setCategory] = React.useState("AC")
   const [stockQty, setStockQty] = React.useState(10)
   const [unitCost, setUnitCost] = React.useState(0)
   const [sellingCost, setSellingCost] = React.useState(0)
@@ -45,7 +45,7 @@ export function InventoryModule() {
 
   // Edit Form State
   const [editName, setEditName] = React.useState("")
-  const [editCategory, setEditCategory] = React.useState("Capacitors")
+  const [editCategory, setEditCategory] = React.useState("AC")
   const [editStockQty, setEditStockQty] = React.useState(0)
   const [editUnitCost, setEditUnitCost] = React.useState(0)
   const [editSellingCost, setEditSellingCost] = React.useState(0)
@@ -104,7 +104,7 @@ export function InventoryModule() {
 
     // Reset Form
     setName("")
-    setCategory("Capacitors")
+    setCategory("AC")
     setStockQty(10)
     setUnitCost(0)
     setSellingCost(0)
@@ -156,9 +156,11 @@ export function InventoryModule() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Categories</SelectItem>
-                <SelectItem value="Capacitors">Capacitors</SelectItem>
-                <SelectItem value="Tools">Tools</SelectItem>
-                <SelectItem value="Cables">Cables</SelectItem>
+                <SelectItem value="AC">AC</SelectItem>
+                <SelectItem value="Washing Machine">Washing Machine</SelectItem>
+                <SelectItem value="TV">TV</SelectItem>
+                <SelectItem value="Geyser">Geyser</SelectItem>
+                <SelectItem value="Refrigerator">Refrigerator</SelectItem>
                 <SelectItem value="General">General</SelectItem>
               </SelectContent>
             </Select>
@@ -250,7 +252,11 @@ export function InventoryModule() {
                             {currentRole === "Admin" && (
                               <Button 
                                 variant="ghost" 
-                                onClick={() => deleteSpare(s.id)}
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete spare item: ${s.name}?`)) {
+                                    deleteSpare(s.id)
+                                  }
+                                }}
                                 className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                               >
                                 ×
@@ -302,9 +308,11 @@ export function InventoryModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Capacitors">Capacitors</SelectItem>
-                      <SelectItem value="Tools">Tools</SelectItem>
-                      <SelectItem value="Cables">Cables</SelectItem>
+                      <SelectItem value="AC">AC</SelectItem>
+                      <SelectItem value="Washing Machine">Washing Machine</SelectItem>
+                      <SelectItem value="TV">TV</SelectItem>
+                      <SelectItem value="Geyser">Geyser</SelectItem>
+                      <SelectItem value="Refrigerator">Refrigerator</SelectItem>
                       <SelectItem value="General">General</SelectItem>
                     </SelectContent>
                   </Select>
@@ -428,9 +436,11 @@ export function InventoryModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Capacitors">Capacitors</SelectItem>
-                      <SelectItem value="Tools">Tools</SelectItem>
-                      <SelectItem value="Cables">Cables</SelectItem>
+                      <SelectItem value="AC">AC</SelectItem>
+                      <SelectItem value="Washing Machine">Washing Machine</SelectItem>
+                      <SelectItem value="TV">TV</SelectItem>
+                      <SelectItem value="Geyser">Geyser</SelectItem>
+                      <SelectItem value="Refrigerator">Refrigerator</SelectItem>
                       <SelectItem value="General">General</SelectItem>
                     </SelectContent>
                   </Select>

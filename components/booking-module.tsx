@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useCRM, Booking, Customer, Technician, Spare, compareIdsNumerically } from "@/context/crm-context"
+import { useCRM, Booking, Customer, Technician, Spare, BookingSpare, compareIdsNumerically } from "@/context/crm-context"
 import { CustomerModule } from "@/components/customer-module"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +41,14 @@ import {
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
+export const getReviewDotColor = (review: string) => {
+  const r = review || ""
+  if (r === "Positive") return "bg-emerald-500"
+  if (r === "Negative") return "bg-rose-500"
+  if (r === "Call didn't receive") return "bg-orange-500"
+  return "bg-blue-500" // Review not done
+}
+
 export function BookingModule() {
   const { 
     bookings, 
@@ -71,6 +79,8 @@ export function BookingModule() {
   const [editServiceType, setEditServiceType] = React.useState<any>("Repair")
   const [editIssue, setEditIssue] = React.useState("")
   const [editTechId, setEditTechId] = React.useState("")
+  const [selectedEditTechIds, setSelectedEditTechIds] = React.useState<string[]>([])
+  
   const [editSpareName, setEditSpareName] = React.useState("None")
   const [editSpareCost, setEditSpareCost] = React.useState(0)
   const [editSparePrice, setEditSparePrice] = React.useState(0)
@@ -82,6 +92,21 @@ export function BookingModule() {
   const [editCustReferral, setEditCustReferral] = React.useState<any>("Ad")
   const [editCustNotes, setEditCustNotes] = React.useState("")
   const [editCustReview, setEditCustReview] = React.useState("")
+  const [editCustReviewStatus, setEditCustReviewStatus] = React.useState("Review not done")
+
+  // Edit Calculation override states
+  const [editTotalCommission, setEditTotalCommission] = React.useState(0)
+  const [editTechnicianCommission, setEditTechnicianCommission] = React.useState(0)
+  const [editCompanyCommission, setEditCompanyCommission] = React.useState(0)
+  const [editTechnicianServiceCommission, setEditTechnicianServiceCommission] = React.useState(0)
+  const [editCompanyServiceCommission, setEditCompanyServiceCommission] = React.useState(0)
+  const [editTotalTechnicianAmount, setEditTotalTechnicianAmount] = React.useState(0)
+  const [editTotalCompanyAmount, setEditTotalCompanyAmount] = React.useState(0)
+  const [editTotalConsumerAmount, setEditTotalConsumerAmount] = React.useState(0)
+
+  // Dynamic Spares arrays
+  const [formSpares, setFormSpares] = React.useState<BookingSpare[]>([])
+  const [editSpares, setEditSpares] = React.useState<BookingSpare[]>([])
   
   // Creation modal state
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
@@ -102,41 +127,90 @@ export function BookingModule() {
   const [formServiceType, setFormServiceType] = React.useState<any>("Repair")
   const [formIssue, setFormIssue] = React.useState("")
   const [formTechId, setFormTechId] = React.useState("")
-  const [formSpareId, setFormSpareId] = React.useState("NONE")
+  const [selectedFormTechIds, setSelectedFormTechIds] = React.useState<string[]>([])
+  
   const [formSpareCost, setFormSpareCost] = React.useState(0)
   const [formSparePrice, setFormSparePrice] = React.useState(0)
   const [formServiceCharge, setFormServiceCharge] = React.useState(0)
   const [formDate, setFormDate] = React.useState(new Date().toISOString().split("T")[0])
 
   // ==========================================
-  // Form Auto-fill Logic
+  // Form Auto-fill Logic for spares array
   // ==========================================
-  React.useEffect(() => {
-    if (formSpareId === "NONE") {
-      setFormSpareCost(0)
-      setFormSparePrice(0)
-    } else {
-      const match = spares.find(s => s.id === formSpareId)
-      if (match) {
-        setFormSpareCost(match.unitCost)
-        setFormSparePrice(match.sellingCost)
-      }
-    }
-  }, [formSpareId, spares])
+  const calculatedFormSpareCost = React.useMemo(() => {
+    return formSpares.reduce((sum, s) => sum + s.cost * s.qty, 0)
+  }, [formSpares])
 
-  // Edit Form Spares Auto-fill logic
+  const calculatedFormSparePrice = React.useMemo(() => {
+    return formSpares.reduce((sum, s) => sum + s.price * s.qty, 0)
+  }, [formSpares])
+
+  const calculatedFormSpareName = React.useMemo(() => {
+    return formSpares.length > 0 
+      ? formSpares.map(s => `${s.name} (x${s.qty})`).join(", ") 
+      : "None"
+  }, [formSpares])
+
+  const calculatedEditSpareCost = React.useMemo(() => {
+    return editSpares.reduce((sum, s) => sum + s.cost * s.qty, 0)
+  }, [editSpares])
+
+  const calculatedEditSparePrice = React.useMemo(() => {
+    return editSpares.reduce((sum, s) => sum + s.price * s.qty, 0)
+  }, [editSpares])
+
+  const calculatedEditSpareName = React.useMemo(() => {
+    return editSpares.length > 0 
+      ? editSpares.map(s => `${s.name} (x${s.qty})`).join(", ") 
+      : "None"
+  }, [editSpares])
+
   React.useEffect(() => {
-    if (editSpareName === "None" || editSpareName === "") {
-      setEditSpareCost(0)
-      setEditSparePrice(0)
-    } else {
-      const match = spares.find(s => s.name.toLowerCase() === editSpareName.toLowerCase())
-      if (match) {
-        setEditSpareCost(match.unitCost)
-        setEditSparePrice(match.sellingCost)
-      }
+    setFormSpareCost(calculatedFormSpareCost)
+    setFormSparePrice(calculatedFormSparePrice)
+  }, [calculatedFormSpareCost, calculatedFormSparePrice])
+
+  React.useEffect(() => {
+    setEditSpareCost(calculatedEditSpareCost)
+    setEditSparePrice(calculatedEditSparePrice)
+  }, [calculatedEditSpareCost, calculatedEditSparePrice])
+
+  // Calculation Recalculator Effect for edits
+  React.useEffect(() => {
+    const totalCommission = Math.max(0, editSparePrice - editSpareCost)
+    const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
+    const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
+    const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
+    const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
+    const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
+    const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
+    const totalConsumerAmount = Math.round((editSparePrice + editServiceCharge) * 100) / 100
+
+    setEditTotalCommission(totalCommission)
+    setEditTechnicianCommission(technicianCommission)
+    setEditCompanyCommission(companyCommission)
+    setEditTechnicianServiceCommission(technicianServiceCommission)
+    setEditCompanyServiceCommission(companyServiceCommission)
+    setEditTotalTechnicianAmount(totalTechnicianAmount)
+    setEditTotalCompanyAmount(totalCompanyAmount)
+    setEditTotalConsumerAmount(totalConsumerAmount)
+  }, [editSpareCost, editSparePrice, editServiceCharge])
+
+  // Helpers for multi-technician displays
+  const getTechNames = (idString: string) => {
+    if (!idString) return "Unassigned"
+    const ids = idString.split(",").map(id => id.trim()).filter(Boolean)
+    if (ids.length === 0) return "Unassigned"
+    const names = ids.map(id => technicians.find(t => t.id === id)?.name || id)
+    return names.join(", ")
+  }
+
+  // Confirm and Delete booking wrapper
+  const handleDeleteBooking = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this booking request?")) {
+      deleteBooking(id)
     }
-  }, [editSpareName, spares])
+  }
 
   // Select a booking to review in side panel
   const handleSelectBookingForDetails = (b: Booking) => {
@@ -147,6 +221,8 @@ export function BookingModule() {
     setEditServiceType(b.serviceType)
     setEditIssue(b.issue)
     setEditTechId(b.assignedTechnicianId)
+    setSelectedEditTechIds(b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(s => s.trim()).filter(Boolean) : [])
+    
     setEditSpareName(b.spareName)
     setEditSpareCost(b.spareCost)
     setEditSparePrice(b.sparePrice)
@@ -159,6 +235,20 @@ export function BookingModule() {
     setEditCustReferral(cust?.referralSource || "Ad")
     setEditCustNotes(cust?.notes || "")
     setEditCustReview(cust?.review || "")
+    setEditCustReviewStatus(cust?.reviewStatus || "Review not done")
+
+    // Seed calculations
+    setEditTotalCommission(b.totalCommission !== undefined ? b.totalCommission : Math.max(0, b.sparePrice - b.spareCost))
+    setEditTechnicianCommission(b.technicianCommission !== undefined ? b.technicianCommission : Math.round(Math.max(0, b.sparePrice - b.spareCost) * 0.7 * 100) / 100)
+    setEditCompanyCommission(b.companyCommission !== undefined ? b.companyCommission : Math.round(Math.max(0, b.sparePrice - b.spareCost) * 0.3 * 100) / 100)
+    setEditTechnicianServiceCommission(b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : Math.round(b.serviceCharge * 0.7 * 100) / 100)
+    setEditCompanyServiceCommission(b.companyServiceCommission !== undefined ? b.companyServiceCommission : Math.round(b.serviceCharge * 0.3 * 100) / 100)
+    setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((Math.max(0, b.sparePrice - b.spareCost) * 0.7 + b.serviceCharge * 0.7) * 100) / 100)
+    setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((Math.max(0, b.sparePrice - b.spareCost) * 0.3 + b.serviceCharge * 0.3) * 100) / 100)
+    setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : Math.round((b.sparePrice + b.serviceCharge) * 100) / 100)
+
+    // Seed sparesUsed
+    setEditSpares(b.sparesUsed || (b.spareName && b.spareName !== "None" ? [{ name: b.spareName, cost: b.spareCost, price: b.sparePrice, qty: 1 }] : []))
     
     setIsDetailsOpen(true)
   }
@@ -168,17 +258,28 @@ export function BookingModule() {
     e.preventDefault()
     if (!selectedBooking) return
     
+    const finalTechId = selectedEditTechIds.join(",")
+    
     // Save booking updates
     updateBooking(selectedBooking.id, {
       appliance: editAppliance,
       serviceType: editServiceType,
       issue: editIssue,
-      assignedTechnicianId: editTechId,
-      spareName: editSpareName,
+      assignedTechnicianId: finalTechId,
+      spareName: calculatedEditSpareName,
       spareCost: editSpareCost,
       sparePrice: editSparePrice,
       serviceCharge: editServiceCharge,
-      status: editStatus
+      status: editStatus,
+      sparesUsed: editSpares,
+      totalCommission: editTotalCommission,
+      technicianCommission: editTechnicianCommission,
+      companyCommission: editCompanyCommission,
+      technicianServiceCommission: editTechnicianServiceCommission,
+      companyServiceCommission: editCompanyServiceCommission,
+      totalTechnicianAmount: editTotalTechnicianAmount,
+      totalCompanyAmount: editTotalCompanyAmount,
+      totalConsumerAmount: editTotalConsumerAmount
     })
     
     // Save customer updates
@@ -188,7 +289,8 @@ export function BookingModule() {
       address: editCustAddress,
       referralSource: editCustReferral,
       notes: editCustNotes,
-      review: editCustReview
+      review: editCustReview,
+      reviewStatus: editCustReviewStatus as any
     })
     
     setIsDetailsOpen(false)
@@ -203,12 +305,11 @@ export function BookingModule() {
       "Total Commission (T = S-R)", "Technician Commission (U = T*70%)", "Company Commission (V = T*30%)", 
       "Service Charge (W)", "Technician Commission (Service) (X = W*70%)", "Company Commission (Service) (Y = W*30%)", 
       "Total Technician (U+X)", "Total Company (V+Y)", "Total Consumer Amt (S+W)", 
-      "Review", "Referral Source", "Notes", "Status"
+      "Review", "Satisfaction Status", "Referral Source", "Notes", "Status"
     ]
     
     const rows = filteredBookings.map(b => {
       const cust = customers.find(c => c.id === b.customerId)
-      const tech = technicians.find(t => t.id === b.assignedTechnicianId)
       
       return [
         b.id,
@@ -218,7 +319,7 @@ export function BookingModule() {
         `"${(cust?.address || "").replace(/"/g, '""')}"`,
         b.appliance,
         `"${b.issue.replace(/"/g, '""')}"`,
-        `"${(tech?.name || "Unassigned").replace(/"/g, '""')}"`,
+        `"${getTechNames(b.assignedTechnicianId).replace(/"/g, '""')}"`,
         `"${b.spareName.replace(/"/g, '""')}"`,
         b.spareCost,
         b.sparePrice,
@@ -232,6 +333,7 @@ export function BookingModule() {
         b.totalCompanyAmount || 0,
         b.totalConsumerAmount || 0,
         `"${(cust?.review || "").replace(/"/g, '""')}"`,
+        `"${(cust?.reviewStatus || "Review not done").replace(/"/g, '""')}"`,
         cust?.referralSource || "",
         `"${(cust?.notes || "").replace(/"/g, '""')}"`,
         b.status
@@ -254,16 +356,18 @@ export function BookingModule() {
   const filteredBookings = React.useMemo(() => {
     return bookings.filter((b) => {
       const cust = customers.find(c => c.id === b.customerId)
-      const tech = technicians.find(t => t.id === b.assignedTechnicianId)
       
-      const searchString = `${b.id} ${b.issue} ${cust?.name || ""} ${tech?.name || ""}`.toLowerCase()
+      const techNames = b.assignedTechnicianId 
+        ? b.assignedTechnicianId.split(",").map(id => technicians.find(t => t.id === id.trim())?.name || "").filter(Boolean).join(" ")
+        : ""
+      const searchString = `${b.id} ${b.issue} ${cust?.name || ""} ${techNames}`.toLowerCase()
       const matchesSearch = searchString.includes(search.toLowerCase())
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
 
       return matchesSearch && matchesAppliance && matchesStatus
-    }).sort((a, b) => compareIdsNumerically(a.id, b.id))
+    }).sort((a, b) => compareIdsNumerically(b.id, a.id)) // Default sort descending
   }, [bookings, customers, technicians, search, applianceFilter, statusFilter])
 
   // Extract unique appliances for filter
@@ -314,7 +418,7 @@ export function BookingModule() {
         address: newCustAddress,
         referralSource: newCustReferral,
         notes: newCustNotes || "Registered inline during booking order creation",
-        review: "",
+        review: "Review not done",
         status: "Active"
       })
       finalCustomerId = newCust.id
@@ -326,12 +430,7 @@ export function BookingModule() {
       finalCustomerId = formCustomerId
     }
 
-    if (!formTechId) {
-      toast.error("Please select an assigned technician.")
-      return
-    }
-
-    const selectedSpare = spares.find(s => s.id === formSpareId)
+    const finalTechId = selectedFormTechIds.join(",")
 
     addBooking({
       date: formDate,
@@ -339,12 +438,13 @@ export function BookingModule() {
       appliance: formAppliance,
       serviceType: formServiceType,
       issue: formIssue,
-      assignedTechnicianId: formTechId,
-      spareName: selectedSpare ? selectedSpare.name : "None",
+      assignedTechnicianId: finalTechId,
+      spareName: calculatedFormSpareName,
       spareCost: formSpareCost,
       sparePrice: formSparePrice,
       serviceCharge: formServiceCharge,
-      status: "Not Started"
+      status: "Not Started",
+      sparesUsed: formSpares
     })
 
     // Reset Form
@@ -359,7 +459,8 @@ export function BookingModule() {
     
     setFormIssue("")
     setFormTechId("")
-    setFormSpareId("NONE")
+    setSelectedFormTechIds([])
+    setFormSpares([])
     setFormSpareCost(0)
     setFormSparePrice(0)
     setFormServiceCharge(0)
@@ -370,6 +471,7 @@ export function BookingModule() {
   const handleStatusChange = (id: string, newStatus: any) => {
     updateBooking(id, { status: newStatus })
   }
+
 
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
@@ -532,20 +634,18 @@ export function BookingModule() {
 
             <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Net Company Profit</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Registered Customers</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
-                  <HugeiconsIcon icon={Database01Icon} strokeWidth={2.5} className="size-4" />
+                  <HugeiconsIcon icon={UserCircle02Icon} strokeWidth={2.5} className="size-4" />
                 </div>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight tabular-nums text-primary">
-                    ₹{bookings.reduce((sum, b) => sum + (b.totalCompanyAmount || 0), 0).toLocaleString()}
-                  </span>
-                  <span className="text-xs text-muted-foreground font-medium">30% share profit</span>
+                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{customers.length}</span>
+                  <span className="text-xs text-muted-foreground font-medium">clients onboarded</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium mt-1.5">
-                  Tech payouts share: ₹{bookings.reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0).toLocaleString()}
+                  Repeat clients: {customers.filter(c => bookings.filter(b => b.customerId === c.id).length > 1).length}
                 </div>
               </CardContent>
             </Card>
@@ -621,6 +721,7 @@ export function BookingModule() {
                         <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-64 text-left">Service Address</th>
                         <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-32 text-left">Lead Source</th>
                         <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Review</th>
+                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-36 text-left">Satisfaction</th>
                         <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Notes</th>
  
                         {/* Booking & Job headers */}
@@ -654,14 +755,13 @@ export function BookingModule() {
                     <tbody className="divide-y divide-border/40">
                       {filteredBookings.length === 0 ? (
                         <tr>
-                          <td colSpan={24} className="text-center py-12 text-muted-foreground font-medium bg-card">
+                          <td colSpan={25} className="text-center py-12 text-muted-foreground font-medium bg-card">
                             No matching service bookings logged.
                           </td>
                         </tr>
                       ) : (
                         filteredBookings.map((b) => {
                           const cust = customers.find(c => c.id === b.customerId)
-                          const tech = technicians.find(t => t.id === b.assignedTechnicianId)
  
                           return (
                             <tr key={b.id} className="hover:bg-muted/30 transition-colors bg-card/25 text-xs">
@@ -683,13 +783,44 @@ export function BookingModule() {
                                   {cust?.referralSource || "Other"}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-2.5 italic text-muted-foreground truncate max-w-[200px]" title={cust?.review}>
-                                {cust?.review ? `"${cust.review}"` : <span className="text-[9px] text-muted-foreground/45 not-italic">None</span>}
+                              <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={cust?.review}>
+                                {cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <Select 
+                                  value={cust?.reviewStatus || "Review not done"} 
+                                  onValueChange={(val) => {
+                                    if (cust) {
+                                      updateCustomer(cust.id, { reviewStatus: val as any })
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
+                                    (cust?.reviewStatus || "Review not done") === "Positive" 
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                      : (cust?.reviewStatus || "Review not done") === "Negative" 
+                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                                      : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
+                                      : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                  }`}>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
+                                      <SelectValue />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Review not done">Review not done</SelectItem>
+                                    <SelectItem value="Positive">Positive</SelectItem>
+                                    <SelectItem value="Negative">Negative</SelectItem>
+                                    <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={cust?.notes}>
                                 {cust?.notes || <span className="text-[9px] text-muted-foreground/45">None</span>}
                               </td>
-
+ 
                               {/* Booking columns */}
                               <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.date}</td>
                               <td className="px-3 py-2.5">
@@ -710,9 +841,9 @@ export function BookingModule() {
                                 </Badge>
                               </td>
                               <td className="px-3 py-2.5 font-medium text-foreground truncate max-w-[200px]" title={b.issue}>{b.issue}</td>
-                              <td className="px-3 py-2.5 font-semibold text-foreground">{tech?.name || "Unassigned"}</td>
+                              <td className="px-3 py-2.5 font-semibold text-foreground">{getTechNames(b.assignedTechnicianId)}</td>
                               <td className="px-3 py-2.5 text-muted-foreground font-medium truncate max-w-[150px]">{b.spareName}</td>
-
+ 
                               {/* Spares Cost (S and R) */}
                               <td className="px-3 py-2.5 text-right text-rose-600 dark:text-rose-400 font-bold tabular-nums">₹{b.spareCost}</td>
                               <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.sparePrice}</td>
@@ -723,19 +854,19 @@ export function BookingModule() {
                               {/* 70/30 Spares Splits */}
                               <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianCommission}</td>
                               <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyCommission}</td>
- 
+  
                               {/* Service Splits (W) */}
                               <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.serviceCharge}</td>
                               
                               {/* 70/30 Service Splits */}
                               <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianServiceCommission}</td>
                               <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyServiceCommission}</td>
- 
+  
                               {/* Grand Splits Totals */}
                               <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black bg-emerald-50/15 dark:bg-emerald-950/10 tabular-nums border-l border-border/40">₹{b.totalTechnicianAmount}</td>
                               <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-black bg-cyan-50/15 dark:bg-cyan-950/10 tabular-nums">₹{b.totalCompanyAmount}</td>
                               <td className="px-3 py-2.5 text-right text-primary font-black bg-primary/10 dark:bg-primary/20 tabular-nums text-xs">₹{b.totalConsumerAmount}</td>
- 
+  
                               {/* Interactive Status Dropdown */}
                               <td className="px-3 py-2.5">
                                 <Select 
@@ -762,7 +893,7 @@ export function BookingModule() {
                                   </SelectContent>
                                 </Select>
                               </td>
- 
+  
                               {/* Edit Row button in sticky end column */}
                               <td className="px-3 py-2.5 text-right sticky right-0 bg-background dark:bg-slate-900 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
                                 <div className="flex items-center justify-end gap-1">
@@ -777,7 +908,7 @@ export function BookingModule() {
                                   {currentRole === "Admin" && (
                                     <Button 
                                       variant="ghost" 
-                                      onClick={() => deleteBooking(b.id)}
+                                      onClick={() => handleDeleteBooking(b.id)}
                                       className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                                     >
                                       ×
@@ -804,8 +935,11 @@ export function BookingModule() {
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">CIN</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Date</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Customer</TableHead>
+                        <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Review</TableHead>
+                        <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Satisfaction</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Appliance & Type</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Service Issue</TableHead>
+                        <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Notes</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Tech</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Total Consumer</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Tech Payout</TableHead>
@@ -817,14 +951,13 @@ export function BookingModule() {
                     <TableBody>
                       {paginatedBookings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center py-12 text-muted-foreground font-medium">
+                          <TableCell colSpan={14} className="text-center py-12 text-muted-foreground font-medium">
                             No service bookings match query.
                           </TableCell>
                         </TableRow>
                       ) : (
                         paginatedBookings.map((b) => {
                           const cust = customers.find(c => c.id === b.customerId)
-                          const tech = technicians.find(t => t.id === b.assignedTechnicianId)
                           return (
                             <TableRow key={b.id} className="hover:bg-muted/20 transition-colors text-xs">
                               <TableCell className="px-4 py-4 font-bold text-foreground tabular-nums">{b.id}</TableCell>
@@ -834,6 +967,40 @@ export function BookingModule() {
                                   <span className="font-semibold text-foreground">{cust?.name || "Unknown"}</span>
                                   <span className="text-[10px] text-muted-foreground tabular-nums">{cust?.mobile}</span>
                                 </div>
+                              </TableCell>
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={cust?.review || ""}>
+                                {cust?.review || <span className="text-muted-foreground/45">—</span>}
+                              </TableCell>
+                              <TableCell className="px-4 py-4">
+                                <Select 
+                                  value={cust?.reviewStatus || "Review not done"} 
+                                  onValueChange={(val) => {
+                                    if (cust) {
+                                      updateCustomer(cust.id, { reviewStatus: val as any })
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
+                                    (cust?.reviewStatus || "Review not done") === "Positive" 
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                      : (cust?.reviewStatus || "Review not done") === "Negative" 
+                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                                      : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
+                                      : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                  }`}>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
+                                      <SelectValue />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Review not done">Review not done</SelectItem>
+                                    <SelectItem value="Positive">Positive</SelectItem>
+                                    <SelectItem value="Negative">Negative</SelectItem>
+                                    <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </TableCell>
                               <TableCell className="px-4 py-4">
                                 <div className="flex flex-col gap-1">
@@ -846,8 +1013,11 @@ export function BookingModule() {
                               <TableCell className="px-4 py-4 max-w-[200px] font-medium text-foreground truncate" title={b.issue}>
                                 {b.issue}
                               </TableCell>
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={cust?.notes || ""}>
+                                {cust?.notes || <span className="text-muted-foreground/45">None</span>}
+                              </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
-                                {tech?.name || "Unassigned"}
+                                {getTechNames(b.assignedTechnicianId)}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-primary tabular-nums">
                                 ₹{b.totalConsumerAmount}
@@ -896,7 +1066,7 @@ export function BookingModule() {
                                   {currentRole === "Admin" && (
                                     <Button 
                                       variant="ghost" 
-                                      onClick={() => deleteBooking(b.id)}
+                                      onClick={() => handleDeleteBooking(b.id)}
                                       className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                                     >
                                       ×
@@ -954,7 +1124,6 @@ export function BookingModule() {
                 ) : (
                   paginatedBookings.map((b) => {
                     const cust = customers.find(c => c.id === b.customerId)
-                    const tech = technicians.find(t => t.id === b.assignedTechnicianId)
                     return (
                       <Card key={b.id} className="border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs">
                         <CardHeader className="pb-2">
@@ -989,8 +1158,9 @@ export function BookingModule() {
                               </SelectContent>
                             </Select>
                           </div>
-                          <CardTitle className="text-sm font-bold text-foreground mt-2.5 truncate">
-                            {cust?.name || "Unknown"}
+                          <CardTitle className="text-sm font-bold text-foreground mt-2.5 flex items-center justify-between gap-2">
+                            <span className="truncate">{cust?.name || "Unknown"}</span>
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} title={cust?.reviewStatus || "Review not done"} />
                           </CardTitle>
                           <CardDescription className="text-[10px] font-semibold text-muted-foreground flex gap-1 items-center mt-0.5">
                             <Badge className="text-[9px] font-bold py-0 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
@@ -1003,11 +1173,16 @@ export function BookingModule() {
                           <div className="flex flex-col gap-1 text-muted-foreground leading-relaxed">
                             <div>
                               <span className="font-bold text-foreground">Tech Assigned:</span>{" "}
-                              <span>{tech?.name || "Unassigned"}</span>
+                              <span>{getTechNames(b.assignedTechnicianId)}</span>
                             </div>
                             <div className="line-clamp-2">
                               <span className="font-bold text-foreground">Complaint:</span> {b.issue}
                             </div>
+                            {cust?.notes && (
+                              <div className="line-clamp-1">
+                                <span className="font-bold text-foreground">Notes:</span> {cust.notes}
+                              </div>
+                            )}
                             {b.spareName !== "None" && (
                               <div>
                                 <span className="font-bold text-foreground">Spare Used:</span>{" "}
@@ -1045,7 +1220,7 @@ export function BookingModule() {
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => deleteBooking(b.id)}
+                              onClick={() => handleDeleteBooking(b.id)}
                               className="h-7 text-[10px] font-bold text-destructive hover:bg-destructive/10"
                             >
                               Delete
@@ -1171,9 +1346,9 @@ export function BookingModule() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-cust-ref" className="text-[10px] font-bold text-muted-foreground uppercase">Lead Source</Label>
+                      <Label htmlFor="edit-cust-ref" className="text-[10px] font-bold text-muted-foreground uppercase">Referral Source</Label>
                       <Select value={editCustReferral} onValueChange={setEditCustReferral}>
                         <SelectTrigger id="edit-cust-ref" className="h-8 text-xs">
                           <SelectValue />
@@ -1191,11 +1366,26 @@ export function BookingModule() {
                       <Label htmlFor="edit-cust-review" className="text-[10px] font-bold text-muted-foreground uppercase">Customer Review</Label>
                       <Input 
                         id="edit-cust-review" 
+                        placeholder="Feedback comments"
                         value={editCustReview} 
                         onChange={(e) => setEditCustReview(e.target.value)} 
-                        placeholder="Happy client feedback..."
                         className="h-8 text-xs" 
                       />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-cust-review-status" className="text-[10px] font-bold text-muted-foreground uppercase">Satisfaction Status</Label>
+                      <Select value={editCustReviewStatus} onValueChange={setEditCustReviewStatus}>
+                        <SelectTrigger id="edit-cust-review-status" className="h-8 text-xs">
+                          <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Review not done">Review not done</SelectItem>
+                          <SelectItem value="Positive">Positive</SelectItem>
+                          <SelectItem value="Negative">Negative</SelectItem>
+                          <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -1216,6 +1406,7 @@ export function BookingModule() {
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-appliance" className="text-[10px] font-bold text-muted-foreground uppercase">Appliance</Label>
                       <Input
                         id="edit-appliance"
                         placeholder="E.g., AC, TV, Refrigerator"
@@ -1253,124 +1444,294 @@ export function BookingModule() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-tech" className="text-[10px] font-bold text-muted-foreground uppercase">Appointed Tech</Label>
-                      <Select value={editTechId} onValueChange={setEditTechId}>
-                        <SelectTrigger id="edit-tech" className="h-8 text-xs">
-                          <SelectValue placeholder="Technician..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {technicians.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-spare-link" className="text-[10px] font-bold text-muted-foreground uppercase">Spare Linked</Label>
-                      <Select value={editSpareName} onValueChange={setEditSpareName}>
-                        <SelectTrigger id="edit-spare-link" className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="None">No Spare Parts (None)</SelectItem>
-                          {spares.map(s => (
-                            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-[10px] font-bold text-muted-foreground uppercase">Appointed Technician(s) (Optional)</Label>
+                      <div className="flex flex-col gap-1.5 border border-border/60 rounded-lg p-2.5 max-h-40 overflow-y-auto bg-background">
+                        {technicians.map(t => {
+                          const isChecked = selectedEditTechIds.includes(t.id)
+                          return (
+                            <label key={t.id} className="flex items-center gap-2 text-xs font-medium cursor-pointer p-1 rounded-md hover:bg-muted/40 text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setSelectedEditTechIds(selectedEditTechIds.filter(id => id !== t.id))
+                                  } else {
+                                    setSelectedEditTechIds([...selectedEditTechIds, t.id])
+                                  }
+                                }}
+                                className="size-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                              />
+                              <span>{t.name} ({t.skills.join(", ")})</span>
+                            </label>
+                          )
+                        })}
+                        {technicians.length === 0 && <span className="text-xs text-muted-foreground">No technicians available</span>}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 3. Pricing input & splits engine preview */}
-                <div className="rounded-lg border border-border bg-muted/40 p-3.5 flex flex-col gap-3">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Financial Ratio Reconciler</h4>
-                  
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-cost" className="text-[9px] font-bold text-rose-600 uppercase">Actual Spare (R)</Label>
-                      <Input 
-                        type="number" 
-                        id="edit-cost" 
-                        min="0" 
-                        value={editSpareCost} 
-                        onChange={(e) => setEditSpareCost(parseFloat(e.target.value) || 0)} 
-                        className="h-8 text-xs font-semibold tabular-nums text-rose-600"
-                      />
-                    </div>
-                    
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-price" className="text-[9px] font-bold text-emerald-600 uppercase">Consumer Price (S)</Label>
-                      <Input 
-                        type="number" 
-                        id="edit-price" 
-                        min="0" 
-                        value={editSparePrice} 
-                        onChange={(e) => setEditSparePrice(parseFloat(e.target.value) || 0)} 
-                        className="h-8 text-xs font-semibold tabular-nums text-emerald-600"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-svcharge" className="text-[9px] font-bold text-amber-600 uppercase">SV Charge (W)</Label>
-                      <Input 
-                        type="number" 
-                        id="edit-svcharge" 
-                        min="0" 
-                        value={editServiceCharge} 
-                        onChange={(e) => setEditServiceCharge(parseFloat(e.target.value) || 0)} 
-                        className="h-8 text-xs font-semibold tabular-nums text-amber-600"
-                      />
-                    </div>
+                {/* 3. Spares Section */}
+                <div className="flex flex-col gap-3 border border-border bg-muted/20 p-3.5 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground">Spare Parts Used</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setEditSpares([...editSpares, { name: "", cost: 0, price: 0, qty: 1 }])}
+                      className="h-7 text-[10px] font-bold"
+                    >
+                      + Add Spare Item
+                    </Button>
                   </div>
+                  
+                  {editSpares.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic">No spares added yet.</span>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {editSpares.map((sp, idx) => (
+                        <div key={idx} className="flex flex-col gap-2 p-2 border rounded-lg bg-background relative">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            onClick={() => setEditSpares(editSpares.filter((_, i) => i !== idx))}
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
+                          >
+                            ×
+                          </Button>
+                          
+                          <div className="grid grid-cols-1 gap-2">
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Select from Catalog or Custom</Label>
+                              <Select 
+                                value={spares.find(s => s.name === sp.name)?.id || "CUSTOM"}
+                                onValueChange={(val) => {
+                                  const updated = [...editSpares]
+                                  if (val === "CUSTOM") {
+                                    updated[idx] = { ...updated[idx], name: "", cost: 0, price: 0 }
+                                  } else {
+                                    const match = spares.find(s => s.id === val)
+                                    if (match) {
+                                      updated[idx] = { ...updated[idx], name: match.name, cost: match.unitCost, price: match.sellingCost }
+                                    }
+                                  }
+                                  setEditSpares(updated)
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-[11px]">
+                                  <SelectValue placeholder="Custom / Manual Entry" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="CUSTOM">Custom Spare (Type Manually)</SelectItem>
+                                  {spares.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name} (Stock: {s.stockQty})</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Spare Item Name</Label>
+                              <Input 
+                                placeholder="E.g., 2.5 MFD Capacitor" 
+                                value={sp.name}
+                                onChange={(e) => {
+                                  const updated = [...editSpares]
+                                  updated[idx].name = e.target.value
+                                  setEditSpares(updated)
+                                }}
+                                className="h-7 text-xs"
+                                required
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Cost (R)</Label>
+                              <Input 
+                                type="number" 
+                                min="0"
+                                value={sp.cost}
+                                onChange={(e) => {
+                                  const updated = [...editSpares]
+                                  updated[idx].cost = parseFloat(e.target.value) || 0
+                                  setEditSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Price (S)</Label>
+                              <Input 
+                                type="number" 
+                                min="0"
+                                value={sp.price}
+                                onChange={(e) => {
+                                  const updated = [...editSpares]
+                                  updated[idx].price = parseFloat(e.target.value) || 0
+                                  setEditSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
 
-                  {/* Math Splits Preview */}
-                  <div className="rounded-md bg-primary/5 p-3 border border-primary/20 flex flex-col gap-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                    <div className="flex justify-between border-b border-border/40 pb-1">
-                      <span className="font-bold text-foreground">Spare Commission (T = S - R)</span>
-                      <span className="font-bold text-primary tabular-nums">₹{Math.max(0, editSparePrice - editSpareCost)}</span>
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Quantity</Label>
+                              <Input 
+                                type="number" 
+                                min="1"
+                                value={sp.qty}
+                                onChange={(e) => {
+                                  const updated = [...editSpares]
+                                  updated[idx].qty = parseInt(e.target.value) || 1
+                                  setEditSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-[10px] border-t border-border/40 pt-2 font-bold text-muted-foreground mt-1">
+                    <span>Total Cost (R): ₹{editSpareCost}</span>
+                    <span>Total Price (S): ₹{editSparePrice}</span>
+                  </div>
+                </div>
+
+                {/* 4. Pricing inputs */}
+                <div className="rounded-lg border border-border bg-muted/40 p-3.5 flex flex-col gap-3">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Additional Workmanship Fees</h4>
+                  
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-svcharge" className="text-[10px] font-bold text-amber-600 uppercase">SV Charge (W)</Label>
+                    <Input 
+                      type="number" 
+                      id="edit-svcharge" 
+                      min="0" 
+                      value={editServiceCharge} 
+                      onChange={(e) => setEditServiceCharge(parseFloat(e.target.value) || 0)} 
+                      className="h-8 text-xs font-semibold tabular-nums text-amber-600"
+                    />
+                  </div>
+                </div>
+
+                {/* 5. Pricing splits overrides */}
+                <div className="rounded-lg border border-border bg-primary/5 p-3.5 flex flex-col gap-3.5">
+                  <span className="font-bold text-foreground border-b border-border/40 pb-1 flex justify-between items-center text-[10px]">
+                    <span>FINANCIAL CALCULATION ENGINE (EDITABLE OVERRIDES)</span>
+                    <Badge variant="secondary" className="text-[9px] py-0 px-1 hover:opacity-85 cursor-pointer" onClick={() => {
+                      const totalCommission = Math.max(0, editSparePrice - editSpareCost)
+                      const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
+                      const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
+                      const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
+                      const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
+                      const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
+                      const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
+                      const totalConsumerAmount = Math.round((editSparePrice + editServiceCharge) * 100) / 100
+
+                      setEditTotalCommission(totalCommission)
+                      setEditTechnicianCommission(technicianCommission)
+                      setEditCompanyCommission(companyCommission)
+                      setEditTechnicianServiceCommission(technicianServiceCommission)
+                      setEditCompanyServiceCommission(companyServiceCommission)
+                      setEditTotalTechnicianAmount(totalTechnicianAmount)
+                      setEditTotalCompanyAmount(totalCompanyAmount)
+                      setEditTotalConsumerAmount(totalConsumerAmount)
+                      toast.info("Defaults restored.")
+                    }}>Reset formulas</Badge>
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Spare Comm (T = S-R)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTotalCommission} 
+                        onChange={(e) => setEditTotalCommission(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                      />
                     </div>
                     
-                    <div className="flex justify-between">
-                      <span>Tech Commission (U = T × 70%):</span>
-                      <span className="font-semibold text-foreground tabular-nums">₹{(Math.max(0, editSparePrice - editSpareCost) * 0.7).toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span>Company Commission (V = T × 30%):</span>
-                      <span className="font-semibold text-foreground tabular-nums">₹{(Math.max(0, editSparePrice - editSpareCost) * 0.3).toFixed(2)}</span>
-                    </div>
-
-                    <div className="h-px bg-border/40 my-0.5" />
-
-                    <div className="flex justify-between">
-                      <span>Tech Service Commission (X = W × 70%):</span>
-                      <span className="font-semibold text-foreground tabular-nums">₹{(editServiceCharge * 0.7).toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span>Company Service Commission (Y = W × 30%):</span>
-                      <span className="font-semibold text-foreground tabular-nums">₹{(editServiceCharge * 0.3).toFixed(2)}</span>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Tech Comm (U = T * 70%)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTechnicianCommission} 
+                        onChange={(e) => setEditTechnicianCommission(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                      />
                     </div>
 
-                    <div className="h-px bg-border/40 my-0.5" />
-
-                    <div className="flex justify-between font-bold text-foreground">
-                      <span>Total Technician Payout (U + X):</span>
-                      <span className="text-emerald-600 tabular-nums">₹{(Math.max(0, editSparePrice - editSpareCost) * 0.7 + editServiceCharge * 0.7).toFixed(2)}</span>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Comp Comm (V = T * 30%)</Label>
+                      <Input 
+                        type="number" 
+                        value={editCompanyCommission} 
+                        onChange={(e) => setEditCompanyCommission(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                      />
                     </div>
 
-                    <div className="flex justify-between font-bold text-foreground">
-                      <span>Total Company Earnings (V + Y):</span>
-                      <span className="text-cyan-600 tabular-nums">₹{(Math.max(0, editSparePrice - editSpareCost) * 0.3 + editServiceCharge * 0.3).toFixed(2)}</span>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Tech Serv Comm (X = W * 70%)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTechnicianServiceCommission} 
+                        onChange={(e) => setEditTechnicianServiceCommission(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                      />
                     </div>
 
-                    <div className="flex justify-between font-extrabold text-foreground border-t border-border/40 pt-1 mt-1 text-xs">
-                      <span className="text-primary uppercase tracking-wide">Consumer Grand Total (S + W)</span>
-                      <span className="text-primary tabular-nums">₹{(editSparePrice + editServiceCharge).toFixed(2)}</span>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Comp Serv Comm (Y = W * 30%)</Label>
+                      <Input 
+                        type="number" 
+                        value={editCompanyServiceCommission} 
+                        onChange={(e) => setEditCompanyServiceCommission(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-emerald-600 uppercase font-black">Total Tech Payout (U+X)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTotalTechnicianAmount} 
+                        onChange={(e) => setEditTotalTechnicianAmount(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-cyan-600 uppercase font-black">Total Company Share (V+Y)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTotalCompanyAmount} 
+                        onChange={(e) => setEditTotalCompanyAmount(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-bold text-cyan-600 dark:text-cyan-400 tabular-nums"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-primary uppercase font-black">Total Consumer Bill (S+W)</Label>
+                      <Input 
+                        type="number" 
+                        value={editTotalConsumerAmount} 
+                        onChange={(e) => setEditTotalConsumerAmount(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-bold text-primary tabular-nums"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1583,19 +1944,32 @@ export function BookingModule() {
                   />
                 </div>
 
-                {/* Dispatch Tech Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="tech" className="text-xs font-bold text-muted-foreground">Assign Dispatch Technician</Label>
-                  <Select value={formTechId} onValueChange={setFormTechId}>
-                    <SelectTrigger id="tech">
-                      <SelectValue placeholder="Dispatch Technician..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {technicians.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name} ({t.skills.join(", ")})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Appointed Technician(s) (Optional) */}
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase">Appointed Technician(s) (Optional)</Label>
+                  <div className="flex flex-col gap-1.5 border border-border/60 rounded-lg p-2.5 max-h-40 overflow-y-auto bg-background">
+                    {technicians.map(t => {
+                      const isChecked = selectedFormTechIds.includes(t.id)
+                      return (
+                        <label key={t.id} className="flex items-center gap-2 text-xs font-medium cursor-pointer p-1 rounded-md hover:bg-muted/40 text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedFormTechIds(selectedFormTechIds.filter(id => id !== t.id))
+                              } else {
+                                setSelectedFormTechIds([...selectedFormTechIds, t.id])
+                              }
+                            }}
+                            className="size-3.5 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                          />
+                          <span>{t.name} ({t.skills.join(", ")})</span>
+                        </label>
+                      )
+                    })}
+                    {technicians.length === 0 && <span className="text-xs text-muted-foreground">No technicians available</span>}
+                  </div>
                 </div>
 
               </div>
@@ -1614,45 +1988,139 @@ export function BookingModule() {
                   />
                 </div>
                 
-                {/* Spares Inventory Link */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="spare-item" className="text-xs font-bold text-muted-foreground">Link Spare parts inventory (Optional)</Label>
-                  <Select value={formSpareId} onValueChange={setFormSpareId}>
-                    <SelectTrigger id="spare-item">
-                      <SelectValue placeholder="No Spares linked..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE">No Spare Parts used (None)</SelectItem>
-                      {spares.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.name} (Stock: {s.stockQty} left)</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Actual Spare Cost (R) */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="spare-cost" className="text-xs font-bold text-muted-foreground">Actual Spare Cost (R)</Label>
-                    <Input 
-                      type="number"
-                      id="spare-cost" 
-                      min="0"
-                      value={formSpareCost}
-                      onChange={(e) => setFormSpareCost(parseFloat(e.target.value) || 0)}
-                    />
+                {/* Spares Section */}
+                <div className="flex flex-col gap-3 border border-border bg-muted/20 p-3.5 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground">Spare Parts Used</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFormSpares([...formSpares, { name: "", cost: 0, price: 0, qty: 1 }])}
+                      className="h-7 text-[10px] font-bold"
+                    >
+                      + Add Spare Item
+                    </Button>
                   </div>
+                  
+                  {formSpares.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic">No spares added yet.</span>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {formSpares.map((sp, idx) => (
+                        <div key={idx} className="flex flex-col gap-2 p-2 border rounded-lg bg-background relative">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            onClick={() => setFormSpares(formSpares.filter((_, i) => i !== idx))}
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
+                          >
+                            ×
+                          </Button>
+                          
+                          <div className="grid grid-cols-1 gap-2">
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Select from Catalog or Custom</Label>
+                              <Select 
+                                value={spares.find(s => s.name === sp.name)?.id || "CUSTOM"}
+                                onValueChange={(val) => {
+                                  const updated = [...formSpares]
+                                  if (val === "CUSTOM") {
+                                    updated[idx] = { ...updated[idx], name: "", cost: 0, price: 0 }
+                                  } else {
+                                    const match = spares.find(s => s.id === val)
+                                    if (match) {
+                                      updated[idx] = { ...updated[idx], name: match.name, cost: match.unitCost, price: match.sellingCost }
+                                    }
+                                  }
+                                  setFormSpares(updated)
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-[11px]">
+                                  <SelectValue placeholder="Custom / Manual Entry" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="CUSTOM">Custom Spare (Type Manually)</SelectItem>
+                                  {spares.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name} (Stock: {s.stockQty})</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Spare Item Name</Label>
+                              <Input 
+                                placeholder="E.g., 2.5 MFD Capacitor" 
+                                value={sp.name}
+                                onChange={(e) => {
+                                  const updated = [...formSpares]
+                                  updated[idx].name = e.target.value
+                                  setFormSpares(updated)
+                                }}
+                                className="h-7 text-xs"
+                                required
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Cost (R)</Label>
+                              <Input 
+                                type="number" 
+                                min="0"
+                                value={sp.cost}
+                                onChange={(e) => {
+                                  const updated = [...formSpares]
+                                  updated[idx].cost = parseFloat(e.target.value) || 0
+                                  setFormSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Price (S)</Label>
+                              <Input 
+                                type="number" 
+                                min="0"
+                                value={sp.price}
+                                onChange={(e) => {
+                                  const updated = [...formSpares]
+                                  updated[idx].price = parseFloat(e.target.value) || 0
+                                  setFormSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
 
-                  {/* Consumer Spare Selling Price (S) */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="spare-price" className="text-xs font-bold text-muted-foreground">Consumer Selling Cost (S)</Label>
-                    <Input 
-                      type="number"
-                      id="spare-price" 
-                      min="0"
-                      value={formSparePrice}
-                      onChange={(e) => setFormSparePrice(parseFloat(e.target.value) || 0)}
-                    />
+                            <div>
+                              <Label className="text-[10px] font-bold text-muted-foreground">Quantity</Label>
+                              <Input 
+                                type="number" 
+                                min="1"
+                                value={sp.qty}
+                                onChange={(e) => {
+                                  const updated = [...formSpares]
+                                  updated[idx].qty = parseInt(e.target.value) || 1
+                                  setFormSpares(updated)
+                                }}
+                                className="h-7 text-xs font-semibold tabular-nums"
+                                required
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-[10px] border-t border-border/40 pt-2 font-bold text-muted-foreground mt-1">
+                    <span>Total Cost (R): ₹{formSpareCost}</span>
+                    <span>Total Price (S): ₹{formSparePrice}</span>
                   </div>
                 </div>
 

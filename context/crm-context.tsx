@@ -34,9 +34,17 @@ export interface Customer {
   address: string
   referralSource: "Ad" | "Contact" | "Repeat Consumer" | "Other"
   review: string
+  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive"
   notes: string
   status: "Active" | "Inactive"
   createdAt: string
+}
+
+export interface BookingSpare {
+  name: string
+  cost: number
+  price: number
+  qty: number
 }
 
 export interface Booking {
@@ -52,6 +60,7 @@ export interface Booking {
   sparePrice: number // Consumer Spare Price (S) - Price sold to customer
   serviceCharge: number // Service Fee (W)
   status: "Not Started" | "In Progress" | "Completed" | "Cancelled"
+  sparesUsed?: BookingSpare[]
   
   // Financial computed properties stored or calculated
   totalCommission?: number // T = S - R
@@ -86,6 +95,8 @@ export interface Payout {
   extra: number
   due: number
   paymentStatus: "Paid" | "Pending"
+  customerName?: string
+  cinNumber?: string
 }
 
 export interface Spare {
@@ -167,6 +178,7 @@ export interface Asset {
   cost: number
   assignedTo: string
   status: "Active" | "In Repair" | "Retired"
+  qty?: number
 }
 
 export interface Employee {
@@ -365,7 +377,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const computeBookingFinance = (booking: Booking, forceRecalculate = false): Booking => {
     const calculations = calculateBookingFinance(booking.spareCost || 0, booking.sparePrice || 0, booking.serviceCharge || 0)
     if (forceRecalculate) {
-      return { ...booking, ...calculations }
+      return { ...calculations, ...booking }
     }
     return {
       totalCommission: booking.totalCommission !== undefined ? booking.totalCommission : calculations.totalCommission,
@@ -407,7 +419,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayouts(loadState("payouts", INITIAL_PAYOUTS))
       
       const loadedBookings = loadState("bookings", INITIAL_BOOKINGS)
-      setBookings(loadedBookings.map(b => computeBookingFinance(b)))
+      setBookings(loadedBookings.map(b => computeBookingFinance(b)).sort((a, b) => compareIdsNumerically(b.id, a.id)))
 
       const storedRole = localStorage.getItem("servicebuddy_role")
       if (storedRole) setCurrentRole(storedRole as UserRole)
@@ -444,7 +456,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (collectionName === "customers") setCustomers(loadCollectionState("customers", INITIAL_CUSTOMERS))
         if (collectionName === "bookings") {
           const loaded = loadCollectionState("bookings", INITIAL_BOOKINGS)
-          setBookings(loaded.map(b => computeBookingFinance(b)))
+          setBookings(loaded.map(b => computeBookingFinance(b)).sort((a, b) => compareIdsNumerically(b.id, a.id)))
         }
         if (collectionName === "technicians") setTechnicians(loadCollectionState("technicians", INITIAL_TECHNICIANS))
         if (collectionName === "payouts") setPayouts(loadCollectionState("payouts", INITIAL_PAYOUTS))
@@ -475,7 +487,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const list: Booking[] = []
         snap.forEach(d => list.push(computeBookingFinance(d.data() as Booking)))
         if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+          list.sort((a,b) => compareIdsNumerically(b.id, a.id))
           setBookings(list)
         } else {
           INITIAL_BOOKINGS.forEach(b => setDoc(doc(db!, "bookings", b.id), b))
@@ -643,6 +655,16 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem("servicebuddy_role", currentRole)
   }, [currentRole])
+
+  // Auto-heal corrupted "Paid" payouts with 0 totalPayout
+  useEffect(() => {
+    payouts.forEach(p => {
+      if (p.paymentStatus === "Paid" && p.totalPayout === 0) {
+        updatePayout(p.id, { paymentStatus: "Paid" })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payouts])
 
   // Reactive warnings compiler
   useEffect(() => {
@@ -854,6 +876,10 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const oldStatus = b.status
     const newStatus = updates.status || b.status
     
+    if (oldStatus === "Completed") {
+      handleTechnicianReversal(b.id)
+    }
+
     const combined = { ...b, ...updates }
     const calculated = computeBookingFinance(combined, true)
 
@@ -863,8 +889,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setBookings(prev => prev.map(item => item.id === id ? calculated : item))
     }
 
-    // Impact technician payout balances if status flipped to Completed
-    if (oldStatus !== "Completed" && newStatus === "Completed" && calculated.assignedTechnicianId) {
+    // Impact technician payout balances if status flipped to Completed or remains Completed
+    if (newStatus === "Completed" && calculated.assignedTechnicianId) {
       handleTechnicianCompletionImpact(calculated.assignedTechnicianId, calculated)
     }
 
@@ -872,6 +898,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const deleteBooking = (id: string) => {
+    const b = bookings.find(item => item.id === id)
+    if (b && b.status === "Completed") {
+      handleTechnicianReversal(b.id)
+    }
+
     if (isFirebaseEnabled && db) {
       deleteDoc(doc(db, "bookings", id))
     } else {
@@ -880,36 +911,82 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.info("Booking entry deleted.")
   }
 
-  const handleTechnicianCompletionImpact = (techId: string, calculatedBooking: Booking) => {
-    const techAmt = calculatedBooking.totalTechnicianAmount || 0
-    
-    // Update technician dues
-    const t = technicians.find(item => item.id === techId)
-    if (t) {
-      updateTechnician(techId, {
-        dueAmount: t.dueAmount + techAmt
-      })
-    }
-    
-    // Append transaction in Technician Payouts log
-    const payNum = payouts.length ? Math.max(...payouts.map(p => parseInt(p.id.split("-")[1]))) + 1 : 1001
-    const newPayout: Payout = {
-      id: `PAY-${payNum}`,
-      technicianId: techId,
-      date: calculatedBooking.date,
-      dailyEarnings: techAmt,
-      totalPayout: 0,
-      advance: 0,
-      extra: 0,
-      due: techAmt,
-      paymentStatus: "Pending"
-    }
+  const handleTechnicianReversal = (bookingId: string) => {
+    // Find all payouts associated with this booking
+    const matchingPayouts = payouts.filter(p => p.cinNumber === bookingId)
+    if (matchingPayouts.length === 0) return
 
-    if (isFirebaseEnabled && db) {
-      setDoc(doc(db, "payouts", newPayout.id), newPayout)
-    } else {
-      setPayouts(prev => [newPayout, ...prev])
-    }
+    matchingPayouts.forEach(pay => {
+      // Find technician
+      const tech = technicians.find(t => t.id === pay.technicianId)
+      if (tech) {
+        // Undo this payout's impact on technician's dueAmount and advanceTaken
+        const revertedDue = tech.dueAmount - pay.dailyEarnings - pay.extra + pay.totalPayout + pay.advance
+        const revertedAdvance = tech.advanceTaken + pay.advance
+        
+        updateTechnician(pay.technicianId, {
+          dueAmount: Math.max(0, revertedDue),
+          advanceTaken: Math.max(0, revertedAdvance)
+        })
+      }
+
+      // Delete the payout record
+      if (isFirebaseEnabled && db) {
+        deleteDoc(doc(db, "payouts", pay.id))
+      } else {
+        setPayouts(prev => prev.filter(p => p.id !== pay.id))
+      }
+    })
+  }
+
+  const handleTechnicianCompletionImpact = (techIdStr: string, calculatedBooking: Booking) => {
+    if (!techIdStr) return
+    const techIds = techIdStr.split(",").map(id => id.trim()).filter(Boolean)
+    if (techIds.length === 0) return
+
+    // Fetch customer name
+    const cust = customers.find(c => c.id === calculatedBooking.customerId)
+    const customerName = cust ? cust.name : "Unknown"
+
+    const jobEarnings = Math.round((calculatedBooking.totalTechnicianAmount || 0) / techIds.length * 100) / 100
+
+    techIds.forEach((techId, index) => {
+      // Append transaction in Technician Payouts log
+      const payNum = (payouts.length ? Math.max(...payouts.map(p => {
+        const parts = p.id.split("-")
+        const num = parts.length > 1 ? parseInt(parts[1]) : 0
+        return isNaN(num) ? 0 : num
+      })) + 1 : 1001) + index
+
+      const tech = technicians.find(t => t.id === techId)
+      const prevDue = tech ? tech.dueAmount : 0
+      const finalDue = prevDue + jobEarnings
+
+      // Update technician dues in the database
+      updateTechnician(techId, {
+        dueAmount: finalDue
+      })
+
+      const newPayout: Payout = {
+        id: `PAY-${payNum}`,
+        technicianId: techId,
+        date: calculatedBooking.date,
+        dailyEarnings: jobEarnings,
+        totalPayout: 0,
+        advance: 0,
+        extra: 0,
+        due: finalDue,
+        paymentStatus: "Pending",
+        customerName,
+        cinNumber: calculatedBooking.id
+      }
+
+      if (isFirebaseEnabled && db) {
+        setDoc(doc(db, "payouts", newPayout.id), newPayout)
+      } else {
+        setPayouts(prev => [newPayout, ...prev])
+      }
+    })
   }
 
   // --- Technicians ---
@@ -970,6 +1047,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const duplicate = payouts.find(
       p => p.technicianId === pay.technicianId && 
            p.date === pay.date && 
+           p.dailyEarnings === pay.dailyEarnings &&
            p.totalPayout === pay.totalPayout && 
            p.advance === pay.advance && 
            p.extra === pay.extra
@@ -979,7 +1057,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return duplicate
     }
 
-    const payNum = payouts.length ? Math.max(...payouts.map(p => parseInt(p.id.split("-")[1]))) + 1 : 1001
+    const payNum = payouts.length ? Math.max(...payouts.map(p => {
+      const parts = p.id.split("-")
+      const num = parts.length > 1 ? parseInt(parts[1]) : 0
+      return isNaN(num) ? 0 : num
+    })) + 1 : 1001
     
     // Get technician record to fetch running balances
     const tech = technicians.find(t => t.id === pay.technicianId)
@@ -988,7 +1070,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finalPaid = pay.totalPayout
     const finalAdvance = pay.advance
     const finalExtra = pay.extra
-    const finalDue = Math.max(0, prevDue + finalExtra - finalPaid - finalAdvance)
+    const finalDue = Math.max(0, prevDue + pay.dailyEarnings + finalExtra - finalPaid - finalAdvance)
 
     const newPayout: Payout = {
       ...pay,
@@ -1016,6 +1098,34 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const oldPay = payouts.find(p => p.id === id)
     if (!oldPay) return
 
+    // Auto-update totalPayout on status changes if totalPayout wasn't explicitly set to a new custom non-zero value
+    if (updates.paymentStatus !== undefined && updates.paymentStatus !== oldPay.paymentStatus) {
+      if (updates.paymentStatus === "Paid") {
+        if (updates.totalPayout === undefined || updates.totalPayout === 0) {
+          const earnings = updates.dailyEarnings !== undefined ? updates.dailyEarnings : oldPay.dailyEarnings
+          const extra = updates.extra !== undefined ? updates.extra : oldPay.extra
+          const advance = updates.advance !== undefined ? updates.advance : oldPay.advance
+          updates.totalPayout = Math.max(0, earnings + extra - advance)
+        }
+      } else if (updates.paymentStatus === "Pending") {
+        if (updates.totalPayout === undefined || updates.totalPayout === oldPay.totalPayout) {
+          updates.totalPayout = 0
+        }
+      }
+    }
+
+    // Additional safety: if the final status is "Paid" and totalPayout is still 0 (or undefined), auto-fill it
+    const finalStatus = updates.paymentStatus !== undefined ? updates.paymentStatus : oldPay.paymentStatus
+    if (finalStatus === "Paid") {
+      const currentPaid = updates.totalPayout !== undefined ? updates.totalPayout : oldPay.totalPayout
+      if (currentPaid === 0) {
+        const earnings = updates.dailyEarnings !== undefined ? updates.dailyEarnings : oldPay.dailyEarnings
+        const extra = updates.extra !== undefined ? updates.extra : oldPay.extra
+        const advance = updates.advance !== undefined ? updates.advance : oldPay.advance
+        updates.totalPayout = Math.max(0, earnings + extra - advance)
+      }
+    }
+
     const techIdToCheck = updates.technicianId !== undefined ? updates.technicianId : oldPay.technicianId
     const dateToCheck = updates.date !== undefined ? updates.date : oldPay.date
     const dailyEarningsToCheck = updates.dailyEarnings !== undefined ? updates.dailyEarnings : oldPay.dailyEarnings
@@ -1037,29 +1147,32 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return
     }
 
-    const combined = { ...oldPay, ...updates }
-
-    if (isFirebaseEnabled && db) {
-      setDoc(doc(db, "payouts", id), combined)
-    } else {
-      setPayouts(prev => prev.map(p => p.id === id ? combined : p))
-    }
-
     // Reconcile technician dues
     const tech = technicians.find(t => t.id === oldPay.technicianId)
+    let finalDue = oldPay.due
+    let finalAdvance = tech ? tech.advanceTaken : 0
+
     if (tech) {
       // First, undo old payout impact
-      const undowedDue = tech.dueAmount - oldPay.extra + oldPay.totalPayout + oldPay.advance
+      const undowedDue = tech.dueAmount - oldPay.dailyEarnings - oldPay.extra + oldPay.totalPayout + oldPay.advance
       const undowedAdvance = tech.advanceTaken + oldPay.advance
       
       // Then, apply new payout impact
-      const finalDue = Math.max(0, undowedDue + (updates.extra !== undefined ? updates.extra : oldPay.extra) - (updates.totalPayout !== undefined ? updates.totalPayout : oldPay.totalPayout) - (updates.advance !== undefined ? updates.advance : oldPay.advance))
-      const finalAdvance = Math.max(0, undowedAdvance - (updates.advance !== undefined ? updates.advance : oldPay.advance))
+      finalDue = Math.max(0, undowedDue + (updates.dailyEarnings !== undefined ? updates.dailyEarnings : oldPay.dailyEarnings) + (updates.extra !== undefined ? updates.extra : oldPay.extra) - (updates.totalPayout !== undefined ? updates.totalPayout : oldPay.totalPayout) - (updates.advance !== undefined ? updates.advance : oldPay.advance))
+      finalAdvance = Math.max(0, undowedAdvance - (updates.advance !== undefined ? updates.advance : oldPay.advance))
 
       updateTechnician(oldPay.technicianId, {
         dueAmount: finalDue,
         advanceTaken: finalAdvance
       })
+    }
+
+    const combined = { ...oldPay, ...updates, due: finalDue }
+
+    if (isFirebaseEnabled && db) {
+      setDoc(doc(db, "payouts", id), combined)
+    } else {
+      setPayouts(prev => prev.map(p => p.id === id ? combined : p))
     }
     toast.success("Payout details updated and technician balance reconciled.")
   }
@@ -1077,7 +1190,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Reconcile technician dues by undoing the payout
     const tech = technicians.find(t => t.id === oldPay.technicianId)
     if (tech) {
-      const finalDue = tech.dueAmount - oldPay.extra + oldPay.totalPayout + oldPay.advance
+      const finalDue = tech.dueAmount - oldPay.dailyEarnings - oldPay.extra + oldPay.totalPayout + oldPay.advance
       const finalAdvance = tech.advanceTaken + oldPay.advance
       updateTechnician(oldPay.technicianId, {
         dueAmount: finalDue,
@@ -1348,6 +1461,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       address: lead.address,
       referralSource: lead.source,
       review: "",
+      reviewStatus: "Review not done",
       notes: `Converted from lead with requirements: ${lead.requirement}`,
       status: "Active"
     })

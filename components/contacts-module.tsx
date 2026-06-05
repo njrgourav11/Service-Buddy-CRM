@@ -167,14 +167,13 @@ export function ContactsModule() {
                   <th className="px-4 py-3">Address</th>
                   <th className="px-4 py-3">Client Type</th>
                   <th className="px-4 py-3">Timeline Check</th>
-                  <th className="px-4 py-3">Internal Memo</th>
                   {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
                       No business contacts recorded.
                     </td>
                   </tr>
@@ -200,7 +199,6 @@ export function ContactsModule() {
                         </Badge>
                       </td>
                       <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">{c.lastServiceDate}</td>
-                      <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{c.notes}</td>
                       {(currentRole === "Admin" || currentRole === "Manager") && (
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -215,7 +213,11 @@ export function ContactsModule() {
                             {currentRole === "Admin" && (
                               <Button 
                                 variant="ghost" 
-                                onClick={() => deleteContact(c.id)}
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete contact card for ${c.name}?`)) {
+                                    deleteContact(c.id)
+                                  }
+                                }}
                                 className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                               >
                                 ×
@@ -302,17 +304,7 @@ export function ContactsModule() {
                   </Select>
                 </div>
 
-                {/* Notes */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="cont-notes" className="text-xs font-bold text-muted-foreground">Memo Notes</Label>
-                  <Input 
-                    id="cont-notes"
-                    placeholder="Key specifications, pricing agreements, references..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
-
+                {/* Notes Removed */}
               </div>
             </div>
 
@@ -407,17 +399,7 @@ export function ContactsModule() {
                   />
                 </div>
 
-                {/* Notes */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="edit-cont-notes" className="text-xs font-bold text-muted-foreground">Memo Notes</Label>
-                  <Input 
-                    id="edit-cont-notes"
-                    placeholder="Key specifications, pricing agreements, references..."
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                  />
-                </div>
-
+                {/* Notes Removed */}
               </div>
             </div>
 

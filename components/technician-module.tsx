@@ -25,10 +25,13 @@ import {
   Loading03Icon,
   InvoiceIcon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 
 export function TechnicianModule() {
-  const { technicians, bookings, payouts, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
+  const { technicians, bookings, payouts, addPayout, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [selectedTech, setSelectedTech] = React.useState<Technician | null>(null)
 
   // Form State
   const [name, setName] = React.useState("")
@@ -38,13 +41,20 @@ export function TechnicianModule() {
   const [status, setStatus] = React.useState<any>("Active")
   const [joiningDate, setJoiningDate] = React.useState(new Date().toISOString().split("T")[0])
 
+  // Edit Form State
+  const [editName, setEditName] = React.useState("")
+  const [editMobile, setEditMobile] = React.useState("")
+  const [editAddress, setEditAddress] = React.useState("")
+  const [editSkillsString, setEditSkillsString] = React.useState("")
+  const [editStatus, setEditStatus] = React.useState<any>("Active")
+  const [editJoiningDate, setEditJoiningDate] = React.useState("")
+  const [editAdvanceTaken, setEditAdvanceTaken] = React.useState(0)
+  const [editDueAmount, setEditDueAmount] = React.useState(0)
+
   // Submit Technician Add
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Parse Skills comma-delimited
     const skills = skillsString.split(",").map(s => s.trim()).filter(Boolean)
-
     addTechnician({
       name,
       mobile,
@@ -53,14 +63,62 @@ export function TechnicianModule() {
       status,
       joiningDate
     })
-
-    // Reset Form
     setName("")
     setMobile("")
     setAddress("")
     setSkillsString("AC, Electrical")
     setStatus("Active")
     setIsAddOpen(false)
+  }
+
+  // Open Edit Profile
+  const handleOpenEdit = (t: Technician) => {
+    setSelectedTech(t)
+    setEditName(t.name)
+    setEditMobile(t.mobile)
+    setEditAddress(t.address)
+    setEditSkillsString(t.skills.join(", "))
+    setEditStatus(t.status)
+    setEditJoiningDate(t.joiningDate)
+    setEditAdvanceTaken(t.advanceTaken)
+    setEditDueAmount(t.dueAmount)
+    setIsEditOpen(true)
+  }
+
+  // Submit Technician Edit
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedTech) return
+    const skills = editSkillsString.split(",").map(s => s.trim()).filter(Boolean)
+    updateTechnician(selectedTech.id, {
+      name: editName,
+      mobile: editMobile,
+      address: editAddress,
+      skills,
+      status: editStatus,
+      joiningDate: editJoiningDate,
+      advanceTaken: editAdvanceTaken,
+      dueAmount: editDueAmount
+    })
+    setIsEditOpen(false)
+  }
+
+  // Settle Outstanding Dues
+  const handleSettleDues = (t: Technician) => {
+    if (window.confirm(`Are you sure you want to settle all outstanding dues of ₹${t.dueAmount} for ${t.name}?`)) {
+      addPayout({
+        technicianId: t.id,
+        date: new Date().toISOString().split("T")[0],
+        dailyEarnings: 0,
+        totalPayout: t.dueAmount,
+        advance: 0,
+        extra: 0,
+        paymentStatus: "Paid",
+        customerName: "Bulk Settlement",
+        cinNumber: "—"
+      })
+      toast.success(`Dues of ₹${t.dueAmount} settled successfully for ${t.name}.`)
+    }
   }
 
   // Running KPI computations
@@ -85,7 +143,7 @@ export function TechnicianModule() {
             <Button 
               variant="destructive" 
               onClick={() => {
-                if (confirm("Are you sure you want to remove all technicians?")) {
+                if (window.confirm("Are you sure you want to remove all technicians?")) {
                   technicians.forEach(t => deleteTechnician(t.id))
                 }
               }} 
@@ -197,17 +255,41 @@ export function TechnicianModule() {
                   </div>
                 </div>
               </CardContent>
-              {currentRole === "Admin" && (
-                <CardFooter className="pt-0 border-t border-border/40 py-2 flex justify-end">
+              <CardFooter className="pt-0 border-t border-border/40 py-2 flex justify-between gap-2 items-center">
+                <div className="flex gap-2 flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenEdit(t)}
+                    className="h-7 text-xs font-bold px-2.5 bg-background hover:bg-muted cursor-pointer flex-1"
+                  >
+                    Edit Profile
+                  </Button>
+                  {t.dueAmount > 0 && (currentRole === "Admin" || currentRole === "Manager") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSettleDues(t)}
+                      className="h-7 text-xs font-bold px-2.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 cursor-pointer flex-1"
+                    >
+                      Settle Dues
+                    </Button>
+                  )}
+                </div>
+                {currentRole === "Admin" && (
                   <Button
                     variant="ghost"
-                    onClick={() => deleteTechnician(t.id)}
-                    className="h-7 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete profile for ${t.name}?`)) {
+                        deleteTechnician(t.id)
+                      }
+                    }}
+                    className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
                   >
-                    Delete Profile
+                    ×
                   </Button>
-                </CardFooter>
-              )}
+                )}
+              </CardFooter>
             </Card>
           )
         })}
@@ -298,6 +380,137 @@ export function TechnicianModule() {
               <Button type="submit" className="flex-1">Onboard Technician</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Profile</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Technician Edit Drawer */}
+      <Drawer open={isEditOpen} onOpenChange={setIsEditOpen} direction="bottom">
+        <DrawerContent className="h-[96vh] max-h-[96vh] flex flex-col rounded-t-2xl border-t bg-card">
+          <form onSubmit={handleEditSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Edit Technician Profile Details</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Modify technician record parameters. Dues, advances, and join details can be overridden.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex flex-col gap-4">
+                
+                {/* Name */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-name" className="text-xs font-bold text-muted-foreground">Technician Name</Label>
+                  <Input 
+                    id="edit-tech-name"
+                    placeholder="E.g., Suresh Kumar"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Mobile */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
+                  <Input 
+                    id="edit-tech-mob"
+                    placeholder="E.g., 9876543210"
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-address" className="text-xs font-bold text-muted-foreground">Residential Address Details</Label>
+                  <Input 
+                    id="edit-tech-address"
+                    placeholder="E.g., Street, Sector details"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Status Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-status" className="text-xs font-bold text-muted-foreground">Status</Label>
+                  <select
+                    id="edit-tech-status"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="h-8 text-xs font-bold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+              </div>
+
+              <div className="flex flex-col gap-4">
+                
+                {/* Skills Directory comma-delimited */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-skills" className="text-xs font-bold text-muted-foreground">Skillsets (Comma delimited)</Label>
+                  <Input 
+                    id="edit-tech-skills"
+                    placeholder="E.g., AC, TV, Washing Machine, Geyser"
+                    value={editSkillsString}
+                    onChange={(e) => setEditSkillsString(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Joining Date */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-date" className="text-xs font-bold text-muted-foreground">Joining Date</Label>
+                  <Input 
+                    type="date"
+                    id="edit-tech-date"
+                    value={editJoiningDate}
+                    onChange={(e) => setEditJoiningDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Advance Taken Override */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-adv" className="text-xs font-bold text-rose-600">Advance Taken (Override)</Label>
+                  <Input 
+                    type="number"
+                    id="edit-tech-adv"
+                    min="0"
+                    value={editAdvanceTaken}
+                    onChange={(e) => setEditAdvanceTaken(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+                {/* Due Amount Override */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tech-due" className="text-xs font-bold text-amber-600">Outstanding Due Amount (Override)</Label>
+                  <Input 
+                    type="number"
+                    id="edit-tech-due"
+                    min="0"
+                    value={editDueAmount}
+                    onChange={(e) => setEditDueAmount(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1">Update Profile Details</Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1">Discard Changes</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

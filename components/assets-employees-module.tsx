@@ -38,6 +38,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   } = useCRM()
 
   const [search, setSearch] = React.useState("")
+  const [viewMode, setViewMode] = React.useState<"table" | "cards">("table")
   
   // Creation state
   const [isAssetOpen, setIsAssetOpen] = React.useState(false)
@@ -56,6 +57,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   const [astCost, setAstCost] = React.useState(0)
   const [astAssigned, setAstAssigned] = React.useState("")
   const [astStatus, setAstStatus] = React.useState<any>("Active")
+  const [astQty, setAstQty] = React.useState(1)
 
   // Asset Edit Form State
   const [editAstName, setEditAstName] = React.useState("")
@@ -64,6 +66,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   const [editAstCost, setEditAstCost] = React.useState(0)
   const [editAstAssigned, setEditAstAssigned] = React.useState("")
   const [editAstStatus, setEditAstStatus] = React.useState<any>("Active")
+  const [editAstQty, setEditAstQty] = React.useState(1)
 
   // Employee Form State
   const [empName, setEmpName] = React.useState("")
@@ -90,6 +93,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     setEditAstCost(a.cost)
     setEditAstAssigned(a.assignedTo)
     setEditAstStatus(a.status)
+    setEditAstQty(a.qty || 1)
     setIsEditAssetOpen(true)
   }
 
@@ -104,7 +108,8 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
       purchaseDate: editAstDate,
       cost: editAstCost,
       assignedTo: editAstAssigned,
-      status: editAstStatus
+      status: editAstStatus,
+      qty: editAstQty
     })
 
     setIsEditAssetOpen(false)
@@ -149,13 +154,15 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
       purchaseDate: astDate,
       cost: astCost,
       assignedTo: astAssigned || "Unassigned",
-      status: astStatus
+      status: astStatus,
+      qty: astQty
     })
 
     // Reset Form
     setAstName("")
     setAstCost(0)
     setAstAssigned("")
+    setAstQty(1)
     setIsAssetOpen(false)
   }
 
@@ -190,6 +197,13 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     return str.includes(search.toLowerCase())
   })
 
+  // Asset stats
+  const totalAssets = assets.length
+  const activeAssets = assets.filter(a => a.status === "Active").length
+  const inRepairAssets = assets.filter(a => a.status === "In Repair").length
+  const retiredAssets = assets.filter(a => a.status === "Retired").length
+  const totalInvestment = assets.reduce((sum, a) => sum + (a.cost * (a.qty || 1)), 0)
+
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
       
@@ -222,9 +236,43 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
         </div>
       </div>
 
+      {/* Asset Stats Cards */}
+      {initialSubTab === "assets" && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="border-border/60 shadow-xs">
+            <CardContent className="p-4 flex flex-col gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total Assets</p>
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">{totalAssets}</p>
+              <p className="text-xs text-muted-foreground">{retiredAssets} retired</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/60 shadow-xs">
+            <CardContent className="p-4 flex flex-col gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Active</p>
+              <p className="text-2xl font-extrabold tracking-tight text-emerald-600">{activeAssets}</p>
+              <p className="text-xs text-muted-foreground">Currently operational</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/60 shadow-xs">
+            <CardContent className="p-4 flex flex-col gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600">In Repair</p>
+              <p className="text-2xl font-extrabold tracking-tight text-amber-600">{inRepairAssets}</p>
+              <p className="text-xs text-muted-foreground">Under maintenance</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/60 shadow-xs">
+            <CardContent className="p-4 flex flex-col gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total Investment</p>
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">₹{totalInvestment.toLocaleString("en-IN")}</p>
+              <p className="text-xs text-muted-foreground">All assets combined</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Control filter */}
       <Card className="border-border/60">
-        <CardContent className="p-4 flex items-center justify-between">
+        <CardContent className="p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full max-w-md">
             <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input 
@@ -234,89 +282,202 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
               className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
             />
           </div>
+          {initialSubTab === "assets" && (
+            <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/40 w-fit shrink-0">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setViewMode("table")}
+                className={`text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all ${
+                  viewMode === "table" 
+                    ? "bg-background text-foreground shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Table View
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setViewMode("cards")}
+                className={`text-xs font-bold px-3 py-1 h-7 rounded-lg transition-all ${
+                  viewMode === "cards" 
+                    ? "bg-background text-foreground shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Cards View
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* ASSETS TAB CONTENT */}
       {initialSubTab === "assets" && (
-        <Card className="border-border/60 overflow-hidden shadow-xs">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
-                  <tr>
-                    <th className="px-4 py-3">Asset ID</th>
-                    <th className="px-4 py-3">Asset Description</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Purchase Date</th>
-                    <th className="px-4 py-3 text-right">Cost</th>
-                    <th className="px-4 py-3">Issued To</th>
-                    <th className="px-4 py-3">Operational Status</th>
-                    {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredAssets.length === 0 ? (
+        viewMode === "table" ? (
+          <Card className="border-border/60 overflow-hidden shadow-xs">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                     <tr>
-                      <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
-                        No company assets cataloged.
-                      </td>
+                      <th className="px-4 py-3">Asset ID</th>
+                      <th className="px-4 py-3">Asset Description</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3 text-center">Qty</th>
+                      <th className="px-4 py-3">Purchase Date</th>
+                      <th className="px-4 py-3 text-right">Cost</th>
+                      <th className="px-4 py-3">Issued To</th>
+                      <th className="px-4 py-3">Operational Status</th>
+                      {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
                     </tr>
-                  ) : (
-                    filteredAssets.map((a) => (
-                      <tr key={a.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{a.id}</td>
-                        <td className="px-4 py-4 font-semibold text-xs text-foreground">{a.name}</td>
-                        <td className="px-4 py-4">
-                          <Badge variant="outline" className="text-[10px] font-semibold">{a.type}</Badge>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {filteredAssets.length === 0 ? (
+                      <tr>
+                        <td colSpan={currentRole === "Admin" ? 9 : 8} className="text-center py-12 text-muted-foreground font-medium">
+                          No company assets cataloged.
                         </td>
-                        <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{a.purchaseDate}</td>
-                        <td className="px-4 py-4 text-right font-bold text-foreground tabular-nums">₹{a.cost}</td>
-                        <td className="px-4 py-4 text-xs font-semibold text-foreground">{a.assignedTo}</td>
-                        <td className="px-4 py-4">
-                          <Badge 
-                            variant="outline"
-                            onClick={() => currentRole === "Admin" && updateAsset(a.id, { status: a.status === "Active" ? "In Repair" : a.status === "In Repair" ? "Retired" : "Active" })}
-                            className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
-                              a.status === "Active" 
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                : a.status === "In Repair"
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-emerald-950/20 dark:text-emerald-400 animate-pulse"
-                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                            }`}
-                          >
-                            {a.status}
-                          </Badge>
-                        </td>
-                        {currentRole === "Admin" && (
-                          <td className="px-4 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleOpenEditAsset(a)}
-                                className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                              >
-                                Edit
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                onClick={() => deleteAsset(a.id)}
-                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                              >
-                                ×
-                              </Button>
-                            </div>
-                          </td>
-                        )}
                       </tr>
-                    ))
+                    ) : (
+                      filteredAssets.map((a) => (
+                        <tr key={a.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{a.id}</td>
+                          <td className="px-4 py-4 font-semibold text-xs text-foreground">{a.name}</td>
+                          <td className="px-4 py-4">
+                            <Badge variant="outline" className="text-[10px] font-semibold">{a.type}</Badge>
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold text-xs tabular-nums text-foreground">{a.qty || 1}</td>
+                          <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{a.purchaseDate}</td>
+                          <td className="px-4 py-4 text-right font-bold text-foreground tabular-nums">₹{a.cost}</td>
+                          <td className="px-4 py-4 text-xs font-semibold text-foreground">{a.assignedTo}</td>
+                          <td className="px-4 py-4">
+                            <Badge 
+                              variant="outline"
+                              onClick={() => currentRole === "Admin" && updateAsset(a.id, { status: a.status === "Active" ? "In Repair" : a.status === "In Repair" ? "Retired" : "Active" })}
+                              className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
+                                a.status === "Active" 
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                  : a.status === "In Repair"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-emerald-950/20 dark:text-emerald-400 animate-pulse"
+                                  : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                              }`}
+                            >
+                              {a.status}
+                            </Badge>
+                          </td>
+                          {currentRole === "Admin" && (
+                            <td className="px-4 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleOpenEditAsset(a)}
+                                  className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
+                                >
+                                  Edit
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete asset ${a.name}?`)) {
+                                      deleteAsset(a.id)
+                                    }
+                                  }}
+                                  className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
+            {filteredAssets.length === 0 ? (
+              <Card className="col-span-full border-border/60 py-12 text-center text-muted-foreground font-medium">
+                No company assets cataloged.
+              </Card>
+            ) : (
+              filteredAssets.map((a) => (
+                <Card key={a.id} className="border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[10px] font-bold tabular-nums">
+                        {a.id}
+                      </Badge>
+                      <Badge 
+                        variant="outline"
+                        onClick={() => currentRole === "Admin" && updateAsset(a.id, { status: a.status === "Active" ? "In Repair" : a.status === "In Repair" ? "Retired" : "Active" })}
+                        className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
+                          a.status === "Active" 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                            : a.status === "In Repair"
+                            ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-emerald-950/20 dark:text-emerald-400 animate-pulse"
+                            : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                        }`}
+                      >
+                        {a.status}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-sm font-bold text-foreground mt-2 truncate">
+                      {a.name}
+                    </CardTitle>
+                    <CardDescription className="text-[10px] font-semibold text-muted-foreground flex gap-1 items-center mt-0.5">
+                      <Badge className="text-[9px] font-bold py-0">{a.type}</Badge>
+                      <span>• Purchased: {a.purchaseDate}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3 text-xs flex flex-col gap-2">
+                    <div className="flex flex-col gap-1 text-muted-foreground leading-relaxed">
+                      <div>
+                        <span className="font-bold text-foreground">Quantity:</span> {a.qty || 1}
+                      </div>
+                      <div>
+                        <span className="font-bold text-foreground">Issued To:</span> {a.assignedTo}
+                      </div>
+                      <div className="mt-1 font-bold text-foreground">
+                        Cost: <span className="text-primary font-black tabular-nums">₹{a.cost}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  {currentRole === "Admin" && (
+                    <div className="pt-0 border-t border-border/40 py-2 px-4 flex justify-between gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleOpenEditAsset(a)}
+                        className="h-7 text-[10px] font-bold px-2 flex-1 hover:bg-muted"
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete asset ${a.name}?`)) {
+                            deleteAsset(a.id)
+                          }
+                        }}
+                        className="h-7 text-[10px] font-bold text-destructive hover:bg-destructive/10"
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                </Card>
+              ))
+            )}
+          </div>
+        )
       )}
 
       {/* EMPLOYEES TAB CONTENT */}
@@ -381,7 +542,11 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                               </Button>
                               <Button 
                                 variant="ghost" 
-                                onClick={() => deleteEmployee(emp.id)}
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete employee staff profile for ${emp.name}?`)) {
+                                    deleteEmployee(emp.id)
+                                  }
+                                }}
                                 className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
                               >
                                 ×
@@ -436,6 +601,11 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="ast-cost" className="text-xs font-bold text-muted-foreground">Purchase Cost (₹)</Label>
                   <Input type="number" id="ast-cost" value={astCost} onChange={(e) => setAstCost(parseFloat(e.target.value) || 0)} required />
+                </div>
+                {/* Quantity */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="ast-qty" className="text-xs font-bold text-muted-foreground">Quantity</Label>
+                  <Input type="number" id="ast-qty" min="1" value={astQty} onChange={(e) => setAstQty(parseInt(e.target.value) || 1)} required />
                 </div>
               </div>
 
@@ -589,6 +759,11 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-ast-cost" className="text-xs font-bold text-muted-foreground">Purchase Cost (₹)</Label>
                   <Input type="number" id="edit-ast-cost" value={editAstCost} onChange={(e) => setEditAstCost(parseFloat(e.target.value) || 0)} required />
+                </div>
+                {/* Quantity */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-ast-qty" className="text-xs font-bold text-muted-foreground">Quantity</Label>
+                  <Input type="number" id="edit-ast-qty" min="1" value={editAstQty} onChange={(e) => setEditAstQty(parseInt(e.target.value) || 1)} required />
                 </div>
               </div>
 

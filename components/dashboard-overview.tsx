@@ -39,6 +39,14 @@ const fmt = (n: number) =>
 const pct = (n: number) =>
   `${isFinite(n) ? n.toFixed(1) : "0.0"}%`
 
+const getReviewDotColor = (status: string) => {
+  const s = status || "Review not done"
+  if (s === "Positive") return "bg-emerald-500"
+  if (s === "Negative") return "bg-rose-500"
+  if (s === "Call didn't receive") return "bg-orange-500"
+  return "bg-blue-500" // Review not done
+}
+
 // ─── Stat Card ───────────────────────────────────────────────────────────
 
 interface StatCardProps {
@@ -122,13 +130,15 @@ export function DashboardOverview() {
     dismissReminder,
     currentRole,
     setActiveTab,
+    outstandingDues,
   } = useCRM()
 
   // Breakdown state managers: Initial states are null so no detailed breakdown is shown by default
-  const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "profit" | "expenses" | "operations" | null>(null)
+  const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "expenses" | "operations" | null>(null)
   const [activeManagerBreakdown, setActiveManagerBreakdown] = React.useState<"bookings" | "clients" | "resources" | null>(null)
+  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR">("ALL")
 
-  const handleCardClick = (category: "revenue" | "profit" | "expenses" | "operations") => {
+  const handleCardClick = (category: "revenue" | "expenses" | "operations") => {
     setActiveBreakdown(prev => prev === category ? null : category)
   }
 
@@ -137,20 +147,56 @@ export function DashboardOverview() {
   }
 
   // ════════════════════════════════════════════
+  // DATE FILTER LOGIC
+  // ════════════════════════════════════════════
+  const getFilteredData = React.useCallback((items: any[]) => {
+    if (dateFilter === "ALL") return items
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() // 0-indexed
+    
+    return items.filter(item => {
+      const itemDateStr = item.date || item.createdAt
+      if (!itemDateStr) return false
+      const itemDate = new Date(itemDateStr)
+      if (isNaN(itemDate.getTime())) return false
+      
+      if (dateFilter === "THIS_MONTH") {
+        return itemDate.getFullYear() === currentYear && itemDate.getMonth() === currentMonth
+      }
+      if (dateFilter === "THIS_YEAR") {
+        return itemDate.getFullYear() === currentYear
+      }
+      if (dateFilter === "LAST_30_DAYS") {
+        const diffTime = Math.abs(now.getTime() - itemDate.getTime())
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return diffDays <= 30
+      }
+      return true
+    })
+  }, [dateFilter])
+
+  const filteredBookings = React.useMemo(() => getFilteredData(bookings), [bookings, getFilteredData])
+  const filteredExpenses = React.useMemo(() => getFilteredData(expenses), [expenses, getFilteredData])
+  const filteredLeads = React.useMemo(() => getFilteredData(leads), [leads, getFilteredData])
+  const filteredPayouts = React.useMemo(() => getFilteredData(payouts), [payouts, getFilteredData])
+  const filteredOutstandingDues = React.useMemo(() => getFilteredData(outstandingDues), [outstandingDues, getFilteredData])
+
+  // ════════════════════════════════════════════
   // REVENUE CALCULATIONS
   // ════════════════════════════════════════════
-  const spareRevenue = bookings.reduce((s, b) => s + (b.spareCost || 0), 0)
-  const technicianRevenue = bookings.reduce((s, b) => s + (b.totalTechnicianAmount || 0), 0)
-  const companyRevenue = bookings.reduce((s, b) => s + (b.totalCompanyAmount || 0), 0)
-  const totalRevenue = bookings.reduce((s, b) => s + (b.totalConsumerAmount || 0), 0)
-  const completedJobs = bookings.filter((b) => b.status === "Completed").length
-  const avgBookingValue = bookings.length > 0 ? totalRevenue / bookings.length : 0
+  const spareRevenue = filteredBookings.reduce((s, b) => s + (b.spareCost || 0), 0)
+  const technicianRevenue = filteredBookings.reduce((s, b) => s + (b.totalTechnicianAmount || 0), 0)
+  const companyRevenue = filteredBookings.reduce((s, b) => s + (b.totalCompanyAmount || 0), 0)
+  const totalRevenue = filteredBookings.reduce((s, b) => s + (b.totalConsumerAmount || 0), 0)
+  const completedJobs = filteredBookings.filter((b) => b.status === "Completed").length
+  const avgBookingValue = filteredBookings.length > 0 ? totalRevenue / filteredBookings.length : 0
 
   // ════════════════════════════════════════════
   // EXPENSE CALCULATIONS
   // ════════════════════════════════════════════
   const sumCat = (cat: string) =>
-    expenses
+    filteredExpenses
       .filter((e) => e.category === cat)
       .reduce((s, e) => s + (e.amount || 0), 0)
 
@@ -161,7 +207,11 @@ export function DashboardOverview() {
   const toolsSubscriptions     = sumCat("Tools and subscriptions")
   const refunds                = sumCat("Refunds")
   const nonBeneficiaryExpenses = sumCat("Non beneficiary items")
-  const outstandingAmount      = sumCat("Outstanding")
+  
+  // Bind outstandingAmount to outstanding dues array (status === "Pending")
+  const outstandingAmount = filteredOutstandingDues
+    .filter((d) => d.status === "Pending")
+    .reduce((s, d) => s + (d.amount || 0), 0)
 
   const totalExpenditure =
     workingExpenses + expItems + toolsMaintenance + officeExpenses +
@@ -179,8 +229,8 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // OPERATIONS METRICS
   // ════════════════════════════════════════════
-  const totalBookings  = bookings.length
-  const pendingJobs    = bookings.filter((b) => b.status !== "Completed").length
+  const totalBookings  = filteredBookings.length
+  const pendingJobs    = filteredBookings.filter((b) => b.status !== "Completed").length
   const completionRate = totalBookings > 0 ? (completedJobs / totalBookings) * 100 : 0
 
   // ════════════════════════════════════════════
@@ -200,7 +250,7 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   const totalCustomers = customers.length
   const repeatCustomers = customers.filter((c) => {
-    const count = bookings.filter((b) => b.customerId === c.id).length
+    const count = filteredBookings.filter((b) => b.customerId === c.id).length
     return count > 1
   }).length
   const customerRetentionRate =
@@ -209,8 +259,8 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // LEAD METRICS
   // ════════════════════════════════════════════
-  const totalLeads     = leads.length
-  const convertedLeads = leads.filter((l) => l.status === "Converted").length
+  const totalLeads     = filteredLeads.length
+  const convertedLeads = filteredLeads.filter((l) => l.status === "Converted").length
   const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0
 
   // ════════════════════════════════════════════
@@ -221,29 +271,65 @@ export function DashboardOverview() {
   const outOfStockItems = spares.filter((sp) => sp.stockQty === 0).length
 
   // ════════════════════════════════════════════
-  // CHART DATA
+  // CHART DATA (DYNAMIC REAL-TIME GRAPH)
   // ════════════════════════════════════════════
-  const chartData = [
-    { name: "Jan", Revenue: 42000, Expenses: 18000, Profit: 24000 },
-    { name: "Feb", Revenue: 51000, Expenses: 22000, Profit: 29000 },
-    { name: "Mar", Revenue: 68000, Expenses: 31000, Profit: 37000 },
-    { name: "Apr", Revenue: 72000, Expenses: 29000, Profit: 43000 },
-    { name: "May", Revenue: Math.round(totalRevenue), Expenses: Math.round(totalExpenditure), Profit: Math.round(netProfit) },
-  ]
+  const chartDataCombined = React.useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const result: any[] = []
+    
+    const now = new Date()
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const mName = months[d.getMonth()]
+      const year = d.getFullYear()
+      const monthIndex = d.getMonth()
+      
+      const bMonth = bookings.filter(b => {
+        if (!b.date) return false
+        const bd = new Date(b.date)
+        return bd.getFullYear() === year && bd.getMonth() === monthIndex
+      })
+      
+      const eMonth = expenses.filter(e => {
+        if (!e.date) return false
+        const ed = new Date(e.date)
+        return ed.getFullYear() === year && ed.getMonth() === monthIndex
+      })
+      
+      const lMonth = leads.filter(l => {
+        if (!l.createdAt) return false
+        const ld = new Date(l.createdAt)
+        return ld.getFullYear() === year && ld.getMonth() === monthIndex
+      })
+      
+      const bCompleted = bMonth.filter(b => b.status === "Completed").length
+      
+      const mRevenue = bMonth.reduce((s, b) => s + (b.totalConsumerAmount || 0), 0)
+      const mExpenses = eMonth.reduce((s, e) => s + (e.amount || 0), 0)
+      const mProfit = mRevenue - mExpenses
+      
+      result.push({
+        name: `${mName} ${year.toString().slice(-2)}`,
+        Revenue: Math.round(mRevenue),
+        Expenses: Math.round(mExpenses),
+        Profit: Math.round(mProfit),
+        Bookings: bMonth.length,
+        Leads: lMonth.length,
+        Completed: bCompleted
+      })
+    }
+    return result
+  }, [bookings, expenses, leads])
 
-  const recentBookings = [...bookings].reverse().slice(0, 5)
+  const chartData = chartDataCombined
+  const managerChartData = chartDataCombined
+
+  const recentBookings = [...filteredBookings].reverse().slice(0, 5)
 
   // ════════════════════════════════════════════
   // RENDER: MANAGER ROLE VIEW
   // ════════════════════════════════════════════
   if (currentRole === "Manager") {
-    const managerChartData = [
-      { name: "Jan", Bookings: 45, Leads: 60, Completed: 38 },
-      { name: "Feb", Bookings: 55, Leads: 72, Completed: 48 },
-      { name: "Mar", Bookings: 78, Leads: 95, Completed: 65 },
-      { name: "Apr", Bookings: 85, Leads: 110, Completed: 75 },
-      { name: "May", Bookings: totalBookings, Leads: totalLeads, Completed: completedJobs },
-    ]
 
     return (
       <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-300">
@@ -275,9 +361,24 @@ export function DashboardOverview() {
 
         {/* Primary Interactive Cards (3 columns for Manager) */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-3.5 bg-primary rounded-full" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Metrics Category</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-3.5 bg-primary rounded-full" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Metrics Category</h3>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <span className="text-xs text-muted-foreground font-semibold">Filter Date:</span>
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value as any)}
+                className="h-8 text-xs font-bold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="ALL">All Time</option>
+                <option value="THIS_MONTH">This Month</option>
+                <option value="LAST_30_DAYS">Last 30 Days</option>
+                <option value="THIS_YEAR">This Year</option>
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
@@ -568,6 +669,7 @@ export function DashboardOverview() {
                       <th className="px-4 py-2.5">Name</th>
                       <th className="px-4 py-2.5">Appliance</th>
                       <th className="px-4 py-2.5">Service</th>
+                      <th className="px-4 py-2.5">Notes</th>
                       <th className="px-4 py-2.5">Status</th>
                     </tr>
                   </thead>
@@ -578,12 +680,20 @@ export function DashboardOverview() {
                       return (
                         <tr key={b.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
-                          <td className="px-4 py-3 font-semibold text-xs text-foreground">{customerName}</td>
+                          <td className="px-4 py-3 font-semibold text-xs text-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <span>{customerName}</span>
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} title={cust?.reviewStatus || "Review not done"} />
+                            </div>
+                          </td>
                           <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
                           <td className="px-4 py-3">
                             <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
                               {b.serviceType}
                             </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={cust?.notes || ""}>
+                            {cust?.notes || "—"}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
@@ -706,9 +816,24 @@ export function DashboardOverview() {
 
       {/* Simplified Summary Metrics (Clickable Categories) */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-3.5 bg-primary rounded-full" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Financial/Operations Category</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-3.5 bg-primary rounded-full" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Financial/Operations Category</h3>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-xs text-muted-foreground font-semibold">Filter Date:</span>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as any)}
+              className="h-8 text-xs font-bold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="ALL">All Time</option>
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_30_DAYS">Last 30 Days</option>
+              <option value="THIS_YEAR">This Year</option>
+            </select>
+          </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
@@ -722,15 +847,12 @@ export function DashboardOverview() {
             clickable
           />
           <StatCard
-            label="Net Profit"
-            value={fmt(netProfit)}
-            sub={`${pct(profitMargin)} net margin`}
-            accent={netProfit >= 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
+            label="Balance"
+            value={fmt(balance)}
+            sub="Company share less expenses & dues"
+            accent={balance >= 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
             icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-            onClick={() => handleCardClick("profit")}
-            selected={activeBreakdown === "profit"}
-            clickable
-            negative={netProfit < 0}
+            negative={balance < 0}
           />
           <StatCard
             label="Operating Expenses"
@@ -763,15 +885,13 @@ export function DashboardOverview() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
                 {activeBreakdown === "revenue" && "Total Revenue breakdown details"}
-                {activeBreakdown === "profit" && "Net Profit breakdown details"}
                 {activeBreakdown === "expenses" && "Operating Expenses details"}
                 {activeBreakdown === "operations" && "Operations & Inventory status ledger"}
               </h3>
             </div>
             <span className="text-[9px] text-muted-foreground font-semibold">
               {activeBreakdown === "revenue" && "4 parameters logged"}
-              {activeBreakdown === "profit" && "5 parameters logged"}
-              {activeBreakdown === "expenses" && "5 parameters logged"}
+              {activeBreakdown === "expenses" && "7 parameters logged"}
               {activeBreakdown === "operations" && "12 parameters logged"}
             </span>
           </div>
@@ -810,48 +930,6 @@ export function DashboardOverview() {
               </>
             )}
 
-            {activeBreakdown === "profit" && (
-              <>
-                <StatCard
-                  label="Net Profit"
-                  value={fmt(netProfit)}
-                  sub="Total Revenue − Expenditure"
-                  accent="bg-primary/10 text-primary border border-primary/20"
-                  icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
-                />
-                <StatCard
-                  label="Balance"
-                  value={fmt(balance)}
-                  sub="CompanyAmt − Exp − Outstanding"
-                  accent={balance >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
-                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-                  negative={balance < 0}
-                />
-                <StatCard
-                  label="Net Amount (COM−TE)"
-                  value={fmt(netAmt)}
-                  sub="CompanyAmt − Expenditure"
-                  accent={netAmt >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
-                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
-                  negative={netAmt < 0}
-                />
-                <StatCard
-                  label="Revenue (Less Jobs)"
-                  value={fmt(revenueLessJobs)}
-                  sub={`Total Revenue − ${completedJobs} jobs`}
-                  accent="bg-primary/10 text-primary border border-primary/20"
-                  icon={(p) => <HugeiconsIcon icon={ChartBarLineIcon} strokeWidth={2} {...p} />}
-                />
-                <StatCard
-                  label="Profit Margin"
-                  value={pct(profitMargin)}
-                  sub="Net Profit ÷ Total Revenue"
-                  accent={profitMargin >= 0 ? "bg-primary/10 text-primary border border-primary/20" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
-                  icon={(p) => <HugeiconsIcon icon={PercentSquareIcon} strokeWidth={2} {...p} />}
-                  negative={profitMargin < 0}
-                />
-              </>
-            )}
 
             {activeBreakdown === "expenses" && (
               <>
@@ -870,9 +948,30 @@ export function DashboardOverview() {
                   icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
                 />
                 <StatCard
+                  label="Exp Items"
+                  value={fmt(expItems)}
+                  sub="General expense items"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Tools & Maintenance"
+                  value={fmt(toolsMaintenance)}
+                  sub="Tools and field gear"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
                   label="Office Expenses"
                   value={fmt(officeExpenses)}
                   sub="Office & admin costs"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Tools & Subscriptions"
+                  value={fmt(toolsSubscriptions)}
+                  sub="Software and web tools"
                   accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
                   icon={(p) => <HugeiconsIcon icon={Database01Icon} strokeWidth={2} {...p} />}
                 />
@@ -889,6 +988,13 @@ export function DashboardOverview() {
                   sub="Customer refunds issued"
                   accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
                   icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Non-Beneficiary Items"
+                  value={fmt(nonBeneficiaryExpenses)}
+                  sub="Misc non-operating overheads"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
                 />
               </>
             )}
@@ -1122,6 +1228,7 @@ export function DashboardOverview() {
                     <th className="px-4 py-2.5">Appliance</th>
                     <th className="px-4 py-2.5">Service</th>
                     <th className="px-4 py-2.5">Charge</th>
+                    <th className="px-4 py-2.5">Notes</th>
                     <th className="px-4 py-2.5">Status</th>
                   </tr>
                 </thead>
@@ -1132,7 +1239,12 @@ export function DashboardOverview() {
                     return (
                       <tr key={b.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-semibold text-xs tabular-nums text-foreground">{b.id}</td>
-                        <td className="px-4 py-3 font-semibold text-xs text-foreground">{customerName}</td>
+                        <td className="px-4 py-3 font-semibold text-xs text-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <span>{customerName}</span>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} title={cust?.reviewStatus || "Review not done"} />
+                          </div>
+                        </td>
                         <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
                         <td className="px-4 py-3">
                           <Badge variant="outline" className="text-[10px] py-0 px-1 text-muted-foreground">
@@ -1141,6 +1253,9 @@ export function DashboardOverview() {
                         </td>
                         <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
                           ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={cust?.notes || ""}>
+                          {cust?.notes || "—"}
                         </td>
                         <td className="px-4 py-3">
                           <Badge
