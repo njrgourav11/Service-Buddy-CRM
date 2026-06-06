@@ -93,6 +93,7 @@ export function BookingModule() {
   const [editCustNotes, setEditCustNotes] = React.useState("")
   const [editCustReview, setEditCustReview] = React.useState("")
   const [editCustReviewStatus, setEditCustReviewStatus] = React.useState("Review not done")
+  const [editDate, setEditDate] = React.useState("")
 
   // Edit Calculation override states
   const [editTotalCommission, setEditTotalCommission] = React.useState(0)
@@ -222,6 +223,7 @@ export function BookingModule() {
     setEditIssue(b.issue)
     setEditTechId(b.assignedTechnicianId)
     setSelectedEditTechIds(b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(s => s.trim()).filter(Boolean) : [])
+    setEditDate(b.date || "")
     
     setEditSpareName(b.spareName)
     setEditSpareCost(b.spareCost)
@@ -262,6 +264,7 @@ export function BookingModule() {
     
     // Save booking updates
     updateBooking(selectedBooking.id, {
+      date: editDate,
       appliance: editAppliance,
       serviceType: editServiceType,
       issue: editIssue,
@@ -1273,7 +1276,7 @@ export function BookingModule() {
           5. DETAILS SLIDE-OUT PANEL (Editable CRM & Payouts control)
          ======================================================== */}
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen} direction="right">
-        <DrawerContent className="h-full w-full max-w-xl ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
+        <DrawerContent className="h-full w-full sm:max-w-2xl ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
           {selectedBooking && (
             <form onSubmit={handleSaveDetailsEdit} className="h-full flex flex-col overflow-hidden">
               <DrawerHeader className="border-b border-border/40 p-4 gap-1">
@@ -1346,7 +1349,7 @@ export function BookingModule() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-cust-ref" className="text-[10px] font-bold text-muted-foreground uppercase">Referral Source</Label>
                       <Select value={editCustReferral} onValueChange={setEditCustReferral}>
@@ -1360,17 +1363,6 @@ export function BookingModule() {
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="edit-cust-review" className="text-[10px] font-bold text-muted-foreground uppercase">Customer Review</Label>
-                      <Input 
-                        id="edit-cust-review" 
-                        placeholder="Feedback comments"
-                        value={editCustReview} 
-                        onChange={(e) => setEditCustReview(e.target.value)} 
-                        className="h-8 text-xs" 
-                      />
                     </div>
 
                     <div className="flex flex-col gap-1">
@@ -1390,6 +1382,17 @@ export function BookingModule() {
                   </div>
 
                   <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-cust-review" className="text-[10px] font-bold text-muted-foreground uppercase">Customer Review</Label>
+                    <Input 
+                      id="edit-cust-review" 
+                      placeholder="Feedback comments"
+                      value={editCustReview} 
+                      onChange={(e) => setEditCustReview(e.target.value)} 
+                      className="h-8 text-xs" 
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-cust-notes" className="text-[10px] font-bold text-muted-foreground uppercase">Internal Staff Notes</Label>
                     <Input 
                       id="edit-cust-notes" 
@@ -1403,6 +1406,18 @@ export function BookingModule() {
                 {/* 2. Booking job overview */}
                 <div className="rounded-lg bg-purple-50/10 dark:bg-purple-950/5 p-3.5 border border-purple-200/30 flex flex-col gap-3">
                   <h4 className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Booking & Appliance Fields</h4>
+
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-date" className="text-[10px] font-bold text-muted-foreground uppercase">Booking Date</Label>
+                    <Input
+                      type="date"
+                      id="edit-date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="h-8 text-xs"
+                      required
+                    />
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
