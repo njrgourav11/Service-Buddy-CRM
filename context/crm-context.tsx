@@ -59,8 +59,13 @@ export interface Booking {
   spareCost: number // Actual Spare Cost (R) - Supplier purchase cost
   sparePrice: number // Consumer Spare Price (S) - Price sold to customer
   serviceCharge: number // Service Fee (W)
-  status: "Not Started" | "In Progress" | "Completed" | "Cancelled"
+  status: "Not Started" | "In Progress" | "Inspected" | "Completed" | "Cancelled"
   sparesUsed?: BookingSpare[]
+  workCompletedDate?: string
+  complaint?: string
+  complaintDate?: string
+  complaintStatus?: "Open" | "In Review" | "Resolved" | "Dismissed"
+
   
   // Financial computed properties stored or calculated
   totalCommission?: number // T = S - R
@@ -148,6 +153,9 @@ export interface Lead {
   assignedTo: string
   status: "New" | "Contacted" | "In Progress" | "Converted" | "Lost"
   createdAt: string
+  customerNotes?: string
+  staffNotes?: string
+
 }
 
 export interface Contact {
@@ -360,7 +368,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const companyServiceCommission = Math.round(serviceCharge * 0.3 * 100) / 100
     const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
     const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-    const totalConsumerAmount = Math.round((sparePrice + serviceCharge) * 100) / 100
+    const totalConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
 
     return {
       totalCommission,
@@ -1094,7 +1102,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newPayout
   }
 
-  const updatePayout = (id: string, updates: Partial<Payout>) => {
+  function updatePayout(id: string, updates: Partial<Payout>) {
     const oldPay = payouts.find(p => p.id === id)
     if (!oldPay) return
 
@@ -1462,7 +1470,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       referralSource: lead.source,
       review: "",
       reviewStatus: "Review not done",
-      notes: `Converted from lead with requirements: ${lead.requirement}`,
+      notes: `Converted from lead with requirements: ${lead.requirement}${lead.customerNotes ? `\nCustomer Notes: ${lead.customerNotes}` : ""}${lead.staffNotes ? `\nStaff Notes: ${lead.staffNotes}` : ""}`,
       status: "Active"
     })
 
@@ -1484,7 +1492,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addBooking({
       date: new Date().toISOString().split("T")[0],
       customerId: cust.id,
-      appliance: lead.appliance as any,
+      appliance: lead.appliance,
       serviceType: "Repair",
       issue: lead.requirement,
       assignedTechnicianId: assignedTechId,

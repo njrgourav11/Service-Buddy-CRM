@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   Table, 
   TableBody, 
@@ -37,7 +38,8 @@ import {
   InvoiceIcon,
   Database01Icon,
   UserCircle02Icon,
-  Analytics01Icon
+  Analytics01Icon,
+  Alert02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -70,6 +72,7 @@ export function BookingModule() {
   const [search, setSearch] = React.useState("")
   const [applianceFilter, setApplianceFilter] = React.useState("ALL")
   const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [reviewFilter, setReviewFilter] = React.useState("ALL")
   const [viewMode, setViewMode] = React.useState<"sheet" | "table" | "cards">("table")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(8)
@@ -94,6 +97,10 @@ export function BookingModule() {
   const [editCustReview, setEditCustReview] = React.useState("")
   const [editCustReviewStatus, setEditCustReviewStatus] = React.useState("Review not done")
   const [editDate, setEditDate] = React.useState("")
+  const [editWorkCompletedDate, setEditWorkCompletedDate] = React.useState("")
+  const [editComplaint, setEditComplaint] = React.useState("")
+  const [editComplaintDate, setEditComplaintDate] = React.useState("")
+  const [editComplaintStatus, setEditComplaintStatus] = React.useState("")
 
   // Edit Calculation override states
   const [editTotalCommission, setEditTotalCommission] = React.useState(0)
@@ -134,6 +141,7 @@ export function BookingModule() {
   const [formSparePrice, setFormSparePrice] = React.useState(0)
   const [formServiceCharge, setFormServiceCharge] = React.useState(0)
   const [formDate, setFormDate] = React.useState(new Date().toISOString().split("T")[0])
+  const [formWorkCompletedDate, setFormWorkCompletedDate] = React.useState("")
 
   // ==========================================
   // Form Auto-fill Logic for spares array
@@ -185,7 +193,7 @@ export function BookingModule() {
     const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
     const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
     const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-    const totalConsumerAmount = Math.round((editSparePrice + editServiceCharge) * 100) / 100
+    const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
 
     setEditTotalCommission(totalCommission)
     setEditTechnicianCommission(technicianCommission)
@@ -224,6 +232,10 @@ export function BookingModule() {
     setEditTechId(b.assignedTechnicianId)
     setSelectedEditTechIds(b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(s => s.trim()).filter(Boolean) : [])
     setEditDate(b.date || "")
+    setEditWorkCompletedDate(b.workCompletedDate || "")
+    setEditComplaint(b.complaint || "")
+    setEditComplaintDate(b.complaintDate || "")
+    setEditComplaintStatus(b.complaintStatus || "")
     
     setEditSpareName(b.spareName)
     setEditSpareCost(b.spareCost)
@@ -240,14 +252,24 @@ export function BookingModule() {
     setEditCustReviewStatus(cust?.reviewStatus || "Review not done")
 
     // Seed calculations
-    setEditTotalCommission(b.totalCommission !== undefined ? b.totalCommission : Math.max(0, b.sparePrice - b.spareCost))
-    setEditTechnicianCommission(b.technicianCommission !== undefined ? b.technicianCommission : Math.round(Math.max(0, b.sparePrice - b.spareCost) * 0.7 * 100) / 100)
-    setEditCompanyCommission(b.companyCommission !== undefined ? b.companyCommission : Math.round(Math.max(0, b.sparePrice - b.spareCost) * 0.3 * 100) / 100)
-    setEditTechnicianServiceCommission(b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : Math.round(b.serviceCharge * 0.7 * 100) / 100)
-    setEditCompanyServiceCommission(b.companyServiceCommission !== undefined ? b.companyServiceCommission : Math.round(b.serviceCharge * 0.3 * 100) / 100)
-    setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((Math.max(0, b.sparePrice - b.spareCost) * 0.7 + b.serviceCharge * 0.7) * 100) / 100)
-    setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((Math.max(0, b.sparePrice - b.spareCost) * 0.3 + b.serviceCharge * 0.3) * 100) / 100)
-    setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : Math.round((b.sparePrice + b.serviceCharge) * 100) / 100)
+    const spareCost = b.spareCost || 0
+    const sparePrice = b.sparePrice || 0
+    const serviceCharge = b.serviceCharge || 0
+    const totalCommission = Math.max(0, sparePrice - spareCost)
+    const technicianCommission = b.technicianCommission !== undefined ? b.technicianCommission : Math.round(totalCommission * 0.7 * 100) / 100
+    const companyCommission = b.companyCommission !== undefined ? b.companyCommission : Math.round(totalCommission * 0.3 * 100) / 100
+    const technicianServiceCommission = b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : Math.round(serviceCharge * 0.7 * 100) / 100
+    const companyServiceCommission = b.companyServiceCommission !== undefined ? b.companyServiceCommission : Math.round(serviceCharge * 0.3 * 100) / 100
+    const calculatedConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
+
+    setEditTotalCommission(b.totalCommission !== undefined ? b.totalCommission : totalCommission)
+    setEditTechnicianCommission(b.technicianCommission !== undefined ? b.technicianCommission : technicianCommission)
+    setEditCompanyCommission(b.companyCommission !== undefined ? b.companyCommission : companyCommission)
+    setEditTechnicianServiceCommission(b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : technicianServiceCommission)
+    setEditCompanyServiceCommission(b.companyServiceCommission !== undefined ? b.companyServiceCommission : companyServiceCommission)
+    setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((technicianCommission + technicianServiceCommission) * 100) / 100)
+    setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((companyCommission + companyServiceCommission) * 100) / 100)
+    setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : calculatedConsumerAmount)
 
     // Seed sparesUsed
     setEditSpares(b.sparesUsed || (b.spareName && b.spareName !== "None" ? [{ name: b.spareName, cost: b.spareCost, price: b.sparePrice, qty: 1 }] : []))
@@ -265,6 +287,10 @@ export function BookingModule() {
     // Save booking updates
     updateBooking(selectedBooking.id, {
       date: editDate,
+      workCompletedDate: editWorkCompletedDate || undefined,
+      complaint: editComplaint,
+      complaintDate: editComplaintDate || (editComplaint ? new Date().toISOString().split("T")[0] : ""),
+      complaintStatus: (editComplaintStatus as any) || (editComplaint ? "Open" : undefined),
       appliance: editAppliance,
       serviceType: editServiceType,
       issue: editIssue,
@@ -368,10 +394,25 @@ export function BookingModule() {
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
+      const matchesReview = reviewFilter === "ALL" || (cust?.reviewStatus || "Review not done") === reviewFilter
 
-      return matchesSearch && matchesAppliance && matchesStatus
-    }).sort((a, b) => compareIdsNumerically(b.id, a.id)) // Default sort descending
-  }, [bookings, customers, technicians, search, applianceFilter, statusFilter])
+      return matchesSearch && matchesAppliance && matchesStatus && matchesReview
+    }).sort((a, b) => {
+      const dateA = a.workCompletedDate || "";
+      const dateB = b.workCompletedDate || "";
+      if (dateA && dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      if (dateA) return -1;
+      if (dateB) return 1;
+      const bDateA = a.date || "";
+      const bDateB = b.date || "";
+      if (bDateA !== bDateB) {
+        return bDateB.localeCompare(bDateA);
+      }
+      return compareIdsNumerically(b.id, a.id);
+    })
+  }, [bookings, customers, technicians, search, applianceFilter, statusFilter, reviewFilter])
 
   // Extract unique appliances for filter
   const uniqueAppliances = React.useMemo(() => {
@@ -401,7 +442,7 @@ export function BookingModule() {
   // Reset page index when search or filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [search, applianceFilter, statusFilter])
+  }, [search, applianceFilter, statusFilter, reviewFilter])
 
   // Handle Create Submit
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -437,6 +478,7 @@ export function BookingModule() {
 
     addBooking({
       date: formDate,
+      workCompletedDate: formWorkCompletedDate || undefined,
       customerId: finalCustomerId,
       appliance: formAppliance,
       serviceType: formServiceType,
@@ -467,6 +509,7 @@ export function BookingModule() {
     setFormSpareCost(0)
     setFormSparePrice(0)
     setFormServiceCharge(0)
+    setFormWorkCompletedDate("")
     setIsCreateOpen(false)
   }
 
@@ -605,7 +648,7 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {bookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length}
+                    {bookings.filter(b => b.status === "In Progress" || b.status === "Not Started" || b.status === "Inspected").length}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium">pending jobs</span>
                 </div>
@@ -695,8 +738,26 @@ export function BookingModule() {
                       <SelectItem value="ALL">All Status</SelectItem>
                       <SelectItem value="Not Started">Not Started</SelectItem>
                       <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Inspected">Inspected</SelectItem>
                       <SelectItem value="Completed">Completed</SelectItem>
                       <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Review Filter */}
+                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Review:</Label>
+                  <Select value={reviewFilter} onValueChange={setReviewFilter}>
+                    <SelectTrigger className="w-full md:w-36">
+                      <SelectValue placeholder="All Reviews" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Reviews</SelectItem>
+                      <SelectItem value="Review not done">Review not done</SelectItem>
+                      <SelectItem value="Positive">Positive</SelectItem>
+                      <SelectItem value="Negative">Negative</SelectItem>
+                      <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -729,6 +790,7 @@ export function BookingModule() {
  
                         {/* Booking & Job headers */}
                         <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-28 text-left">Booking Date</th>
+                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-36 text-left">Work Completed Date</th>
                         <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-44 text-left">Appliance Type</th>
                         <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-56 text-left">Service Issue</th>
                         <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-40 text-left">Appointed Tech</th>
@@ -749,7 +811,7 @@ export function BookingModule() {
                         {/* Payout reconciliation splits */}
                         <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right border-l border-border/40">Total Tech (U+X)</th>
                         <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right">Total Company (V+Y)</th>
-                        <th className="px-3 py-3 bg-primary/10 dark:bg-primary/30 font-black text-primary w-36 text-right">Total Consumer (S+W)</th>
+                        <th className="px-3 py-3 bg-primary/10 dark:bg-primary/30 font-black text-primary w-36 text-right">Total Consumer (R+U+V+X+Y)</th>
  
                         <th className="px-3 py-3 w-28 text-left">Status</th>
                         <th className="px-3 py-3 text-right w-24 sticky right-0 bg-background dark:bg-slate-900 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">Actions</th>
@@ -826,6 +888,7 @@ export function BookingModule() {
  
                               {/* Booking columns */}
                               <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.date}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.workCompletedDate || <span className="text-muted-foreground/40">—</span>}</td>
                               <td className="px-3 py-2.5">
                                 <Badge 
                                   className={`text-[9px] font-bold py-0.5 px-2 ${
@@ -882,6 +945,8 @@ export function BookingModule() {
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
                                       : b.status === "In Progress" 
                                       ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                      : b.status === "Inspected"
+                                      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
                                       : b.status === "Cancelled"
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                                       : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
@@ -891,6 +956,7 @@ export function BookingModule() {
                                   <SelectContent>
                                     <SelectItem value="Not Started">Not Started</SelectItem>
                                     <SelectItem value="In Progress">In Progress</SelectItem>
+                                    <SelectItem value="Inspected">Inspected</SelectItem>
                                     <SelectItem value="Completed">Completed</SelectItem>
                                     <SelectItem value="Cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -937,6 +1003,7 @@ export function BookingModule() {
                       <TableRow>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">CIN</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Date</TableHead>
+                        <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Work Completed Date</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Customer</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Review</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Satisfaction</TableHead>
@@ -954,7 +1021,7 @@ export function BookingModule() {
                     <TableBody>
                       {paginatedBookings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={14} className="text-center py-12 text-muted-foreground font-medium">
+                          <TableCell colSpan={15} className="text-center py-12 text-muted-foreground font-medium">
                             No service bookings match query.
                           </TableCell>
                         </TableRow>
@@ -965,6 +1032,9 @@ export function BookingModule() {
                             <TableRow key={b.id} className="hover:bg-muted/20 transition-colors text-xs">
                               <TableCell className="px-4 py-4 font-bold text-foreground tabular-nums">{b.id}</TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">{b.date}</TableCell>
+                              <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">
+                                {b.workCompletedDate || <span className="text-muted-foreground/40">—</span>}
+                              </TableCell>
                               <TableCell className="px-4 py-4">
                                 <div className="flex flex-col">
                                   <span className="font-semibold text-foreground">{cust?.name || "Unknown"}</span>
@@ -1042,6 +1112,8 @@ export function BookingModule() {
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
                                       : b.status === "In Progress" 
                                       ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                      : b.status === "Inspected"
+                                      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
                                       : b.status === "Cancelled"
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                                       : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
@@ -1051,6 +1123,7 @@ export function BookingModule() {
                                   <SelectContent>
                                     <SelectItem value="Not Started">Not Started</SelectItem>
                                     <SelectItem value="In Progress">In Progress</SelectItem>
+                                    <SelectItem value="Inspected">Inspected</SelectItem>
                                     <SelectItem value="Completed">Completed</SelectItem>
                                     <SelectItem value="Cancelled">Cancelled</SelectItem>
                                   </SelectContent>
@@ -1147,6 +1220,8 @@ export function BookingModule() {
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
                                   : b.status === "In Progress" 
                                   ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                  : b.status === "Inspected"
+                                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
                                   : b.status === "Cancelled"
                                   ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                                   : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
@@ -1156,6 +1231,7 @@ export function BookingModule() {
                               <SelectContent>
                                 <SelectItem value="Not Started">Not Started</SelectItem>
                                 <SelectItem value="In Progress">In Progress</SelectItem>
+                                <SelectItem value="Inspected">Inspected</SelectItem>
                                 <SelectItem value="Completed">Completed</SelectItem>
                                 <SelectItem value="Cancelled">Cancelled</SelectItem>
                               </SelectContent>
@@ -1276,7 +1352,7 @@ export function BookingModule() {
           5. DETAILS SLIDE-OUT PANEL (Editable CRM & Payouts control)
          ======================================================== */}
       <Drawer open={isDetailsOpen} onOpenChange={setIsDetailsOpen} direction="right">
-        <DrawerContent className="h-full w-full sm:max-w-2xl ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
+        <DrawerContent className="h-full w-full data-[vaul-drawer-direction=right]:sm:max-w-5xl ml-auto bg-card rounded-l-2xl border-l p-0 flex flex-col">
           {selectedBooking && (
             <form onSubmit={handleSaveDetailsEdit} className="h-full flex flex-col overflow-hidden">
               <DrawerHeader className="border-b border-border/40 p-4 gap-1">
@@ -1288,6 +1364,8 @@ export function BookingModule() {
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
                         : editStatus === "In Progress" 
                         ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                        : editStatus === "Inspected"
+                        ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
                         : editStatus === "Cancelled"
                         ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                         : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
@@ -1297,6 +1375,7 @@ export function BookingModule() {
                     <SelectContent>
                       <SelectItem value="Not Started">Not Started</SelectItem>
                       <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Inspected">Inspected</SelectItem>
                       <SelectItem value="Completed">Completed</SelectItem>
                       <SelectItem value="Cancelled">Cancelled</SelectItem>
                     </SelectContent>
@@ -1407,16 +1486,28 @@ export function BookingModule() {
                 <div className="rounded-lg bg-purple-50/10 dark:bg-purple-950/5 p-3.5 border border-purple-200/30 flex flex-col gap-3">
                   <h4 className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Booking & Appliance Fields</h4>
 
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-date" className="text-[10px] font-bold text-muted-foreground uppercase">Booking Date</Label>
-                    <Input
-                      type="date"
-                      id="edit-date"
-                      value={editDate}
-                      onChange={(e) => setEditDate(e.target.value)}
-                      className="h-8 text-xs"
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-date" className="text-[10px] font-bold text-muted-foreground uppercase">Booking Date</Label>
+                      <Input
+                        type="date"
+                        id="edit-date"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="h-8 text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-work-completed-date" className="text-[10px] font-bold text-muted-foreground uppercase">Work Completed Date</Label>
+                      <Input
+                        type="date"
+                        id="edit-work-completed-date"
+                        value={editWorkCompletedDate || ""}
+                        onChange={(e) => setEditWorkCompletedDate(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">
@@ -1654,7 +1745,7 @@ export function BookingModule() {
                       const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
                       const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
                       const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-                      const totalConsumerAmount = Math.round((editSparePrice + editServiceCharge) * 100) / 100
+                      const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
 
                       setEditTotalCommission(totalCommission)
                       setEditTechnicianCommission(technicianCommission)
@@ -1740,7 +1831,7 @@ export function BookingModule() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <Label className="text-[9px] font-bold text-primary uppercase font-black">Total Consumer Bill (S+W)</Label>
+                      <Label className="text-[9px] font-bold text-primary uppercase font-black">Total Consumer Bill (R+U+V+X+Y)</Label>
                       <Input 
                         type="number" 
                         value={editTotalConsumerAmount} 
@@ -1749,6 +1840,68 @@ export function BookingModule() {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* 6. Complaint Panel Section */}
+                <div className="rounded-lg border border-rose-200/30 bg-rose-50/5 dark:bg-rose-950/5 p-3.5 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 rounded bg-rose-500/10 text-rose-500">
+                      <HugeiconsIcon icon={Alert02Icon} strokeWidth={2.5} className="size-4" />
+                    </div>
+                    <h4 className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Raise / Manage Complaint</h4>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-complaint" className="text-[10px] font-bold text-muted-foreground uppercase">Complaint Details</Label>
+                    <Textarea 
+                      id="edit-complaint" 
+                      placeholder="Describe the complaint/issue reported by the customer..."
+                      value={editComplaint} 
+                      onChange={(e) => {
+                        setEditComplaint(e.target.value)
+                        if (e.target.value && !editComplaintStatus) {
+                          setEditComplaintStatus("Open")
+                        }
+                        if (e.target.value && !editComplaintDate) {
+                          setEditComplaintDate(new Date().toISOString().split("T")[0])
+                        }
+                      }}
+                      className="min-h-[70px] text-xs bg-background/50 border-rose-200/20"
+                    />
+                  </div>
+
+                  {editComplaint && (
+                    <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="edit-complaint-date" className="text-[10px] font-bold text-muted-foreground uppercase">Date Logged</Label>
+                        <Input 
+                          type="date"
+                          id="edit-complaint-date" 
+                          value={editComplaintDate} 
+                          onChange={(e) => setEditComplaintDate(e.target.value)} 
+                          className="h-8 text-xs bg-background/50"
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="edit-complaint-status" className="text-[10px] font-bold text-muted-foreground uppercase">Complaint Status</Label>
+                        <Select 
+                          value={editComplaintStatus} 
+                          onValueChange={(val: any) => setEditComplaintStatus(val)}
+                        >
+                          <SelectTrigger id="edit-complaint-status" className="h-8 text-xs bg-background/50">
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Open">Open</SelectItem>
+                            <SelectItem value="In Review">In Review</SelectItem>
+                            <SelectItem value="Resolved">Resolved</SelectItem>
+                            <SelectItem value="Dismissed">Dismissed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>

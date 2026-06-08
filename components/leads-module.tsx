@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Drawer, 
@@ -48,6 +49,8 @@ export function LeadsModule() {
   const [editRequirement, setEditRequirement] = React.useState("")
   const [editAssignedTo, setEditAssignedTo] = React.useState("")
   const [editStatus, setEditStatus] = React.useState<any>("New")
+  const [editCustomerNotes, setEditCustomerNotes] = React.useState("")
+  const [editStaffNotes, setEditStaffNotes] = React.useState("")
 
   // Open Edit Drawer
   const handleOpenEdit = (l: Lead) => {
@@ -60,6 +63,8 @@ export function LeadsModule() {
     setEditRequirement(l.requirement)
     setEditAssignedTo(l.assignedTo)
     setEditStatus(l.status)
+    setEditCustomerNotes(l.customerNotes || "")
+    setEditStaffNotes(l.staffNotes || "")
     setIsEditOpen(true)
   }
 
@@ -76,7 +81,9 @@ export function LeadsModule() {
       appliance: editAppliance,
       requirement: editRequirement,
       assignedTo: editAssignedTo,
-      status: editStatus
+      status: editStatus,
+      customerNotes: editCustomerNotes,
+      staffNotes: editStaffNotes
     })
 
     setIsEditOpen(false)
@@ -96,6 +103,8 @@ export function LeadsModule() {
   const [appliance, setAppliance] = React.useState("AC")
   const [requirement, setRequirement] = React.useState("")
   const [assignedTo, setAssignedTo] = React.useState("")
+  const [customerNotes, setCustomerNotes] = React.useState("")
+  const [staffNotes, setStaffNotes] = React.useState("")
 
   // Filtered list
   const filteredLeads = leads.filter(l => {
@@ -118,7 +127,9 @@ export function LeadsModule() {
       appliance,
       requirement,
       assignedTo: assignedTo || "Manager",
-      status: "New"
+      status: "New",
+      customerNotes,
+      staffNotes
     })
 
     // Reset Form
@@ -129,6 +140,8 @@ export function LeadsModule() {
     setAppliance("AC")
     setRequirement("")
     setAssignedTo("")
+    setCustomerNotes("")
+    setStaffNotes("")
     setIsAddOpen(false)
   }
 
@@ -232,6 +245,12 @@ export function LeadsModule() {
                         <div className="flex flex-col gap-0.5">
                           <span className="text-xs text-foreground font-medium truncate">{l.requirement}</span>
                           <span className="text-[9px] text-muted-foreground">Appliance: {l.appliance} • Address: {l.address}</span>
+                          {l.customerNotes && (
+                            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold truncate" title={l.customerNotes}>Cust: {l.customerNotes}</span>
+                          )}
+                          {l.staffNotes && (
+                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold truncate" title={l.staffNotes}>Staff: {l.staffNotes}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-xs font-semibold text-foreground">{l.assignedTo}</td>
@@ -352,6 +371,17 @@ export function LeadsModule() {
                   />
                 </div>
 
+                {/* Customer Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="lead-customer-notes" className="text-xs font-bold text-muted-foreground">Customer Notes</Label>
+                  <Textarea 
+                    id="lead-customer-notes"
+                    placeholder="E.g., Prefers calls after 4 PM, requested double check on pricing"
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                  />
+                </div>
+
               </div>
 
               <div className="flex flex-col gap-4">
@@ -406,6 +436,17 @@ export function LeadsModule() {
                     placeholder="E.g., Megha Manager"
                     value={assignedTo}
                     onChange={(e) => setAssignedTo(e.target.value)}
+                  />
+                </div>
+
+                {/* Staff Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="lead-staff-notes" className="text-xs font-bold text-muted-foreground">Internal Staff Notes</Label>
+                  <Textarea 
+                    id="lead-staff-notes"
+                    placeholder="E.g., High probability deal, follow up on Tuesday"
+                    value={staffNotes}
+                    onChange={(e) => setStaffNotes(e.target.value)}
                   />
                 </div>
 
@@ -554,6 +595,17 @@ export function LeadsModule() {
                   </Select>
                 </div>
 
+                {/* Customer Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-customer-notes" className="text-xs font-bold text-muted-foreground">Customer Notes</Label>
+                  <Textarea 
+                    id="edit-lead-customer-notes"
+                    placeholder="E.g., Prefers calls after 4 PM, requested double check on pricing"
+                    value={editCustomerNotes}
+                    onChange={(e) => setEditCustomerNotes(e.target.value)}
+                  />
+                </div>
+
               </div>
 
               <div className="flex flex-col gap-4">
@@ -608,6 +660,17 @@ export function LeadsModule() {
                     placeholder="E.g., Megha Manager"
                     value={editAssignedTo}
                     onChange={(e) => setEditAssignedTo(e.target.value)}
+                  />
+                </div>
+
+                {/* Staff Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-lead-staff-notes" className="text-xs font-bold text-muted-foreground">Internal Staff Notes</Label>
+                  <Textarea 
+                    id="edit-lead-staff-notes"
+                    placeholder="E.g., High probability deal, follow up on Tuesday"
+                    value={editStaffNotes}
+                    onChange={(e) => setEditStaffNotes(e.target.value)}
                   />
                 </div>
 
