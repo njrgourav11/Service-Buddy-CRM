@@ -9,13 +9,33 @@ import {
   collection, 
   doc, 
   addDoc, 
-  setDoc, 
-  updateDoc, 
+  setDoc as firestoreSetDoc, 
+  updateDoc as firestoreUpdateDoc, 
   deleteDoc, 
   onSnapshot,
   getDocs,
   writeBatch
 } from "firebase/firestore"
+
+// Helper to remove undefined properties from objects so Firestore doesn't throw errors
+function cleanUndefined<T extends object>(obj: T): T {
+  if (!obj || typeof obj !== "object") return obj
+  const result = { ...obj } as any
+  Object.keys(result).forEach(key => {
+    if (result[key] === undefined) {
+      delete result[key]
+    }
+  })
+  return result
+}
+
+const setDoc = (reference: any, data: any, options?: any) => {
+  return firestoreSetDoc(reference, cleanUndefined(data), options)
+}
+
+const updateDoc = (reference: any, data: any) => {
+  return firestoreUpdateDoc(reference, cleanUndefined(data))
+}
 
 // Standard Auth SDK imports
 import { 
@@ -761,7 +781,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       mobile: cust.mobile,
       address: cust.address,
       customerType: "Regular",
-      notes: cust.notes || "Auto-created via customer registration",
+      notes: cust.notes || "",
       lastServiceDate: "No service logged yet"
     })
 
@@ -920,7 +940,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const handleTechnicianReversal = (bookingId: string) => {
-    // Find all payouts associated with this booking
+    // For legacy bookings that might have had auto-created payouts, we clean them up.
     const matchingPayouts = payouts.filter(p => p.cinNumber === bookingId)
     if (matchingPayouts.length === 0) return
 
@@ -948,53 +968,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const handleTechnicianCompletionImpact = (techIdStr: string, calculatedBooking: Booking) => {
-    if (!techIdStr) return
-    const techIds = techIdStr.split(",").map(id => id.trim()).filter(Boolean)
-    if (techIds.length === 0) return
-
-    // Fetch customer name
-    const cust = customers.find(c => c.id === calculatedBooking.customerId)
-    const customerName = cust ? cust.name : "Unknown"
-
-    const jobEarnings = Math.round((calculatedBooking.totalTechnicianAmount || 0) / techIds.length * 100) / 100
-
-    techIds.forEach((techId, index) => {
-      // Append transaction in Technician Payouts log
-      const payNum = (payouts.length ? Math.max(...payouts.map(p => {
-        const parts = p.id.split("-")
-        const num = parts.length > 1 ? parseInt(parts[1]) : 0
-        return isNaN(num) ? 0 : num
-      })) + 1 : 1001) + index
-
-      const tech = technicians.find(t => t.id === techId)
-      const prevDue = tech ? tech.dueAmount : 0
-      const finalDue = prevDue + jobEarnings
-
-      // Update technician dues in the database
-      updateTechnician(techId, {
-        dueAmount: finalDue
-      })
-
-      const newPayout: Payout = {
-        id: `PAY-${payNum}`,
-        technicianId: techId,
-        date: calculatedBooking.date,
-        dailyEarnings: jobEarnings,
-        totalPayout: 0,
-        advance: 0,
-        extra: 0,
-        due: finalDue,
-        paymentStatus: "Pending",
-        customerName,
-        cinNumber: calculatedBooking.id
-      }
-
-      if (isFirebaseEnabled && db) {
-        setDoc(doc(db, "payouts", newPayout.id), newPayout)
-      } else {
-        setPayouts(prev => [newPayout, ...prev])
-      }
-    })
+    // Disabled auto-calculation of technician earnings/dues from bookings.
+    // Technician earnings are managed manually via the Payouts Ledger.
   }
 
   // --- Technicians ---
@@ -1761,4 +1736,18 @@ export const useCRM = () => {
     throw new Error("useCRM must be used within a CRMProvider")
   }
   return context
+}
+
+export const getDisplayNotes = (notes?: string) => {
+  if (!notes) return ""
+  const trimmed = notes.trim()
+  if (
+    trimmed === "Registered inline during booking order creation" ||
+    trimmed === "Auto-created via customer registration" ||
+    trimmed === "Registered inline during booking order creation." ||
+    trimmed === "Auto-created via customer registration."
+  ) {
+    return ""
+  }
+  return notes
 }

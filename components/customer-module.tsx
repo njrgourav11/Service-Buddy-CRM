@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useCRM, Customer, compareIdsNumerically } from "@/context/crm-context"
+import { useCRM, Customer, compareIdsNumerically, getDisplayNotes } from "@/context/crm-context"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -313,7 +313,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                                 <span className="text-[10px] text-muted-foreground font-medium">No review comments yet</span>
                               )}
                             </div>
-                            {c.notes && <span className="text-[9px] text-muted-foreground font-medium">Notes: {c.notes}</span>}
+                            {getDisplayNotes(c.notes) && <span className="text-[9px] text-muted-foreground font-medium">Notes: {getDisplayNotes(c.notes)}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="px-4 py-4">
@@ -439,10 +439,10 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                             <div className="text-[11px] font-medium italic text-foreground leading-snug line-clamp-2">"{c.review}"</div>
                           </div>
                         )}
-                        {c.notes && (
+                        {getDisplayNotes(c.notes) && (
                           <div>
                             <div className="text-[8px] uppercase tracking-wide font-extrabold text-muted-foreground">Internal Notes</div>
-                            <div className="text-[11px] leading-snug text-muted-foreground line-clamp-2">{c.notes}</div>
+                            <div className="text-[11px] leading-snug text-muted-foreground line-clamp-2">{getDisplayNotes(c.notes)}</div>
                           </div>
                         )}
                       </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useCRM, Booking, Customer, Technician, Spare, BookingSpare, compareIdsNumerically } from "@/context/crm-context"
+import { useCRM, Booking, Customer, Technician, Spare, BookingSpare, compareIdsNumerically, getDisplayNotes } from "@/context/crm-context"
 import { CustomerModule } from "@/components/customer-module"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -247,7 +247,7 @@ export function BookingModule() {
     setEditCustMobile(cust?.mobile || "")
     setEditCustAddress(cust?.address || "")
     setEditCustReferral(cust?.referralSource || "Ad")
-    setEditCustNotes(cust?.notes || "")
+    setEditCustNotes(getDisplayNotes(cust?.notes) || "")
     setEditCustReview(cust?.review || "")
     setEditCustReviewStatus(cust?.reviewStatus || "Review not done")
 
@@ -364,7 +364,7 @@ export function BookingModule() {
         `"${(cust?.review || "").replace(/"/g, '""')}"`,
         `"${(cust?.reviewStatus || "Review not done").replace(/"/g, '""')}"`,
         cust?.referralSource || "",
-        `"${(cust?.notes || "").replace(/"/g, '""')}"`,
+        `"${(getDisplayNotes(cust?.notes) || "").replace(/"/g, '""')}"`,
         b.status
       ]
     })
@@ -461,7 +461,7 @@ export function BookingModule() {
         mobile: newCustMobile,
         address: newCustAddress,
         referralSource: newCustReferral,
-        notes: newCustNotes || "Registered inline during booking order creation",
+        notes: newCustNotes || "",
         review: "Review not done",
         status: "Active"
       })
@@ -827,16 +827,30 @@ export function BookingModule() {
                       ) : (
                         filteredBookings.map((b) => {
                           const cust = customers.find(c => c.id === b.customerId)
- 
+                          const hasComplaint = !!b.complaint
+                          const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+
+                          const rowBgClass = isComplaintActive 
+                            ? "bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-900/30" 
+                            : hasComplaint 
+                            ? "bg-rose-50/30 hover:bg-rose-100/30 dark:bg-rose-950/10 dark:hover:bg-rose-900/20"
+                            : "bg-card/25 hover:bg-muted/30"
+
+                          const stickyBgClass = isComplaintActive 
+                            ? "bg-rose-50 dark:bg-rose-950/40" 
+                            : hasComplaint 
+                            ? "bg-rose-50/60 dark:bg-rose-950/20"
+                            : "bg-background dark:bg-slate-900"
+
                           return (
-                            <tr key={b.id} className="hover:bg-muted/30 transition-colors bg-card/25 text-xs">
+                            <tr key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
                               {/* Frozen columns CIN */}
-                              <td className="px-3 py-2.5 font-bold text-foreground sticky left-0 bg-background dark:bg-slate-900 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10">
+                              <td className={`px-3 py-2.5 font-bold text-foreground sticky left-0 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 ${stickyBgClass}`}>
                                 {b.id}
                               </td>
                               
                               {/* Frozen customer name */}
-                              <td className="px-3 py-2.5 font-bold text-foreground sticky left-24 bg-background dark:bg-slate-900 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px]">
+                              <td className={`px-3 py-2.5 font-bold text-foreground sticky left-24 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px] ${stickyBgClass}`}>
                                 {cust?.name || "Unknown"}
                               </td>
  
@@ -882,8 +896,8 @@ export function BookingModule() {
                                   </SelectContent>
                                 </Select>
                               </td>
-                              <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={cust?.notes}>
-                                {cust?.notes || <span className="text-[9px] text-muted-foreground/45">None</span>}
+                              <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes)}>
+                                {getDisplayNotes(cust?.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
                               </td>
  
                               {/* Booking columns */}
@@ -906,7 +920,16 @@ export function BookingModule() {
                                   {b.appliance === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : b.appliance}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-2.5 font-medium text-foreground truncate max-w-[200px]" title={b.issue}>{b.issue}</td>
+                              <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]" title={b.issue}>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="truncate block">{b.issue}</span>
+                                  {hasComplaint && (
+                                    <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-0.5 leading-tight">
+                                      ⚠️ Complaint ({b.complaintStatus || "Open"}): {b.complaint}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                               <td className="px-3 py-2.5 font-semibold text-foreground">{getTechNames(b.assignedTechnicianId)}</td>
                               <td className="px-3 py-2.5 text-muted-foreground font-medium truncate max-w-[150px]">{b.spareName}</td>
  
@@ -964,7 +987,7 @@ export function BookingModule() {
                               </td>
   
                               {/* Edit Row button in sticky end column */}
-                              <td className="px-3 py-2.5 text-right sticky right-0 bg-background dark:bg-slate-900 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
+                              <td className={`px-3 py-2.5 text-right sticky right-0 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] ${stickyBgClass}`}>
                                 <div className="flex items-center justify-end gap-1">
                                   <Button 
                                     variant="outline" 
@@ -1028,8 +1051,17 @@ export function BookingModule() {
                       ) : (
                         paginatedBookings.map((b) => {
                           const cust = customers.find(c => c.id === b.customerId)
+                          const hasComplaint = !!b.complaint
+                          const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+
+                          const rowBgClass = isComplaintActive 
+                            ? "bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-900/30" 
+                            : hasComplaint 
+                            ? "bg-rose-50/30 hover:bg-rose-100/30 dark:bg-rose-950/10 dark:hover:bg-rose-900/20"
+                            : "hover:bg-muted/20"
+
                           return (
-                            <TableRow key={b.id} className="hover:bg-muted/20 transition-colors text-xs">
+                            <TableRow key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
                               <TableCell className="px-4 py-4 font-bold text-foreground tabular-nums">{b.id}</TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">{b.date}</TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">
@@ -1083,11 +1115,18 @@ export function BookingModule() {
                                   <span className="text-[10px] text-muted-foreground font-semibold">{b.serviceType}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[200px] font-medium text-foreground truncate" title={b.issue}>
-                                {b.issue}
+                              <TableCell className="px-4 py-4 max-w-[200px]" title={b.issue}>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="truncate block">{b.issue}</span>
+                                  {hasComplaint && (
+                                    <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-0.5 leading-tight">
+                                      ⚠️ Complaint ({b.complaintStatus || "Open"}): {b.complaint}
+                                    </span>
+                                  )}
+                                </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={cust?.notes || ""}>
-                                {cust?.notes || <span className="text-muted-foreground/45">None</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(cust?.notes) || ""}>
+                                {getDisplayNotes(cust?.notes) || <span className="text-muted-foreground/45">None</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
@@ -1200,8 +1239,12 @@ export function BookingModule() {
                 ) : (
                   paginatedBookings.map((b) => {
                     const cust = customers.find(c => c.id === b.customerId)
+                    const hasComplaint = !!b.complaint
+                    const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
                     return (
-                      <Card key={b.id} className="border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs">
+                      <Card key={b.id} className={`border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs ${
+                        isComplaintActive ? "border-rose-500/50 shadow-rose-100/50 dark:shadow-none ring-1 ring-rose-500/20" : hasComplaint ? "border-rose-400/30 ring-1 ring-rose-400/10" : ""
+                      }`}>
                         <CardHeader className="pb-2">
                           <div className="flex items-center justify-between">
                             <div className="flex gap-1.5 items-center">
@@ -1248,6 +1291,30 @@ export function BookingModule() {
                             <span>• {b.serviceType}</span>
                           </CardDescription>
                         </CardHeader>
+                        
+                        {hasComplaint && (
+                          <div className={`px-4 py-2 border-y text-xs flex flex-col gap-0.5 ${
+                            isComplaintActive 
+                              ? "bg-rose-50 text-rose-800 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-950/40" 
+                              : "bg-rose-50/40 text-rose-700 border-rose-100/30 dark:bg-rose-950/10 dark:text-rose-400/80 dark:border-rose-950/20"
+                          }`}>
+                            <div className="flex items-center justify-between font-bold text-[10px] uppercase tracking-wider">
+                              <span className="flex items-center gap-1">⚠️ Customer Complaint</span>
+                              <Badge className={`text-[8px] px-1 py-0 h-4 font-extrabold ${
+                                b.complaintStatus === "Resolved" 
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400" 
+                                  : b.complaintStatus === "Dismissed"
+                                  ? "bg-slate-100 text-slate-800 dark:bg-slate-950/40 dark:text-slate-400"
+                                  : "bg-rose-100 text-rose-800 animate-pulse dark:bg-rose-950/40 dark:text-rose-400"
+                              }`}>
+                                {b.complaintStatus || "Open"}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 font-semibold leading-relaxed line-clamp-3">{b.complaint}</p>
+                            {b.complaintDate && <span className="text-[9px] text-muted-foreground mt-0.5 font-medium">Logged on {b.complaintDate}</span>}
+                          </div>
+                        )}
+                        
                         <CardContent className="pb-3 text-xs flex flex-col gap-2">
                           <div className="flex flex-col gap-1 text-muted-foreground leading-relaxed">
                             <div>
@@ -1257,9 +1324,9 @@ export function BookingModule() {
                             <div className="line-clamp-2">
                               <span className="font-bold text-foreground">Complaint:</span> {b.issue}
                             </div>
-                            {cust?.notes && (
+                            {getDisplayNotes(cust?.notes) && (
                               <div className="line-clamp-1">
-                                <span className="font-bold text-foreground">Notes:</span> {cust.notes}
+                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(cust?.notes)}
                               </div>
                             )}
                             {b.spareName !== "None" && (

@@ -29,9 +29,133 @@ import {
 import { toast } from "sonner"
 
 export function PayoutModule() {
-  const { payouts, technicians, addPayout, updatePayout, deletePayout, currentRole } = useCRM()
+  const { payouts, technicians, bookings, addPayout, updatePayout, deletePayout, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [techFilter, setTechFilter] = React.useState("ALL")
+  const [activeSubTab, setActiveSubTab] = React.useState<"payouts" | "dailyEarnings">("payouts")
+  const [monthFilter, setMonthFilter] = React.useState("ALL")
+
+  const formatYearMonth = (ym: string) => {
+    const [year, month] = ym.split("-")
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1)
+    return date.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+  }
+
+  // Sorting State
+  const [ledgerSortCol, setLedgerSortCol] = React.useState<"date" | "earnings" | "paid" | "tech" | "id">("date")
+  const [ledgerSortDir, setLedgerSortDir] = React.useState<"asc" | "desc">("desc")
+  const [earningsSortCol, setEarningsSortCol] = React.useState<string>("tech")
+  const [earningsSortDir, setEarningsSortDir] = React.useState<"asc" | "desc">("asc")
+
+  const availableMonths = React.useMemo(() => {
+    const monthsSet = new Set<string>()
+    payouts.forEach(p => {
+      if (!p.dailyEarnings) return
+      const dateKey = p.date
+      if (dateKey && dateKey.length >= 7) {
+        monthsSet.add(dateKey.slice(0, 7)) // YYYY-MM
+      }
+    })
+    return Array.from(monthsSet).sort().reverse()
+  }, [payouts])
+
+  const pivotData = React.useMemo(() => {
+    const visibleTechs = technicians.filter(t => {
+      const matchesFilter = techFilter === "ALL" || t.id === techFilter
+      const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase())
+      return matchesFilter && matchesSearch
+    })
+
+    const datesSet = new Set<string>()
+    
+    payouts.forEach(p => {
+      if (!p.dailyEarnings || !p.technicianId) return
+      
+      const dateKey = p.date
+      if (!dateKey) return
+      
+      if (monthFilter !== "ALL" && !dateKey.startsWith(monthFilter)) return
+      
+      const isTechVisible = visibleTechs.some(t => t.id === p.technicianId)
+      if (!isTechVisible) return
+
+      datesSet.add(dateKey)
+    })
+
+    const sortedDates = Array.from(datesSet).sort().reverse() // Newest dates first (on the left)
+
+    const rows = visibleTechs.map(tech => {
+      const earningsByDate: { [date: string]: number } = {}
+      let techTotal = 0
+
+      payouts.forEach(p => {
+        if (p.technicianId !== tech.id || !p.dailyEarnings || !p.date) return
+        if (monthFilter !== "ALL" && !p.date.startsWith(monthFilter)) return
+        
+        earningsByDate[p.date] = (earningsByDate[p.date] || 0) + p.dailyEarnings
+        techTotal += p.dailyEarnings
+      })
+
+      return {
+        techId: tech.id,
+        techName: tech.name,
+        earnings: earningsByDate,
+        total: techTotal
+      }
+    })
+
+    return {
+      dates: sortedDates,
+      rows
+    }
+  }, [payouts, technicians, techFilter, monthFilter, search])
+
+  const sortedPivotRows = React.useMemo(() => {
+    return [...pivotData.rows].sort((a, b) => {
+      let comparison = 0
+      if (earningsSortCol === "tech") {
+        comparison = a.techName.localeCompare(b.techName)
+      } else if (earningsSortCol === "total") {
+        comparison = a.total - b.total
+      } else {
+        const earningsA = a.earnings[earningsSortCol] || 0
+        const earningsB = b.earnings[earningsSortCol] || 0
+        comparison = earningsA - earningsB
+      }
+      return earningsSortDir === "asc" ? comparison : -comparison
+    })
+  }, [pivotData.rows, earningsSortCol, earningsSortDir])
+
+  const renderSortableHeader = (
+    label: string, 
+    col: any, 
+    currentCol: any, 
+    currentDir: "asc" | "desc", 
+    setCol: (c: any) => void, 
+    setDir: (d: any) => void
+  ) => {
+    const isActive = col === currentCol
+    return (
+      <th 
+        onClick={() => {
+          if (isActive) {
+            setDir(currentDir === "asc" ? "desc" : "asc")
+          } else {
+            setCol(col)
+            setDir("desc")
+          }
+        }}
+        className="px-4 py-3 cursor-pointer hover:bg-muted/50 select-none group transition-colors border-r border-border/10 last:border-r-0"
+      >
+        <div className="flex items-center gap-1.5 justify-between">
+          <span>{label}</span>
+          <span className={`text-[10px] text-muted-foreground transition-opacity ${isActive ? "opacity-100 font-bold" : "opacity-0 group-hover:opacity-40"}`}>
+            {isActive ? (currentDir === "asc" ? "▲" : "▼") : "▼"}
+          </span>
+        </div>
+      </th>
+    )
+  }
   const [isPayOpen, setIsPayOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedPayout, setSelectedPayout] = React.useState<Payout | null>(null)
@@ -82,6 +206,28 @@ export function PayoutModule() {
 
     return matchesSearch && matchesTech
   })
+
+  const sortedPayouts = React.useMemo(() => {
+    return [...filteredPayouts].sort((a, b) => {
+      let comparison = 0
+      if (ledgerSortCol === "date") {
+        comparison = a.date.localeCompare(b.date)
+      } else if (ledgerSortCol === "earnings") {
+        comparison = (a.dailyEarnings || 0) - (b.dailyEarnings || 0)
+      } else if (ledgerSortCol === "paid") {
+        comparison = (a.totalPayout || 0) - (b.totalPayout || 0)
+      } else if (ledgerSortCol === "tech") {
+        const nameA = technicians.find(t => t.id === a.technicianId)?.name || ""
+        const nameB = technicians.find(t => t.id === b.technicianId)?.name || ""
+        comparison = nameA.localeCompare(nameB)
+      } else if (ledgerSortCol === "id") {
+        const numA = parseInt(a.id.split("-")[1]) || 0
+        const numB = parseInt(b.id.split("-")[1]) || 0
+        comparison = numA - numB
+      }
+      return ledgerSortDir === "asc" ? comparison : -comparison
+    })
+  }, [filteredPayouts, ledgerSortCol, ledgerSortDir, technicians])
 
   // Submit Payout
   const handleSubmit = (e: React.FormEvent) => {
@@ -160,12 +306,42 @@ export function PayoutModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Technician Payout Ledger</h2>
           <p className="text-sm text-muted-foreground">Manage salary payouts, process advances, and reconcile dispatch technician accounts.</p>
         </div>
-        {(currentRole === "Admin" || currentRole === "Manager") && (
-          <Button onClick={() => setIsPayOpen(true)} className="w-fit">
-            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-            Record Payout / Settlement
-          </Button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/40 w-fit shrink-0">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setActiveSubTab("payouts")}
+              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeSubTab === "payouts" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} className="size-3.5" />
+              Settlement Ledger
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setActiveSubTab("dailyEarnings")}
+              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeSubTab === "dailyEarnings" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <HugeiconsIcon icon={LicenseIcon} strokeWidth={2} className="size-3.5" />
+              Daily Earnings View
+            </Button>
+          </div>
+          {(currentRole === "Admin" || currentRole === "Manager") && activeSubTab === "payouts" && (
+            <Button onClick={() => setIsPayOpen(true)} className="w-fit">
+              <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+              Record Payout / Settlement
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Payout Dashboard */}
@@ -211,117 +387,221 @@ export function PayoutModule() {
         </Card>
       </div>
 
-      {/* Control Panel: Filters */}
-      <Card className="border-border/60">
-        <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:max-w-md">
-            <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search payouts by ID or technician..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
-            />
-          </div>
+      {activeSubTab === "payouts" ? (
+        <>
+          {/* Control Panel: Filters */}
+          <Card className="border-border/60">
+            <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:max-w-md">
+                <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search payouts by ID or technician..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+                />
+              </div>
 
-          <div className="flex items-center gap-1.5 w-full md:w-auto">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Technician:</Label>
-            <Select value={techFilter} onValueChange={setTechFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="All Technicians" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Technicians</SelectItem>
-                {technicians.map(t => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex items-center gap-1.5 w-full md:w-auto">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Technician:</Label>
+                <Select value={techFilter} onValueChange={setTechFilter}>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue placeholder="All Technicians" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Technicians</SelectItem>
+                    {technicians.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Table */}
-      <Card className="border-border/60 overflow-hidden shadow-xs">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
-                <tr>
-                  <th className="px-4 py-3">Transaction ID</th>
-                  <th className="px-4 py-3">Technician</th>
-                  <th className="px-4 py-3">Customer Name</th>
-                  <th className="px-4 py-3">CIN Number</th>
-                  <th className="px-4 py-3">Settlement Date</th>
-                  <th className="px-4 py-3">Daily Earnings</th>
-                  <th className="px-4 py-3">Advance Deduction</th>
-                  <th className="px-4 py-3">Adjusted Extra</th>
-                  <th className="px-4 py-3">Total Paid</th>
-                  <th className="px-4 py-3">Remaining Due</th>
-                  <th className="px-4 py-3">Payment Status</th>
-                  {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {filteredPayouts.length === 0 ? (
-                  <tr>
-                    <td colSpan={(currentRole === "Admin" || currentRole === "Manager") ? 12 : 11} className="text-center py-12 text-muted-foreground font-medium">
-                      No payout logs found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPayouts.map((p) => {
-                    const tech = technicians.find(t => t.id === p.technicianId)
-
-                    return (
-                      <tr key={p.id} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{p.id}</td>
-                        <td className="px-4 py-4 font-semibold text-xs text-foreground">{tech?.name || "Unknown Technician"}</td>
-                        <td className="px-4 py-4 text-xs text-muted-foreground">{p.customerName || "—"}</td>
-                        <td className="px-4 py-4 text-xs font-semibold text-muted-foreground tabular-nums">{p.cinNumber || "—"}</td>
-                        <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{p.date}</td>
-                        <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">₹{p.dailyEarnings}</td>
-                        <td className="px-4 py-4 text-xs font-medium text-rose-600 dark:text-rose-400 tabular-nums">-₹{p.advance}</td>
-                        <td className="px-4 py-4 text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">+₹{p.extra}</td>
-                        <td className="px-4 py-4 text-xs font-extrabold text-foreground tabular-nums">₹{p.totalPayout}</td>
-                        <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">₹{p.due}</td>
-                        <td className="px-4 py-4">
-                          <Badge 
-                            variant="outline"
-                            onClick={() => (currentRole === "Admin" || currentRole === "Manager") && handleToggleStatus(p.id, p.paymentStatus)}
-                            className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
-                              p.paymentStatus === "Paid" 
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                            }`}
-                          >
-                            <HugeiconsIcon icon={p.paymentStatus === "Paid" ? CheckmarkCircle01Icon : Loading03Icon} strokeWidth={2.5} className="size-3" />
-                            {p.paymentStatus}
-                          </Badge>
+          {/* Table */}
+          <Card className="border-border/60 overflow-hidden shadow-xs">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                    <tr>
+                      {renderSortableHeader("Transaction ID", "id", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
+                      {renderSortableHeader("Technician", "tech", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
+                      <th className="px-4 py-3">Customer Name</th>
+                      <th className="px-4 py-3">CIN Number</th>
+                      {renderSortableHeader("Settlement Date", "date", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
+                      {renderSortableHeader("Daily Earnings", "earnings", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
+                      <th className="px-4 py-3">Advance Deduction</th>
+                      <th className="px-4 py-3">Adjusted Extra</th>
+                      {renderSortableHeader("Total Paid", "paid", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
+                      <th className="px-4 py-3">Remaining Due</th>
+                      <th className="px-4 py-3">Payment Status</th>
+                      {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {sortedPayouts.length === 0 ? (
+                      <tr>
+                        <td colSpan={(currentRole === "Admin" || currentRole === "Manager") ? 12 : 11} className="text-center py-12 text-muted-foreground font-medium">
+                          No payout logs found.
                         </td>
-                        {(currentRole === "Admin" || currentRole === "Manager") && (
-                          <td className="px-4 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleOpenEdit(p)}
-                                className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                              >
-                                Edit
-                              </Button>
-                            </div>
-                          </td>
-                        )}
                       </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                    ) : (
+                      sortedPayouts.map((p) => {
+                        const tech = technicians.find(t => t.id === p.technicianId)
+
+                        return (
+                          <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{p.id}</td>
+                            <td className="px-4 py-4 font-semibold text-xs text-foreground">{tech?.name || "Unknown Technician"}</td>
+                            <td className="px-4 py-4 text-xs text-muted-foreground">{p.customerName || "—"}</td>
+                            <td className="px-4 py-4 text-xs font-semibold text-muted-foreground tabular-nums">{p.cinNumber || "—"}</td>
+                            <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{p.date}</td>
+                            <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">₹{p.dailyEarnings}</td>
+                            <td className="px-4 py-4 text-xs font-medium text-rose-600 dark:text-rose-400 tabular-nums">-₹{p.advance}</td>
+                            <td className="px-4 py-4 text-xs font-medium text-emerald-600 dark:text-emerald-400 tabular-nums">+₹{p.extra}</td>
+                            <td className="px-4 py-4 text-xs font-extrabold text-foreground tabular-nums">₹{p.totalPayout}</td>
+                            <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">₹{p.due}</td>
+                            <td className="px-4 py-4">
+                              <Badge 
+                                variant="outline"
+                                onClick={() => (currentRole === "Admin" || currentRole === "Manager") && handleToggleStatus(p.id, p.paymentStatus)}
+                                className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer hover:opacity-85 ${
+                                  p.paymentStatus === "Paid" 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                    : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                                }`}
+                              >
+                                <HugeiconsIcon icon={p.paymentStatus === "Paid" ? CheckmarkCircle01Icon : Loading03Icon} strokeWidth={2.5} className="size-3" />
+                                {p.paymentStatus}
+                              </Badge>
+                            </td>
+                            {(currentRole === "Admin" || currentRole === "Manager") && (
+                              <td className="px-4 py-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => handleOpenEdit(p)}
+                                    className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
+                                  >
+                                    Edit
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <>
+          {/* Daily Earnings Filter Controls */}
+          <Card className="border-border/60">
+            <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:max-w-md">
+                <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search by technician..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Technician:</Label>
+                  <Select value={techFilter} onValueChange={setTechFilter}>
+                    <SelectTrigger className="w-full sm:w-44">
+                      <SelectValue placeholder="All Technicians" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Technicians</SelectItem>
+                      {technicians.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Month:</Label>
+                  <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <SelectTrigger className="w-full sm:w-44">
+                      <SelectValue placeholder="All Months" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Months</SelectItem>
+                      {availableMonths.map(ym => (
+                        <SelectItem key={ym} value={ym}>{formatYearMonth(ym)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Daily Earnings Table */}
+          <Card className="border-border/60 overflow-hidden shadow-xs">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                    <tr>
+                      {renderSortableHeader("Technician Name", "tech", earningsSortCol, earningsSortDir, setEarningsSortCol, setEarningsSortDir)}
+                      {pivotData.dates.map(date => (
+                        <React.Fragment key={date}>
+                          {renderSortableHeader(date, date, earningsSortCol, earningsSortDir, setEarningsSortCol, setEarningsSortDir)}
+                        </React.Fragment>
+                      ))}
+                      {renderSortableHeader("Total Earnings", "total", earningsSortCol, earningsSortDir, setEarningsSortCol, setEarningsSortDir)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {sortedPivotRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={pivotData.dates.length + 2} className="text-center py-12 text-muted-foreground font-medium">
+                          No daily earnings records found for selected criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedPivotRows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-4 font-semibold text-xs text-foreground">{row.techName}</td>
+                          {pivotData.dates.map(date => {
+                            const val = row.earnings[date] || 0
+                            return (
+                              <td key={date} className="px-4 py-4 text-xs font-medium text-foreground tabular-nums">
+                                {val > 0 ? (
+                                  `₹${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                                ) : (
+                                  <span className="text-muted-foreground/30">—</span>
+                                )}
+                              </td>
+                            )
+                          })}
+                          <td className="px-4 py-4 text-xs font-extrabold text-foreground tabular-nums bg-muted/10">
+                            ₹{row.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Record Payout Dialog */}
       <Drawer open={isPayOpen} onOpenChange={setIsPayOpen} direction="bottom">

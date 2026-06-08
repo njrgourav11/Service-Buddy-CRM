@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useCRM } from "@/context/crm-context"
+import { useCRM, getDisplayNotes } from "@/context/crm-context"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -220,7 +220,7 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // PROFIT CALCULATIONS
   // ════════════════════════════════════════════
-  const balance = companyRevenue - totalExpenditure - outstandingAmount
+  const balance = companyRevenue
   const netAmt = companyRevenue - totalExpenditure
   const netProfit = totalRevenue - totalExpenditure
   const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
@@ -692,8 +692,8 @@ export function DashboardOverview() {
                               {b.serviceType}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={cust?.notes || ""}>
-                            {cust?.notes || "—"}
+                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes) || ""}>
+                            {getDisplayNotes(cust?.notes) || "—"}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
@@ -849,7 +849,7 @@ export function DashboardOverview() {
           <StatCard
             label="Balance"
             value={fmt(balance)}
-            sub="Company share less expenses & dues"
+            sub="Sum of all company profit from bookings"
             accent={balance >= 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
             icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
             negative={balance < 0}
@@ -1254,8 +1254,8 @@ export function DashboardOverview() {
                         <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
                           ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={cust?.notes || ""}>
-                          {cust?.notes || "—"}
+                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes) || ""}>
+                          {getDisplayNotes(cust?.notes) || "—"}
                         </td>
                         <td className="px-4 py-3">
                           <Badge
