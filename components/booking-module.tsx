@@ -101,6 +101,7 @@ export function BookingModule() {
   const [editComplaint, setEditComplaint] = React.useState("")
   const [editComplaintDate, setEditComplaintDate] = React.useState("")
   const [editComplaintStatus, setEditComplaintStatus] = React.useState("")
+  const [loadedBookingId, setLoadedBookingId] = React.useState<string | null>(null)
 
   // Edit Calculation override states
   const [editTotalCommission, setEditTotalCommission] = React.useState(0)
@@ -186,6 +187,18 @@ export function BookingModule() {
 
   // Calculation Recalculator Effect for edits
   React.useEffect(() => {
+    if (selectedBooking && selectedBooking.id === loadedBookingId) {
+      const matchesCost = editSpareCost === selectedBooking.spareCost
+      const matchesPrice = editSparePrice === selectedBooking.sparePrice
+      const matchesCharge = editServiceCharge === selectedBooking.serviceCharge
+      
+      if (matchesCost && matchesPrice && matchesCharge) {
+        return
+      } else {
+        setLoadedBookingId(null)
+      }
+    }
+
     const totalCommission = Math.max(0, editSparePrice - editSpareCost)
     const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
     const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
@@ -203,7 +216,7 @@ export function BookingModule() {
     setEditTotalTechnicianAmount(totalTechnicianAmount)
     setEditTotalCompanyAmount(totalCompanyAmount)
     setEditTotalConsumerAmount(totalConsumerAmount)
-  }, [editSpareCost, editSparePrice, editServiceCharge])
+  }, [editSpareCost, editSparePrice, editServiceCharge, selectedBooking, loadedBookingId])
 
   // Helpers for multi-technician displays
   const getTechNames = (idString: string) => {
@@ -224,6 +237,7 @@ export function BookingModule() {
   // Select a booking to review in side panel
   const handleSelectBookingForDetails = (b: Booking) => {
     setSelectedBooking(b)
+    setLoadedBookingId(b.id)
     const cust = customers.find(c => c.id === b.customerId)
     
     setEditAppliance(b.appliance)
@@ -768,255 +782,367 @@ export function BookingModule() {
           {/* Master Combined spreadsheet vs compact table list rendering */}
           {viewMode === "sheet" ? (
             /* ========================================================
-               A. Master Spreadsheet View (Horizontal-scrolling grid)
+               A. Master Spreadsheet View (Fullscreen Overlay)
                ======================================================== */
-            <Card className="border-border/60 overflow-hidden shadow-xs w-full max-w-full">
-              <CardContent className="p-0 w-full">
-                <div className="overflow-x-auto overflow-y-auto max-h-[64vh] w-full">
-                  <table className="w-full text-[11px] border-collapse min-w-[2800px]">
-                    <thead className="bg-muted/95 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground sticky top-0 z-20 border-b border-border/50 select-none">
-                      <tr>
-                        {/* Frozen left headers */}
-                        <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-24 text-left">CIN (Booking)</th>
-                        <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-24 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-40 text-left">Customer Name</th>
-                        
-                        {/* Customer details headers */}
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-28 text-left">Phone Number</th>
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-64 text-left">Service Address</th>
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-32 text-left">Lead Source</th>
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Review</th>
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-36 text-left">Satisfaction</th>
-                        <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Notes</th>
- 
-                        {/* Booking & Job headers */}
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-28 text-left">Booking Date</th>
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-36 text-left">Work Completed Date</th>
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-44 text-left">Appliance Type</th>
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-56 text-left">Service Issue</th>
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-40 text-left">Appointed Tech</th>
-                        <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-40 text-left">Spare Used</th>
- 
-                        {/* Spares cost headers */}
-                        <th className="px-3 py-3 bg-rose-50/30 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 w-32 text-right">Actual Spare (R)</th>
-                        <th className="px-3 py-3 bg-emerald-50/30 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 w-32 text-right">Consumer Spare (S)</th>
-                        <th className="px-3 py-3 bg-blue-50/30 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 w-36 text-right">Spare Comm (T = S-R)</th>
-                        <th className="px-3 py-3 bg-teal-50/30 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 w-36 text-right">Tech Comm (U = T*70%)</th>
-                        <th className="px-3 py-3 bg-cyan-50/30 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-400 w-36 text-right">Comp Comm (V = T*30%)</th>
- 
-                        {/* Workmanship split headers */}
-                        <th className="px-3 py-3 bg-amber-50/30 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 w-32 text-right">Service Charge (W)</th>
-                        <th className="px-3 py-3 bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 w-40 text-right">Tech Serv (X = W*70%)</th>
-                        <th className="px-3 py-3 bg-cyan-50/20 dark:bg-cyan-950/20 text-cyan-600 dark:text-cyan-400 w-40 text-right">Comp Serv (Y = W*30%)</th>
- 
-                        {/* Payout reconciliation splits */}
-                        <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right border-l border-border/40">Total Tech (U+X)</th>
-                        <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right">Total Company (V+Y)</th>
-                        <th className="px-3 py-3 bg-primary/10 dark:bg-primary/30 font-black text-primary w-36 text-right">Total Consumer (R+U+V+X+Y)</th>
- 
-                        <th className="px-3 py-3 w-28 text-left">Status</th>
-                        <th className="px-3 py-3 text-right w-24 sticky right-0 bg-background dark:bg-slate-900 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {filteredBookings.length === 0 ? (
-                        <tr>
-                          <td colSpan={25} className="text-center py-12 text-muted-foreground font-medium bg-card">
-                            No matching service bookings logged.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredBookings.map((b) => {
-                          const cust = customers.find(c => c.id === b.customerId)
-                          const hasComplaint = !!b.complaint
-                          const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
-
-                          const rowBgClass = isComplaintActive 
-                            ? "bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-900/30" 
-                            : hasComplaint 
-                            ? "bg-rose-50/30 hover:bg-rose-100/30 dark:bg-rose-950/10 dark:hover:bg-rose-900/20"
-                            : "bg-card/25 hover:bg-muted/30"
-
-                          const stickyBgClass = isComplaintActive 
-                            ? "bg-rose-50 dark:bg-rose-950/40" 
-                            : hasComplaint 
-                            ? "bg-rose-50/60 dark:bg-rose-950/20"
-                            : "bg-background dark:bg-slate-900"
-
-                          return (
-                            <tr key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
-                              {/* Frozen columns CIN */}
-                              <td className={`px-3 py-2.5 font-bold text-foreground sticky left-0 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 ${stickyBgClass}`}>
-                                {b.id}
-                              </td>
-                              
-                              {/* Frozen customer name */}
-                              <td className={`px-3 py-2.5 font-bold text-foreground sticky left-24 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px] ${stickyBgClass}`}>
-                                {cust?.name || "Unknown"}
-                              </td>
- 
-                              {/* Customer Profile */}
-                              <td className="px-3 py-2.5 text-muted-foreground font-medium tabular-nums">{cust?.mobile}</td>
-                              <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[240px]">{cust?.address}</td>
-                              <td className="px-3 py-2.5">
-                                <Badge variant="outline" className="text-[9px] font-bold py-0.5 px-1.5 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
-                                  {cust?.referralSource || "Other"}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={cust?.review}>
-                                {cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <Select 
-                                  value={cust?.reviewStatus || "Review not done"} 
-                                  onValueChange={(val) => {
-                                    if (cust) {
-                                      updateCustomer(cust.id, { reviewStatus: val as any })
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                    (cust?.reviewStatus || "Review not done") === "Positive" 
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : (cust?.reviewStatus || "Review not done") === "Negative" 
-                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                      : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
-                                      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
-                                      : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                                  }`}>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
-                                      <SelectValue />
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Review not done">Review not done</SelectItem>
-                                    <SelectItem value="Positive">Positive</SelectItem>
-                                    <SelectItem value="Negative">Negative</SelectItem>
-                                    <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes)}>
-                                {getDisplayNotes(cust?.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
-                              </td>
- 
-                              {/* Booking columns */}
-                              <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.date}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.workCompletedDate || <span className="text-muted-foreground/40">—</span>}</td>
-                              <td className="px-3 py-2.5">
-                                <Badge 
-                                  className={`text-[9px] font-bold py-0.5 px-2 ${
-                                    b.appliance === "AC" 
-                                      ? "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/20 dark:text-cyan-400" 
-                                      : b.appliance === "TV" 
-                                      ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400"
-                                      : b.appliance === "TL-WM (Top Load Washing Machine)"
-                                      ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                                      : b.appliance === "Geyser"
-                                      ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
-                                      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                                  }`}
-                                >
-                                  {b.appliance === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : b.appliance}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]" title={b.issue}>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="truncate block">{b.issue}</span>
-                                  {hasComplaint && (
-                                    <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-0.5 leading-tight">
-                                      ⚠️ Complaint ({b.complaintStatus || "Open"}): {b.complaint}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2.5 font-semibold text-foreground">{getTechNames(b.assignedTechnicianId)}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground font-medium truncate max-w-[150px]">{b.spareName}</td>
- 
-                              {/* Spares Cost (S and R) */}
-                              <td className="px-3 py-2.5 text-right text-rose-600 dark:text-rose-400 font-bold tabular-nums">₹{b.spareCost}</td>
-                              <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.sparePrice}</td>
-                              
-                              {/* Commission calculation (T = S - R) */}
-                              <td className="px-3 py-2.5 text-right text-blue-600 dark:text-blue-400 font-extrabold bg-blue-50/5 dark:bg-blue-950/15 tabular-nums">₹{b.totalCommission}</td>
-                              
-                              {/* 70/30 Spares Splits */}
-                              <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianCommission}</td>
-                              <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyCommission}</td>
-  
-                              {/* Service Splits (W) */}
-                              <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.serviceCharge}</td>
-                              
-                              {/* 70/30 Service Splits */}
-                              <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianServiceCommission}</td>
-                              <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyServiceCommission}</td>
-  
-                              {/* Grand Splits Totals */}
-                              <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black bg-emerald-50/15 dark:bg-emerald-950/10 tabular-nums border-l border-border/40">₹{b.totalTechnicianAmount}</td>
-                              <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-black bg-cyan-50/15 dark:bg-cyan-950/10 tabular-nums">₹{b.totalCompanyAmount}</td>
-                              <td className="px-3 py-2.5 text-right text-primary font-black bg-primary/10 dark:bg-primary/20 tabular-nums text-xs">₹{b.totalConsumerAmount}</td>
-  
-                              {/* Interactive Status Dropdown */}
-                              <td className="px-3 py-2.5">
-                                <Select 
-                                  value={b.status} 
-                                  disabled={false}
-                                  onValueChange={(val) => handleStatusChange(b.id, val)}
-                                >
-                                  <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
-                                    b.status === "Completed" 
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : b.status === "In Progress" 
-                                      ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                                      : b.status === "Inspected"
-                                      ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
-                                      : b.status === "Cancelled"
-                                      ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                                  }`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Not Started">Not Started</SelectItem>
-                                    <SelectItem value="In Progress">In Progress</SelectItem>
-                                    <SelectItem value="Inspected">Inspected</SelectItem>
-                                    <SelectItem value="Completed">Completed</SelectItem>
-                                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </td>
-  
-                              {/* Edit Row button in sticky end column */}
-                              <td className={`px-3 py-2.5 text-right sticky right-0 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] ${stickyBgClass}`}>
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => handleSelectBookingForDetails(b)}
-                                    className="h-6 text-[9px] font-bold px-1.5 bg-background shadow-xs hover:bg-muted"
-                                  >
-                                    Edit Row
-                                  </Button>
-                                  {currentRole === "Admin" && (
-                                    <Button 
-                                      variant="ghost" 
-                                      onClick={() => handleDeleteBooking(b.id)}
-                                      className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                                    >
-                                      ×
-                                    </Button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
+            <div className="fixed inset-0 bg-background z-40 flex flex-col p-6 overflow-hidden animate-in fade-in duration-200">
+              {/* Header Bar */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4 shrink-0">
+                <div>
+                  <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+                    <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2.5} className="size-5 text-primary" />
+                    Master Spreadsheet Ledger
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Comprehensive grid representing all customer jobs, warranty fields, and financial splits.</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* View Switcher */}
+                  <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/40 text-xs font-semibold mr-2 shrink-0">
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className="px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-all"
+                    >
+                      Table List
+                    </button>
+                    <button
+                      onClick={() => setViewMode("cards")}
+                      className="px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-all"
+                    >
+                      Card Grid
+                    </button>
+                    <button
+                      className="px-2.5 py-1.5 rounded-md bg-background text-foreground shadow-sm font-bold cursor-pointer transition-all"
+                    >
+                      Spreadsheet
+                    </button>
+                  </div>
+
+                  <Button onClick={handleExportCSV} variant="outline" size="sm" className="h-9">
+                    <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
+                    Export CSV
+                  </Button>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setViewMode("table")}
+                    className="h-9 px-4 hover:bg-muted/80 font-bold"
+                  >
+                    Close Sheet
+                  </Button>
+                </div>
+              </div>
+
+              {/* Filters Panel inside Fullscreen */}
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between py-3 shrink-0 border-b border-border/20">
+                <div className="relative w-full md:max-w-md">
+                  <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search by CIN, customer, technician or issues..." 
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  {/* Appliance Filter */}
+                  <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Appliance:</Label>
+                    <Select value={applianceFilter} onValueChange={setApplianceFilter}>
+                      <SelectTrigger className="w-full md:w-44 h-8 text-xs">
+                        <SelectValue placeholder="All Appliances" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Appliances</SelectItem>
+                        {uniqueAppliances.map(app => (
+                          <SelectItem key={app} value={app}>{app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full md:w-36 h-8 text-xs">
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Status</SelectItem>
+                        <SelectItem value="Not Started">Not Started</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Inspected">Inspected</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Review Filter */}
+                  <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Review:</Label>
+                    <Select value={reviewFilter} onValueChange={setReviewFilter}>
+                      <SelectTrigger className="w-full md:w-36 h-8 text-xs">
+                        <SelectValue placeholder="All Reviews" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Reviews</SelectItem>
+                        <SelectItem value="Review not done">Review not done</SelectItem>
+                        <SelectItem value="Positive">Positive</SelectItem>
+                        <SelectItem value="Negative">Negative</SelectItem>
+                        <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable table container */}
+              <div className="flex-1 overflow-auto w-full mt-4 border border-border rounded-xl shadow-xs">
+                <table className="w-full text-[11px] border-collapse min-w-[2800px]">
+                  <thead className="bg-muted/95 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground sticky top-0 z-20 border-b border-border/50 select-none">
+                    <tr>
+                      {/* Frozen left headers */}
+                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-24 text-left">CIN (Booking)</th>
+                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-24 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-40 text-left">Customer Name</th>
+                      
+                      {/* Customer details headers */}
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-28 text-left">Phone Number</th>
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-64 text-left">Service Address</th>
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-32 text-left">Lead Source</th>
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Review</th>
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-36 text-left">Satisfaction</th>
+                      <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-56 text-left">Customer Notes</th>
+ 
+                      {/* Booking & Job headers */}
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-28 text-left">Booking Date</th>
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-36 text-left">Work Completed Date</th>
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-44 text-left">Appliance Type</th>
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-56 text-left">Service Issue</th>
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-40 text-left">Appointed Tech</th>
+                      <th className="px-3 py-3 bg-purple-50/40 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400 w-40 text-left">Spare Used</th>
+ 
+                      {/* Spares cost headers */}
+                      <th className="px-3 py-3 bg-rose-50/30 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 w-32 text-right">Actual Spare (R)</th>
+                      <th className="px-3 py-3 bg-emerald-50/30 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 w-32 text-right">Consumer Spare (S)</th>
+                      <th className="px-3 py-3 bg-blue-50/30 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 w-36 text-right">Spare Comm (T = S-R)</th>
+                      <th className="px-3 py-3 bg-teal-50/30 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 w-36 text-right">Tech Comm (U = T*70%)</th>
+                      <th className="px-3 py-3 bg-cyan-50/30 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-400 w-36 text-right">Comp Comm (V = T*30%)</th>
+ 
+                      {/* Workmanship split headers */}
+                      <th className="px-3 py-3 bg-amber-50/30 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 w-32 text-right">Service Charge (W)</th>
+                      <th className="px-3 py-3 bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 w-40 text-right">Tech Serv (X = W*70%)</th>
+                      <th className="px-3 py-3 bg-cyan-50/20 dark:bg-cyan-950/20 text-cyan-600 dark:text-cyan-400 w-40 text-right">Comp Serv (Y = W*30%)</th>
+ 
+                      {/* Payout reconciliation splits */}
+                      <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right border-l border-border/40">Total Tech (U+X)</th>
+                      <th className="px-3 py-3 bg-slate-100 dark:bg-slate-900 font-extrabold text-foreground w-36 text-right">Total Company (V+Y)</th>
+                      <th className="px-3 py-3 bg-primary/10 dark:bg-primary/30 font-black text-primary w-36 text-right">Total Consumer (R+U+V+X+Y)</th>
+ 
+                      <th className="px-3 py-3 w-28 text-left">Status</th>
+                      <th className="px-3 py-3 text-right w-24 sticky right-0 bg-background dark:bg-slate-900 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {filteredBookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={25} className="text-center py-12 text-muted-foreground font-medium bg-card">
+                          No matching service bookings logged.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBookings.map((b) => {
+                        const cust = customers.find(c => c.id === b.customerId)
+                        const hasComplaint = !!b.complaint
+                        const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+ 
+                        const rowBgClass = isComplaintActive 
+                          ? "bg-rose-50/70 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-900/30" 
+                          : hasComplaint 
+                          ? "bg-rose-50/30 hover:bg-rose-100/30 dark:bg-rose-950/10 dark:hover:bg-rose-900/20"
+                          : "bg-card/25 hover:bg-muted/30"
+ 
+                        const stickyBgClass = isComplaintActive 
+                          ? "bg-rose-50 dark:bg-rose-950/40" 
+                          : hasComplaint 
+                          ? "bg-rose-50/60 dark:bg-rose-950/20"
+                          : "bg-background dark:bg-slate-900"
+ 
+                        return (
+                          <tr key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
+                            {/* Frozen columns CIN */}
+                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-0 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 ${stickyBgClass}`}>
+                              {b.id}
+                            </td>
+                            
+                            {/* Frozen customer name */}
+                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-24 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px] ${stickyBgClass}`}>
+                              {cust?.name || "Unknown"}
+                            </td>
+ 
+                            {/* Customer Profile */}
+                            <td className="px-3 py-2.5 text-muted-foreground font-medium tabular-nums">{cust?.mobile}</td>
+                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[240px]">{cust?.address}</td>
+                            <td className="px-3 py-2.5">
+                              <Badge variant="outline" className="text-[9px] font-bold py-0.5 px-1.5 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
+                                {cust?.referralSource || "Other"}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={cust?.review}>
+                              {cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Select 
+                                value={cust?.reviewStatus || "Review not done"} 
+                                onValueChange={(val) => {
+                                  if (cust) {
+                                    updateCustomer(cust.id, { reviewStatus: val as any })
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
+                                  (cust?.reviewStatus || "Review not done") === "Positive" 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                    : (cust?.reviewStatus || "Review not done") === "Negative" 
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                                    : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                    ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
+                                    : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                }`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
+                                    <SelectValue />
+                                  </div>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Review not done">Review not done</SelectItem>
+                                  <SelectItem value="Positive">Positive</SelectItem>
+                                  <SelectItem value="Negative">Negative</SelectItem>
+                                  <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes)}>
+                              {getDisplayNotes(cust?.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
+                            </td>
+ 
+                            {/* Booking columns */}
+                            <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.date}</td>
+                            <td className="px-3 py-2.5 text-muted-foreground font-semibold tabular-nums">{b.workCompletedDate || <span className="text-muted-foreground/40">—</span>}</td>
+                            <td className="px-3 py-2.5">
+                              <Badge 
+                                className={`text-[9px] font-bold py-0.5 px-2 ${
+                                  b.appliance === "AC" 
+                                    ? "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/20 dark:text-cyan-400" 
+                                    : b.appliance === "TV" 
+                                    ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400"
+                                    : b.appliance === "TL-WM (Top Load Washing Machine)"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                    : b.appliance === "Geyser"
+                                    ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
+                                    : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                                }`}
+                              >
+                                {b.appliance === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : b.appliance}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px]" title={b.issue}>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="truncate block">{b.issue}</span>
+                                {hasComplaint && (
+                                  <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-0.5 leading-tight">
+                                    ⚠️ Complaint ({b.complaintStatus || "Open"}): {b.complaint}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 font-semibold text-foreground">{getTechNames(b.assignedTechnicianId)}</td>
+                            <td className="px-3 py-2.5 text-muted-foreground font-medium truncate max-w-[150px]">{b.spareName}</td>
+ 
+                            {/* Spares Cost (S and R) */}
+                            <td className="px-3 py-2.5 text-right text-rose-600 dark:text-rose-400 font-bold tabular-nums">₹{b.spareCost}</td>
+                            <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.sparePrice}</td>
+                            
+                            {/* Commission calculation (T = S - R) */}
+                            <td className="px-3 py-2.5 text-right text-blue-600 dark:text-blue-400 font-extrabold bg-blue-50/5 dark:bg-blue-950/15 tabular-nums">₹{b.totalCommission}</td>
+                            
+                            {/* 70/30 Spares Splits */}
+                            <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianCommission}</td>
+                            <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyCommission}</td>
+ 
+                            {/* Service Splits (W) */}
+                            <td className="px-3 py-2.5 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">₹{b.serviceCharge}</td>
+                            
+                            {/* 70/30 Service Splits */}
+                            <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">₹{b.technicianServiceCommission}</td>
+                            <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">₹{b.companyServiceCommission}</td>
+ 
+                            {/* Grand Splits Totals */}
+                            <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black bg-emerald-50/15 dark:bg-emerald-950/10 tabular-nums border-l border-border/40">₹{b.totalTechnicianAmount}</td>
+                            <td className="px-3 py-2.5 text-right text-cyan-600 dark:text-cyan-400 font-black bg-cyan-50/15 dark:bg-cyan-950/10 tabular-nums">₹{b.totalCompanyAmount}</td>
+                            <td className="px-3 py-2.5 text-right text-primary font-black bg-primary/10 dark:bg-primary/20 tabular-nums text-xs">₹{b.totalConsumerAmount}</td>
+ 
+                            {/* Interactive Status Dropdown */}
+                            <td className="px-3 py-2.5">
+                              <Select 
+                                value={b.status} 
+                                disabled={false}
+                                onValueChange={(val) => handleStatusChange(b.id, val)}
+                              >
+                                <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
+                                  b.status === "Completed" 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                    : b.status === "In Progress" 
+                                    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
+                                    : b.status === "Inspected"
+                                    ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
+                                    : b.status === "Cancelled"
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
+                                    : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                                }`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Not Started">Not Started</SelectItem>
+                                  <SelectItem value="In Progress">In Progress</SelectItem>
+                                  <SelectItem value="Inspected">Inspected</SelectItem>
+                                  <SelectItem value="Completed">Completed</SelectItem>
+                                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+ 
+                            {/* Edit Row button in sticky end column */}
+                            <td className={`px-3 py-2.5 text-right sticky right-0 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] ${stickyBgClass}`}>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleSelectBookingForDetails(b)}
+                                  className="h-6 text-[9px] font-bold px-1.5 bg-background shadow-xs hover:bg-muted"
+                                >
+                                  Edit Row
+                                </Button>
+                                {currentRole === "Admin" && (
+                                  <Button 
+                                    variant="ghost" 
+                                    onClick={() => handleDeleteBooking(b.id)}
+                                    className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                  >
+                                    ×
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : viewMode === "table" ? (
             <Card className="border-border/60 overflow-hidden shadow-xs flex flex-col justify-between">
               <CardContent className="p-0">

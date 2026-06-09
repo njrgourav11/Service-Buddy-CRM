@@ -31,14 +31,16 @@ export function TechnicianModule() {
   const { technicians, bookings, payouts, addPayout, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
+  const [isSettleOpen, setIsSettleOpen] = React.useState(false)
   const [selectedTech, setSelectedTech] = React.useState<Technician | null>(null)
+  const [settleAmount, setSettleAmount] = React.useState("")
 
   // Form State
   const [name, setName] = React.useState("")
   const [mobile, setMobile] = React.useState("")
   const [address, setAddress] = React.useState("")
   const [skillsString, setSkillsString] = React.useState("AC, Electrical")
-  const [status, setStatus] = React.useState<any>("Active")
+  const [status, setStatus] = React.useState<"Active" | "Inactive">("Active")
   const [joiningDate, setJoiningDate] = React.useState(new Date().toISOString().split("T")[0])
 
   // Edit Form State
@@ -46,7 +48,7 @@ export function TechnicianModule() {
   const [editMobile, setEditMobile] = React.useState("")
   const [editAddress, setEditAddress] = React.useState("")
   const [editSkillsString, setEditSkillsString] = React.useState("")
-  const [editStatus, setEditStatus] = React.useState<any>("Active")
+  const [editStatus, setEditStatus] = React.useState<"Active" | "Inactive">("Active")
   const [editJoiningDate, setEditJoiningDate] = React.useState("")
   const [editAdvanceTaken, setEditAdvanceTaken] = React.useState(0)
   const [editDueAmount, setEditDueAmount] = React.useState(0)
@@ -103,22 +105,41 @@ export function TechnicianModule() {
     setIsEditOpen(false)
   }
 
-  // Settle Outstanding Dues
-  const handleSettleDues = (t: Technician) => {
-    if (window.confirm(`Are you sure you want to settle all outstanding dues of ₹${t.dueAmount} for ${t.name}?`)) {
-      addPayout({
-        technicianId: t.id,
-        date: new Date().toISOString().split("T")[0],
-        dailyEarnings: 0,
-        totalPayout: t.dueAmount,
-        advance: 0,
-        extra: 0,
-        paymentStatus: "Paid",
-        customerName: "Bulk Settlement",
-        cinNumber: "—"
-      })
-      toast.success(`Dues of ₹${t.dueAmount} settled successfully for ${t.name}.`)
+  // Open Settle Dues Drawer
+  const handleOpenSettle = (t: Technician) => {
+    setSelectedTech(t)
+    setSettleAmount(t.dueAmount.toString())
+    setIsSettleOpen(true)
+  }
+
+  // Submit Payout Settlement
+  const handleSettleDuesSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedTech) return
+    const amount = parseFloat(settleAmount)
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid positive settlement amount.")
+      return
     }
+    if (amount > selectedTech.dueAmount) {
+      toast.error(`Settlement amount cannot exceed outstanding dues of ₹${selectedTech.dueAmount}.`)
+      return
+    }
+
+    addPayout({
+      technicianId: selectedTech.id,
+      date: new Date().toISOString().split("T")[0],
+      dailyEarnings: 0,
+      totalPayout: amount,
+      advance: 0,
+      extra: 0,
+      paymentStatus: "Paid",
+      customerName: amount === selectedTech.dueAmount ? "Bulk Settlement" : "Partial Settlement",
+      cinNumber: "—"
+    })
+    toast.success(`Settled ₹${amount} successfully for ${selectedTech.name}.`)
+    setIsSettleOpen(false)
+    setSettleAmount("")
   }
 
   // Running KPI computations
@@ -269,7 +290,7 @@ export function TechnicianModule() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleSettleDues(t)}
+                      onClick={() => handleOpenSettle(t)}
                       className="h-7 text-xs font-bold px-2.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 cursor-pointer flex-1"
                     >
                       Settle Dues
@@ -442,7 +463,7 @@ export function TechnicianModule() {
                   <select
                     id="edit-tech-status"
                     value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    onChange={(e) => setEditStatus(e.target.value as "Active" | "Inactive")}
                     className="h-8 text-xs font-bold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
                   >
                     <option value="Active">Active</option>
@@ -511,6 +532,65 @@ export function TechnicianModule() {
               <Button type="submit" className="flex-1">Update Profile Details</Button>
               <DrawerClose asChild>
                 <Button variant="outline" className="flex-1">Discard Changes</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Settle Dues Drawer */}
+      <Drawer open={isSettleOpen} onOpenChange={setIsSettleOpen} direction="bottom">
+        <DrawerContent className="max-w-md mx-auto flex flex-col rounded-t-2xl border-t bg-card pb-6">
+          <form onSubmit={handleSettleDuesSubmit} className="flex flex-col h-full overflow-hidden">
+            <DrawerHeader className="border-b border-border/40 p-4">
+              <DrawerTitle className="text-base font-bold">Settle Outstanding Dues</DrawerTitle>
+              <DrawerDescription className="text-xs">
+                Settle partial or full outstanding dues for {selectedTech?.name}.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="p-4 flex flex-col gap-4 text-sm">
+              <div className="flex flex-col gap-2.5 text-xs font-semibold">
+                <div className="flex justify-between items-center bg-amber-500/5 px-3 py-2 rounded border border-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <span className="font-medium">Current Outstanding Dues:</span>
+                  <span className="font-black text-sm tabular-nums">₹{selectedTech?.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              {/* Settlement Amount */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="settle-amount" className="text-xs font-bold text-muted-foreground">Settlement Amount (₹)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="settle-amount"
+                    type="number"
+                    min="0.01"
+                    max={selectedTech?.dueAmount}
+                    step="0.01"
+                    placeholder="Enter amount to settle"
+                    value={settleAmount}
+                    onChange={(e) => setSettleAmount(e.target.value)}
+                    required
+                    className="flex-1"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => selectedTech && setSettleAmount(selectedTech.dueAmount.toString())}
+                    className="text-xs font-bold cursor-pointer"
+                  >
+                    Set Max
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <DrawerFooter className="border-t border-border/40 p-4 flex flex-row gap-3">
+              <Button type="submit" className="flex-1 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white">
+                Confirm Settlement
+              </Button>
+              <DrawerClose asChild>
+                <Button variant="outline" className="flex-1 cursor-pointer">Cancel</Button>
               </DrawerClose>
             </DrawerFooter>
           </form>

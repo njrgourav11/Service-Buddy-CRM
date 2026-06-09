@@ -136,7 +136,15 @@ export function DashboardOverview() {
   // Breakdown state managers: Initial states are null so no detailed breakdown is shown by default
   const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "expenses" | "operations" | null>(null)
   const [activeManagerBreakdown, setActiveManagerBreakdown] = React.useState<"bookings" | "clients" | "resources" | null>(null)
-  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR">("ALL")
+  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "CUSTOM">("ALL")
+  const [customStartDate, setCustomStartDate] = React.useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split("T")[0]
+  })
+  const [customEndDate, setCustomEndDate] = React.useState<string>(() => {
+    return new Date().toISOString().split("T")[0]
+  })
 
   const handleCardClick = (category: "revenue" | "expenses" | "operations") => {
     setActiveBreakdown(prev => prev === category ? null : category)
@@ -158,6 +166,12 @@ export function DashboardOverview() {
     return items.filter(item => {
       const itemDateStr = item.date || item.createdAt
       if (!itemDateStr) return false
+      
+      if (dateFilter === "CUSTOM") {
+        const dateOnly = itemDateStr.slice(0, 10)
+        return dateOnly >= customStartDate && dateOnly <= customEndDate
+      }
+      
       const itemDate = new Date(itemDateStr)
       if (isNaN(itemDate.getTime())) return false
       
@@ -174,7 +188,7 @@ export function DashboardOverview() {
       }
       return true
     })
-  }, [dateFilter])
+  }, [dateFilter, customStartDate, customEndDate])
 
   const filteredBookings = React.useMemo(() => getFilteredData(bookings), [bookings, getFilteredData])
   const filteredExpenses = React.useMemo(() => getFilteredData(expenses), [expenses, getFilteredData])
@@ -366,7 +380,7 @@ export function DashboardOverview() {
               <span className="w-1.5 h-3.5 bg-primary rounded-full" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Metrics Category</h3>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
               <span className="text-xs text-muted-foreground font-semibold">Filter Date:</span>
               <select
                 value={dateFilter}
@@ -377,7 +391,25 @@ export function DashboardOverview() {
                 <option value="THIS_MONTH">This Month</option>
                 <option value="LAST_30_DAYS">Last 30 Days</option>
                 <option value="THIS_YEAR">This Year</option>
+                <option value="CUSTOM">Custom Range</option>
               </select>
+              {dateFilter === "CUSTOM" && (
+                <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="h-8 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                  />
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="h-8 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -821,7 +853,7 @@ export function DashboardOverview() {
             <span className="w-1.5 h-3.5 bg-primary rounded-full" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Financial/Operations Category</h3>
           </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
             <span className="text-xs text-muted-foreground font-semibold">Filter Date:</span>
             <select
               value={dateFilter}
@@ -832,7 +864,25 @@ export function DashboardOverview() {
               <option value="THIS_MONTH">This Month</option>
               <option value="LAST_30_DAYS">Last 30 Days</option>
               <option value="THIS_YEAR">This Year</option>
+              <option value="CUSTOM">Custom Range</option>
             </select>
+            {dateFilter === "CUSTOM" && (
+              <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="h-8 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                />
+                <span className="text-[10px] text-muted-foreground font-bold uppercase">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="h-8 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                />
+              </div>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

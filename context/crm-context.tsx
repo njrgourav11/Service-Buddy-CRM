@@ -122,6 +122,7 @@ export interface Payout {
   paymentStatus: "Paid" | "Pending"
   customerName?: string
   cinNumber?: string
+  bookingId?: string
 }
 
 export interface Spare {

@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner"
 
 export function PayoutModule() {
-  const { payouts, technicians, bookings, addPayout, updatePayout, deletePayout, currentRole } = useCRM()
+  const { payouts, technicians, bookings, customers, addPayout, updatePayout, deletePayout, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [techFilter, setTechFilter] = React.useState("ALL")
   const [activeSubTab, setActiveSubTab] = React.useState<"payouts" | "dailyEarnings">("payouts")
@@ -162,6 +162,9 @@ export function PayoutModule() {
 
   // Form State
   const [formTechId, setFormTechId] = React.useState("")
+  const [formBookingId, setFormBookingId] = React.useState("None")
+  const [formCustomerName, setFormCustomerName] = React.useState("")
+  const [formCinNumber, setFormCinNumber] = React.useState("")
   const [formDate, setFormDate] = React.useState(new Date().toISOString().split("T")[0])
   const [formDailyEarnings, setFormDailyEarnings] = React.useState(0)
   const [formTotalPayout, setFormTotalPayout] = React.useState(0)
@@ -171,6 +174,9 @@ export function PayoutModule() {
 
   // Edit Form State
   const [editTechId, setEditTechId] = React.useState("")
+  const [editBookingId, setEditBookingId] = React.useState("None")
+  const [editCustomerName, setEditCustomerName] = React.useState("")
+  const [editCinNumber, setEditCinNumber] = React.useState("")
   const [editDate, setEditDate] = React.useState("")
   const [editDailyEarnings, setEditDailyEarnings] = React.useState(0)
   const [editTotalPayout, setEditTotalPayout] = React.useState(0)
@@ -185,9 +191,91 @@ export function PayoutModule() {
       if (match) {
         setFormDailyEarnings(0)
         setFormTotalPayout(match.dueAmount)
+        setFormBookingId("None")
+        setFormCustomerName("")
+        setFormCinNumber("")
       }
     }
   }, [formTechId, technicians])
+
+  const availableBookingsForLink = React.useMemo(() => {
+    if (!formTechId) return []
+    return bookings.filter(b => 
+      b.assignedTechnicianId && 
+      b.assignedTechnicianId.split(",").map(s => s.trim()).includes(formTechId)
+    )
+  }, [bookings, formTechId])
+
+  const editAvailableBookingsForLink = React.useMemo(() => {
+    if (!editTechId) return []
+    return bookings.filter(b => 
+      b.assignedTechnicianId && 
+      b.assignedTechnicianId.split(",").map(s => s.trim()).includes(editTechId)
+    )
+  }, [bookings, editTechId])
+
+  const handleBookingLink = (bookingId: string) => {
+    setFormBookingId(bookingId)
+    if (bookingId === "None") {
+      setFormCustomerName("")
+      setFormCinNumber("")
+      setFormDailyEarnings(0)
+      if (formTechId) {
+        const match = technicians.find(t => t.id === formTechId)
+        if (match) {
+          setFormTotalPayout(match.dueAmount)
+        }
+      }
+      return
+    }
+
+    const booking = bookings.find(b => b.id === bookingId)
+    if (booking) {
+      const cust = customers.find(c => c.id === booking.customerId)
+      setFormCustomerName(cust?.name || "")
+      setFormCinNumber(cust?.id || "")
+      
+      const techEarnings = booking.totalTechnicianAmount || 0
+      setFormDailyEarnings(techEarnings)
+      
+      if (booking.workCompletedDate) {
+        setFormDate(booking.workCompletedDate)
+      } else if (booking.date) {
+        setFormDate(booking.date)
+      }
+
+      if (formTechId) {
+        const match = technicians.find(t => t.id === formTechId)
+        if (match) {
+          setFormTotalPayout(match.dueAmount + techEarnings)
+        }
+      }
+    }
+  }
+
+  const handleEditBookingLink = (bookingId: string) => {
+    setEditBookingId(bookingId)
+    if (bookingId === "None") {
+      setEditCustomerName("")
+      setEditCinNumber("")
+      setEditDailyEarnings(0)
+      return
+    }
+
+    const booking = bookings.find(b => b.id === bookingId)
+    if (booking) {
+      const cust = customers.find(c => c.id === booking.customerId)
+      setEditCustomerName(cust?.name || "")
+      setEditCinNumber(cust?.id || "")
+      setEditDailyEarnings(booking.totalTechnicianAmount || 0)
+      
+      if (booking.workCompletedDate) {
+        setEditDate(booking.workCompletedDate)
+      } else if (booking.date) {
+        setEditDate(booking.date)
+      }
+    }
+  }
 
   // Dashboard calculations
   const totalMonthlyPayout = payouts
@@ -244,11 +332,17 @@ export function PayoutModule() {
       totalPayout: formTotalPayout,
       advance: formAdvance,
       extra: formExtra,
-      paymentStatus: formStatus
+      paymentStatus: formStatus,
+      customerName: formCustomerName || undefined,
+      cinNumber: formCinNumber || undefined,
+      bookingId: formBookingId !== "None" ? formBookingId : undefined
     })
 
     // Reset Form
     setFormTechId("")
+    setFormBookingId("None")
+    setFormCustomerName("")
+    setFormCinNumber("")
     setFormDailyEarnings(0)
     setFormTotalPayout(0)
     setFormAdvance(0)
@@ -267,6 +361,9 @@ export function PayoutModule() {
   const handleOpenEdit = (p: Payout) => {
     setSelectedPayout(p)
     setEditTechId(p.technicianId)
+    setEditBookingId(p.bookingId || "None")
+    setEditCustomerName(p.customerName || "")
+    setEditCinNumber(p.cinNumber || "")
     setEditDate(p.date)
     setEditDailyEarnings(p.dailyEarnings)
     setEditTotalPayout(p.totalPayout)
@@ -288,7 +385,10 @@ export function PayoutModule() {
       totalPayout: editTotalPayout,
       advance: editAdvance,
       extra: editExtra,
-      paymentStatus: editStatus
+      paymentStatus: editStatus,
+      customerName: editCustomerName || undefined,
+      cinNumber: editCinNumber || undefined,
+      bookingId: editBookingId !== "None" ? editBookingId : undefined
     })
 
     setIsEditOpen(false)
@@ -632,6 +732,31 @@ export function PayoutModule() {
                   </Select>
                 </div>
 
+                {/* Link Booking dropdown */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pay-booking" className="text-xs font-bold text-muted-foreground">Link Booking (Optional)</Label>
+                  <Select 
+                    value={formBookingId} 
+                    onValueChange={handleBookingLink}
+                    disabled={!formTechId}
+                  >
+                    <SelectTrigger id="pay-booking">
+                      <SelectValue placeholder={formTechId ? "Select Booking..." : "Please select technician first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="None">None (No booking link)</SelectItem>
+                      {availableBookingsForLink.map(b => {
+                        const cust = customers.find(c => c.id === b.customerId)
+                        return (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.id} - {cust?.name || "Unknown"} ({b.appliance}) - ₹{b.totalTechnicianAmount || 0}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* Daily Earnings (calculated from tech dues) */}
                   <div className="flex flex-col gap-1.5">
@@ -668,6 +793,28 @@ export function PayoutModule() {
                     onChange={(e) => setFormDate(e.target.value)}
                     required
                   />
+                </div>
+
+                {/* Customer Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="pay-cust-name" className="text-xs font-bold text-muted-foreground">Customer Name (Optional)</Label>
+                    <Input 
+                      id="pay-cust-name"
+                      placeholder="e.g. John Doe"
+                      value={formCustomerName}
+                      onChange={(e) => setFormCustomerName(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="pay-cust-cin" className="text-xs font-bold text-muted-foreground">Customer CIN (Optional)</Label>
+                    <Input 
+                      id="pay-cust-cin"
+                      placeholder="e.g. CUST-1001"
+                      value={formCinNumber}
+                      onChange={(e) => setFormCinNumber(e.target.value)}
+                    />
+                  </div>
                 </div>
 
               </div>
@@ -773,6 +920,30 @@ export function PayoutModule() {
                   </Select>
                 </div>
 
+                {/* Link Booking dropdown */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-pay-booking" className="text-xs font-bold text-muted-foreground">Link Booking (Optional)</Label>
+                  <Select 
+                    value={editBookingId} 
+                    onValueChange={handleEditBookingLink}
+                  >
+                    <SelectTrigger id="edit-pay-booking">
+                      <SelectValue placeholder="Select Booking..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="None">None (No booking link)</SelectItem>
+                      {editAvailableBookingsForLink.map(b => {
+                        const cust = customers.find(c => c.id === b.customerId)
+                        return (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.id} - {cust?.name || "Unknown"} ({b.appliance}) - ₹{b.totalTechnicianAmount || 0}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* Daily Earnings */}
                   <div className="flex flex-col gap-1.5">
@@ -809,6 +980,28 @@ export function PayoutModule() {
                     onChange={(e) => setEditDate(e.target.value)}
                     required
                   />
+                </div>
+
+                {/* Customer Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-cust-name" className="text-xs font-bold text-muted-foreground">Customer Name (Optional)</Label>
+                    <Input 
+                      id="edit-pay-cust-name"
+                      placeholder="e.g. John Doe"
+                      value={editCustomerName}
+                      onChange={(e) => setEditCustomerName(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-pay-cust-cin" className="text-xs font-bold text-muted-foreground">Customer CIN (Optional)</Label>
+                    <Input 
+                      id="edit-pay-cust-cin"
+                      placeholder="e.g. CUST-1001"
+                      value={editCinNumber}
+                      onChange={(e) => setEditCinNumber(e.target.value)}
+                    />
+                  </div>
                 </div>
 
               </div>
