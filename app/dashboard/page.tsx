@@ -22,6 +22,7 @@ import { TechnicianModule } from "@/components/technician-module"
 import { RemindersModule } from "@/components/reminders-module"
 import { ReportsModule } from "@/components/reports-module"
 import { ImportModule } from "@/components/import-module"
+import { ComplaintsModule } from "@/components/complaints-module"
 
 // Wrapper component to enable useCRM inside the providers
 function DashboardContent() {
@@ -36,6 +37,8 @@ function DashboardContent() {
         return <BookingModule />
       case "customers":
         return <CustomerModule />
+      case "complaints":
+        return <ComplaintsModule />
       case "leads":
         return <LeadsModule />
       case "contacts":

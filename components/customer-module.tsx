@@ -23,8 +23,10 @@ import {
   SearchIcon, 
   UserGroupIcon,
   CheckmarkCircle01Icon,
-  HelpCircleIcon
+  HelpCircleIcon,
+  InvoiceIcon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 
 import { 
   Table, 
@@ -81,6 +83,38 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [editReview, setEditReview] = React.useState("")
   const [editReviewStatus, setEditReviewStatus] = React.useState<any>("Review not done")
   const [editStatus, setEditStatus] = React.useState<any>("Active")
+
+  // Customer database CSV Exporter
+  const handleExportCSV = () => {
+    const headers = [
+      "CIN", "Name", "Mobile Number", "Address", "Referral Channel", 
+      "Satisfaction Status", "Client Feedback", "Internal Notes", "Status", "Created Date"
+    ]
+    
+    const rows = filteredCustomers.map(c => [
+      c.id,
+      `"${c.name.replace(/"/g, '""')}"`,
+      `"${c.mobile.replace(/"/g, '""')}"`,
+      `"${c.address.replace(/"/g, '""')}"`,
+      c.referralSource || "",
+      `"${(c.reviewStatus || "Review not done").replace(/"/g, '""')}"`,
+      `"${(c.review || "").replace(/"/g, '""')}"`,
+      `"${(getDisplayNotes(c.notes) || "").replace(/"/g, '""')}"`,
+      c.status,
+      c.createdAt || ""
+    ])
+    
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", `ServiceBuddy_CRM_Customers_${new Date().toISOString().split("T")[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Customer list exported to CSV!")
+  }
 
   // Open Edit Drawer
   const handleOpenEdit = (c: Customer) => {
@@ -173,10 +207,16 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
             <h2 className="text-xl font-bold tracking-tight text-foreground">Customer Management</h2>
             <p className="text-sm text-muted-foreground">Manage client directories, track automated customer ID codes (CIN), and record satisfaction reviews.</p>
           </div>
-          <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer">
-            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-            Onboard Customer
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={handleExportCSV} variant="outline" className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
+              <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
+              Export CSV
+            </Button>
+            <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
+              <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-4" />
+              Onboard Customer
+            </Button>
+          </div>
         </div>
       )}
 
@@ -186,10 +226,16 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
             <h3 className="text-base font-bold text-foreground">Customer Directory Registry</h3>
             <p className="text-xs text-muted-foreground">Monitor client contact records, satisfaction levels, and active status codes.</p>
           </div>
-          <Button onClick={() => setIsAddOpen(true)} size="sm" className="cursor-pointer">
-            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-            Onboard Customer
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={handleExportCSV} variant="outline" size="sm" className="cursor-pointer gap-1.5 h-9 text-xs font-bold">
+              <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-3.5" />
+              Export CSV
+            </Button>
+            <Button onClick={() => setIsAddOpen(true)} size="sm" className="cursor-pointer gap-1.5 h-9 text-xs font-bold">
+              <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-3.5" />
+              Onboard Customer
+            </Button>
+          </div>
         </div>
       )}
 

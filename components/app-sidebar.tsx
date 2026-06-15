@@ -33,7 +33,8 @@ import {
   Notification03Icon,
   PlusSignCircleIcon,
   LicenseIcon,
-  UserCircle02Icon
+  UserCircle02Icon,
+  Alert02Icon
 } from "@hugeicons/core-free-icons"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -52,6 +53,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       id: "bookings",
       title: "Bookings & Customers",
       icon: <HugeiconsIcon icon={Menu01Icon} strokeWidth={2} />,
+    },
+    {
+      id: "complaints",
+      title: "Complaints Manager",
+      icon: <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />,
     },
     {
       id: "leads",

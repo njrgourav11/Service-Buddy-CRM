@@ -21,8 +21,10 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
   SearchIcon,
-  UserCircle02Icon
+  UserCircle02Icon,
+  InvoiceIcon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 
 export function ContactsModule() {
   const { contacts, addContact, updateContact, deleteContact, currentRole } = useCRM()
@@ -46,6 +48,30 @@ export function ContactsModule() {
   const [editCustomerType, setEditCustomerType] = React.useState<any>("Regular")
   const [editNotes, setEditNotes] = React.useState("")
   const [editLastServiceDate, setEditLastServiceDate] = React.useState("")
+
+  // Contact database CSV Exporter
+  const handleExportCSV = () => {
+    const headers = ["Contact ID", "Contact Name", "Phone Line", "Address", "Client Type", "Timeline Check"]
+    const rows = filteredContacts.map(c => [
+      c.id || "",
+      `"${(c.name || "").replace(/"/g, '""')}"`,
+      `"${(c.mobile || "").replace(/"/g, '""')}"`,
+      `"${(c.address || "").replace(/"/g, '""')}"`,
+      c.customerType || "Regular",
+      `"${(c.lastServiceDate || "").replace(/"/g, '""')}"`
+    ])
+    
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", `ServiceBuddy_CRM_Contacts_${new Date().toISOString().split("T")[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Contact list exported to CSV!")
+  }
 
   // Open Edit Drawer
   const handleOpenEdit = (c: Contact) => {
@@ -116,12 +142,18 @@ export function ContactsModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Contact Directory</h2>
           <p className="text-sm text-muted-foreground">Reconcile business directories, catalog supplier contacts, and inspect historical service timelines.</p>
         </div>
-        {(currentRole === "Admin" || currentRole === "Manager") && (
-          <Button onClick={() => setIsAddOpen(true)} className="w-fit">
-            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-            Create Contact Card
+        <div className="flex items-center gap-2 shrink-0">
+          <Button onClick={handleExportCSV} variant="outline" className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
+            <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
+            Export CSV
           </Button>
-        )}
+          {(currentRole === "Admin" || currentRole === "Manager") && (
+            <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
+              <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-4" />
+              Create Contact Card
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Control Panel: Filters */}

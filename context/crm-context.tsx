@@ -85,6 +85,9 @@ export interface Booking {
   complaint?: string
   complaintDate?: string
   complaintStatus?: "Open" | "In Review" | "Resolved" | "Dismissed"
+  notes?: string
+  review?: string
+  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive"
 
   
   // Financial computed properties stored or calculated

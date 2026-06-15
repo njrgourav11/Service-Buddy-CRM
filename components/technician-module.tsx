@@ -35,6 +35,16 @@ export function TechnicianModule() {
   const [selectedTech, setSelectedTech] = React.useState<Technician | null>(null)
   const [settleAmount, setSettleAmount] = React.useState("")
 
+  // Tab switcher
+  const [activeSubTab, setActiveSubTab] = React.useState<"list" | "logDaily">("list")
+
+  // Log Daily form state
+  const [logTechId, setLogTechId] = React.useState("")
+  const [logDate, setLogDate] = React.useState(new Date().toISOString().split("T")[0])
+  const [logEarnings, setLogEarnings] = React.useState("")
+  const [logAdvance, setLogAdvance] = React.useState("")
+  const [logStatus, setLogStatus] = React.useState<"Paid" | "Pending">("Paid")
+
   // Form State
   const [name, setName] = React.useState("")
   const [mobile, setMobile] = React.useState("")
@@ -142,6 +152,53 @@ export function TechnicianModule() {
     setSettleAmount("")
   }
 
+  // Submit Daily Log Amount
+  const handleLogDailySubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!logTechId) {
+      toast.error("Please select a technician.")
+      return
+    }
+
+    const earnings = parseFloat(logEarnings) || 0
+    const advance = parseFloat(logAdvance) || 0
+
+    if (earnings < 0 || advance < 0) {
+      toast.error("Earnings and advances cannot be negative values.")
+      return
+    }
+
+    // totalPayout calculation: if Paid, totalPayout = earnings - advance; else 0
+    const totalPayout = logStatus === "Paid" ? Math.max(0, earnings - advance) : 0
+
+    addPayout({
+      technicianId: logTechId,
+      date: logDate,
+      dailyEarnings: earnings,
+      totalPayout: totalPayout,
+      advance: advance,
+      extra: 0,
+      paymentStatus: logStatus,
+      customerName: "Daily Log",
+      cinNumber: "—"
+    })
+
+    toast.success("Daily technician amount logged successfully.")
+
+    // Reset Form
+    setLogTechId("")
+    setLogEarnings("")
+    setLogAdvance("")
+    setLogStatus("Paid")
+    setLogDate(new Date().toISOString().split("T")[0])
+  }
+
+  // Filtered recent daily logs to display
+  const dailyLogs = React.useMemo(() => {
+    return payouts.filter(p => p.customerName === "Daily Log")
+      .sort((a, b) => b.date.localeCompare(a.date))
+  }, [payouts])
+
   // Running KPI computations
   const totalPayoutSum = payouts
     .filter(p => p.paymentStatus === "Paid")
@@ -159,162 +216,364 @@ export function TechnicianModule() {
           <h2 className="text-xl font-bold tracking-tight text-foreground">Technician Management</h2>
           <p className="text-sm text-muted-foreground">Manage dispatch staff profiles, skills directories, active job workloads, and running commissions.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {currentRole === "Admin" && technicians.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/40 w-fit shrink-0">
             <Button 
-              variant="destructive" 
-              onClick={() => {
-                if (window.confirm("Are you sure you want to remove all technicians?")) {
-                  technicians.forEach(t => deleteTechnician(t.id))
-                }
-              }} 
-              className="w-fit cursor-pointer font-bold"
+              type="button"
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setActiveSubTab("list")}
+              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeSubTab === "list" 
+                  ? "bg-background text-foreground shadow-sm font-bold" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Clear All Technicians
+              <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} className="size-3.5" />
+              Technician List
             </Button>
+            <Button 
+              type="button"
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setActiveSubTab("logDaily")}
+              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeSubTab === "logDaily" 
+                  ? "bg-background text-foreground shadow-sm font-bold" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-3.5" />
+              Log Daily Amount
+            </Button>
+          </div>
+          {activeSubTab === "list" && (
+            <>
+              {currentRole === "Admin" && technicians.length > 0 && (
+                <Button 
+                  type="button"
+                  variant="destructive" 
+                  onClick={() => {
+                    if (window.confirm("Are you sure you want to remove all technicians?")) {
+                      technicians.forEach(t => deleteTechnician(t.id))
+                    }
+                  }} 
+                  className="w-fit cursor-pointer font-bold h-9 text-xs"
+                >
+                  Clear All Technicians
+                </Button>
+              )}
+              <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer h-9 text-xs font-bold gap-1.5">
+                <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-4" />
+                Onboard Technician
+              </Button>
+            </>
           )}
-          <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer">
-            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-            Onboard Technician
-          </Button>
         </div>
       </div>
 
-      {/* Technician Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {/* Total Settled Payouts */}
-        <Card className="border-border/60">
-          <CardHeader className="py-3">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Settled Payouts</CardDescription>
-          </CardHeader>
-          <CardContent className="pb-3 pt-0">
-            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">₹{totalPayoutSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
-          </CardContent>
-        </Card>
-
-        {/* Total Outstanding Dues */}
-        <Card className="border-border/60">
-          <CardHeader className="py-3">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Outstanding Dues</CardDescription>
-          </CardHeader>
-          <CardContent className="pb-3 pt-0">
-            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-amber-600 dark:text-amber-400">₹{totalDuesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
-          </CardContent>
-        </Card>
-
-        {/* Total Active Advances */}
-        <Card className="border-border/60">
-          <CardHeader className="py-3">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Running Advances</CardDescription>
-          </CardHeader>
-          <CardContent className="pb-3 pt-0">
-            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">₹{totalAdvancesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Technician Dashboard Cards Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {technicians.map((t) => {
-          // Dynamic metric computations from live bookings
-          const techBookings = bookings.filter(b => b.assignedTechnicianId === t.id)
-          const totalJobs = techBookings.length
-          const completedJobs = techBookings.filter(b => b.status === "Completed").length
-          const pendingJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
-          
-          // Earnings computed: Sum of dynamic totalTechnicianAmount on completed orders
-          const completedEarnings = techBookings
-            .filter(b => b.status === "Completed")
-            .reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
-
-          const totalCommission = techBookings
-            .filter(b => b.status === "Completed")
-            .reduce((sum, b) => sum + (b.technicianCommission || 0), 0)
-
-          return (
-            <Card key={t.id} className="border-border/60 hover:shadow-md transition-all duration-300 relative overflow-hidden bg-card/60 backdrop-blur-md">
-              {/* Background abstract gradient */}
-              <div className="absolute right-0 top-0 size-28 rounded-full bg-primary/5 blur-2xl pointer-events-none" />
-              
-              <CardHeader className="pb-3 border-b border-border/40">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 bg-primary/10 text-primary border border-primary/20 text-sm font-black rounded-lg flex items-center justify-center">
-                      {t.name.split(" ").map(w => w.charAt(0)).join("")}
-                    </div>
-                    <CardTitle className="text-sm font-bold text-foreground">{t.name}</CardTitle>
-                  </div>
-
-                  <Badge 
-                    variant="outline"
-                    onClick={() => updateTechnician(t.id, { status: t.status === "Active" ? "Inactive" : "Active" })}
-                    className={`text-[9px] font-extrabold cursor-pointer py-0 px-1.5 ${
-                      t.status === "Active" 
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                        : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
-                    }`}
-                  >
-                    {t.status}
-                  </Badge>
-                </div>
+      {activeSubTab === "list" ? (
+        <>
+          {/* Technician Stat Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {/* Total Settled Payouts */}
+            <Card className="border-border/60">
+              <CardHeader className="py-3">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Settled Payouts</CardDescription>
               </CardHeader>
+              <CardContent className="pb-3 pt-0">
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">₹{totalPayoutSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+              </CardContent>
+            </Card>
 
-              <CardContent className="py-4 flex flex-col gap-3">
-                {/* Financial balances */}
-                <div className="flex flex-col gap-2.5 text-xs font-semibold">
-                  <div className="flex justify-between items-center bg-muted/20 px-2 py-1.5 rounded border border-border/40">
-                    <span className="text-muted-foreground font-medium">Total:</span>
-                    <span className="font-bold tabular-nums text-foreground">₹{completedEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            {/* Total Outstanding Dues */}
+            <Card className="border-border/60">
+              <CardHeader className="py-3">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Outstanding Dues</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-3 pt-0">
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-amber-600 dark:text-amber-400">₹{totalDuesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+              </CardContent>
+            </Card>
+
+            {/* Total Active Advances */}
+            <Card className="border-border/60">
+              <CardHeader className="py-3">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Running Advances</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-3 pt-0">
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">₹{totalAdvancesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Technician Dashboard Cards Grid */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {technicians.map((t) => {
+              // Dynamic metric computations from live bookings
+              const techBookings = bookings.filter(b => b.assignedTechnicianId === t.id)
+              const totalJobs = techBookings.length
+              const completedJobs = techBookings.filter(b => b.status === "Completed").length
+              const pendingJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
+              
+              // Earnings computed: Sum of dynamic totalTechnicianAmount on completed orders
+              const completedEarnings = techBookings
+                .filter(b => b.status === "Completed")
+                .reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
+
+              return (
+                <Card key={t.id} className="border-border/60 hover:shadow-md transition-all duration-300 relative overflow-hidden bg-card/60 backdrop-blur-md">
+                  {/* Background abstract gradient */}
+                  <div className="absolute right-0 top-0 size-28 rounded-full bg-primary/5 blur-2xl pointer-events-none" />
+                  
+                  <CardHeader className="pb-3 border-b border-border/40">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 bg-primary/10 text-primary border border-primary/20 text-sm font-black rounded-lg flex items-center justify-center">
+                          {t.name.split(" ").map(w => w.charAt(0)).join("")}
+                        </div>
+                        <CardTitle className="text-sm font-bold text-foreground">{t.name}</CardTitle>
+                      </div>
+
+                      <Badge 
+                        variant="outline"
+                        onClick={() => updateTechnician(t.id, { status: t.status === "Active" ? "Inactive" : "Active" })}
+                        className={`text-[9px] font-extrabold cursor-pointer py-0 px-1.5 ${
+                          t.status === "Active" 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                            : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
+                        }`}
+                      >
+                        {t.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="py-4 flex flex-col gap-3">
+                    {/* Financial balances */}
+                    <div className="flex flex-col gap-2.5 text-xs font-semibold">
+                      <div className="flex justify-between items-center bg-muted/20 px-2 py-1.5 rounded border border-border/40">
+                        <span className="text-muted-foreground font-medium">Total Completed:</span>
+                        <span className="font-bold tabular-nums text-foreground">₹{completedEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 bg-amber-500/5 px-2 py-1.5 rounded border border-amber-500/10">
+                        <span className="font-medium">Due:</span>
+                        <span className="font-black tabular-nums">₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 bg-rose-500/5 px-2 py-1.5 rounded border border-rose-500/10">
+                        <span className="font-medium">Total Advance:</span>
+                        <span className="font-black tabular-nums">₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-between gap-2 items-center">
+                    <div className="flex gap-2 flex-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEdit(t)}
+                        className="h-8 text-xs font-bold px-2.5 bg-background hover:bg-muted cursor-pointer flex-1"
+                      >
+                        Edit Profile
+                      </Button>
+                      {t.dueAmount > 0 && (currentRole === "Admin" || currentRole === "Manager") && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenSettle(t)}
+                          className="h-8 text-xs font-bold px-2.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 cursor-pointer flex-1"
+                        >
+                          Settle Dues
+                        </Button>
+                      )}
+                    </div>
+                    {currentRole === "Admin" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete profile for ${t.name}?`)) {
+                            deleteTechnician(t.id)
+                          }
+                        }}
+                        className="h-8 size-8 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              )
+            })}
+          </div>
+        </>
+      ) : (
+        /* Log Daily Amount layout block */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
+          
+          {/* Left Column: Log Form */}
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <Card className="border-border/60 bg-card/40 backdrop-blur-md">
+              <CardHeader className="border-b border-border/40 pb-4">
+                <CardTitle className="text-base font-bold">Record Daily Technician Amount</CardTitle>
+                <CardDescription className="text-xs">
+                  Directly post today's commission earnings, advances, and payout clear status for dispatch staff.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <form onSubmit={handleLogDailySubmit} className="flex flex-col gap-4 text-sm">
+                  
+                  {/* Select Date */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="log-date" className="text-xs font-bold text-muted-foreground">Select Log Date</Label>
+                    <Input
+                      type="date"
+                      id="log-date"
+                      value={logDate}
+                      onChange={(e) => setLogDate(e.target.value)}
+                      required
+                      className="bg-background"
+                    />
                   </div>
-                  <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 bg-amber-500/5 px-2 py-1.5 rounded border border-amber-500/10">
-                    <span className="font-medium">Due:</span>
-                    <span className="font-black tabular-nums">₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+                  {/* Select Technician */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="log-tech" className="text-xs font-bold text-muted-foreground">Choose Technician</Label>
+                    <select
+                      id="log-tech"
+                      value={logTechId}
+                      onChange={(e) => setLogTechId(e.target.value)}
+                      required
+                      className="h-9 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    >
+                      <option value="">Select Technician...</option>
+                      {technicians.filter(t => t.status === "Active").map(t => (
+                        <option key={t.id} value={t.id}>{t.name} (Dues: ₹{t.dueAmount})</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 bg-rose-500/5 px-2 py-1.5 rounded border border-rose-500/10">
-                    <span className="font-medium">Total Advance:</span>
-                    <span className="font-black tabular-nums">₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+                  {/* Today's Earning & Today's Advance */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="log-earnings" className="text-xs font-bold text-muted-foreground">Today's Earning (₹)</Label>
+                      <Input
+                        type="number"
+                        id="log-earnings"
+                        min="0"
+                        placeholder="E.g. 1500"
+                        value={logEarnings}
+                        onChange={(e) => setLogEarnings(e.target.value)}
+                        required
+                        className="bg-background"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="log-advance" className="text-xs font-bold text-muted-foreground">Today's Advance (₹)</Label>
+                      <Input
+                        type="number"
+                        id="log-advance"
+                        min="0"
+                        placeholder="E.g. 300"
+                        value={logAdvance}
+                        onChange={(e) => setLogAdvance(e.target.value)}
+                        required
+                        className="bg-background"
+                      />
+                    </div>
                   </div>
+
+                  {/* Payment Status (Paid / Pending) */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="log-status" className="text-xs font-bold text-muted-foreground">Payment Status</Label>
+                    <select
+                      id="log-status"
+                      value={logStatus}
+                      onChange={(e) => setLogStatus(e.target.value as any)}
+                      required
+                      className="h-9 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    >
+                      <option value="Paid">Paid / Settled Today</option>
+                      <option value="Pending">Pending / Added to Dues</option>
+                    </select>
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button type="submit" className="w-full mt-2 cursor-pointer font-bold">
+                    Log Daily Amount
+                  </Button>
+
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: Recent Daily Logs */}
+          <div className="lg:col-span-7 flex flex-col gap-4">
+            <Card className="border-border/60 bg-card/45 backdrop-blur-xs overflow-hidden">
+              <CardHeader className="border-b border-border/40 pb-4">
+                <CardTitle className="text-base font-bold">Recent Daily Logs Ledger</CardTitle>
+                <CardDescription className="text-xs">
+                  Overview of manual daily technician earnings and advance deduction sheets synced with settlements.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Technician</th>
+                        <th className="px-4 py-3">Earnings</th>
+                        <th className="px-4 py-3">Advance</th>
+                        <th className="px-4 py-3">Payout</th>
+                        <th className="px-4 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40 text-xs">
+                      {dailyLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-12 text-muted-foreground font-medium">
+                            No manual daily logs recorded.
+                          </td>
+                        </tr>
+                      ) : (
+                        dailyLogs.slice(0, 8).map((log) => {
+                          const tech = technicians.find(t => t.id === log.technicianId)
+                          return (
+                            <tr key={log.id} className="hover:bg-muted/10 transition-colors">
+                              <td className="px-4 py-3.5 font-semibold tabular-nums text-foreground">{log.date}</td>
+                              <td className="px-4 py-3.5 font-semibold text-foreground">{tech?.name || "Unknown"}</td>
+                              <td className="px-4 py-3.5 font-semibold text-foreground tabular-nums">₹{log.dailyEarnings}</td>
+                              <td className="px-4 py-3.5 font-medium text-rose-600 dark:text-rose-400 tabular-nums">-₹{log.advance}</td>
+                              <td className="px-4 py-3.5 font-extrabold text-foreground tabular-nums">₹{log.totalPayout}</td>
+                              <td className="px-4 py-3.5">
+                                <Badge 
+                                  variant="outline"
+                                  className={`text-[8px] font-extrabold py-0.5 px-1.5 ${
+                                    log.paymentStatus === "Paid" 
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
+                                  }`}
+                                >
+                                  {log.paymentStatus}
+                                </Badge>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
-              <CardFooter className="pt-0 border-t border-border/40 py-2 flex justify-between gap-2 items-center">
-                <div className="flex gap-2 flex-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenEdit(t)}
-                    className="h-7 text-xs font-bold px-2.5 bg-background hover:bg-muted cursor-pointer flex-1"
-                  >
-                    Edit Profile
-                  </Button>
-                  {t.dueAmount > 0 && (currentRole === "Admin" || currentRole === "Manager") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenSettle(t)}
-                      className="h-7 text-xs font-bold px-2.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 cursor-pointer flex-1"
-                    >
-                      Settle Dues
-                    </Button>
-                  )}
-                </div>
-                {currentRole === "Admin" && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (window.confirm(`Are you sure you want to delete profile for ${t.name}?`)) {
-                        deleteTechnician(t.id)
-                      }
-                    }}
-                    className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
-                  >
-                    ×
-                  </Button>
-                )}
-              </CardFooter>
             </Card>
-          )
-        })}
-      </div>
+          </div>
+
+        </div>
+      )}
 
       {/* Technician Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">

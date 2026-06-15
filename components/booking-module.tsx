@@ -73,6 +73,9 @@ export function BookingModule() {
   const [applianceFilter, setApplianceFilter] = React.useState("ALL")
   const [statusFilter, setStatusFilter] = React.useState("ALL")
   const [reviewFilter, setReviewFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "custom">("ALL")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"sheet" | "table" | "cards">("table")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(8)
@@ -261,9 +264,9 @@ export function BookingModule() {
     setEditCustMobile(cust?.mobile || "")
     setEditCustAddress(cust?.address || "")
     setEditCustReferral(cust?.referralSource || "Ad")
-    setEditCustNotes(getDisplayNotes(cust?.notes) || "")
-    setEditCustReview(cust?.review || "")
-    setEditCustReviewStatus(cust?.reviewStatus || "Review not done")
+    setEditCustNotes(getDisplayNotes(b.notes) || "")
+    setEditCustReview(b.review || "")
+    setEditCustReviewStatus(b.reviewStatus || "Review not done")
 
     // Seed calculations
     const spareCost = b.spareCost || 0
@@ -322,7 +325,10 @@ export function BookingModule() {
       companyServiceCommission: editCompanyServiceCommission,
       totalTechnicianAmount: editTotalTechnicianAmount,
       totalCompanyAmount: editTotalCompanyAmount,
-      totalConsumerAmount: editTotalConsumerAmount
+      totalConsumerAmount: editTotalConsumerAmount,
+      notes: editCustNotes,
+      review: editCustReview,
+      reviewStatus: editCustReviewStatus as any
     })
     
     // Save customer updates
@@ -330,10 +336,7 @@ export function BookingModule() {
       name: editCustName,
       mobile: editCustMobile,
       address: editCustAddress,
-      referralSource: editCustReferral,
-      notes: editCustNotes,
-      review: editCustReview,
-      reviewStatus: editCustReviewStatus as any
+      referralSource: editCustReferral
     })
     
     setIsDetailsOpen(false)
@@ -375,10 +378,10 @@ export function BookingModule() {
         b.totalTechnicianAmount || 0,
         b.totalCompanyAmount || 0,
         b.totalConsumerAmount || 0,
-        `"${(cust?.review || "").replace(/"/g, '""')}"`,
-        `"${(cust?.reviewStatus || "Review not done").replace(/"/g, '""')}"`,
+        `"${(b.review || "").replace(/"/g, '""')}"`,
+        `"${(b.reviewStatus || "Review not done").replace(/"/g, '""')}"`,
         cust?.referralSource || "",
-        `"${(getDisplayNotes(cust?.notes) || "").replace(/"/g, '""')}"`,
+        `"${(getDisplayNotes(b.notes) || "").replace(/"/g, '""')}"`,
         b.status
       ]
     })
@@ -408,9 +411,39 @@ export function BookingModule() {
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
-      const matchesReview = reviewFilter === "ALL" || (cust?.reviewStatus || "Review not done") === reviewFilter
+      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
 
-      return matchesSearch && matchesAppliance && matchesStatus && matchesReview
+      // Date filtering logic
+      let matchesDate = true
+      if (dateFilterType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        matchesDate = b.date === todayStr
+      } else if (dateFilterType === "yesterday") {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split("T")[0]
+        matchesDate = b.date === yesterdayStr
+      } else if (dateFilterType === "this-week") {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+        const startStr = startOfWeek.toISOString().split("T")[0]
+        matchesDate = b.date >= startStr
+      } else if (dateFilterType === "this-month") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+        matchesDate = (b.date || "").startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "custom") {
+        if (startDateFilter && endDateFilter) {
+          matchesDate = b.date >= startDateFilter && b.date <= endDateFilter
+        } else if (startDateFilter) {
+          matchesDate = b.date >= startDateFilter
+        } else if (endDateFilter) {
+          matchesDate = b.date <= endDateFilter
+        }
+      }
+
+      return matchesSearch && matchesAppliance && matchesStatus && matchesReview && matchesDate
     }).sort((a, b) => {
       const dateA = a.workCompletedDate || "";
       const dateB = b.workCompletedDate || "";
@@ -426,7 +459,7 @@ export function BookingModule() {
       }
       return compareIdsNumerically(b.id, a.id);
     })
-  }, [bookings, customers, technicians, search, applianceFilter, statusFilter, reviewFilter])
+  }, [bookings, customers, technicians, search, applianceFilter, statusFilter, reviewFilter, dateFilterType, startDateFilter, endDateFilter])
 
   // Extract unique appliances for filter
   const uniqueAppliances = React.useMemo(() => {
@@ -456,7 +489,7 @@ export function BookingModule() {
   // Reset page index when search or filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [search, applianceFilter, statusFilter, reviewFilter])
+  }, [search, applianceFilter, statusFilter, reviewFilter, dateFilterType, startDateFilter, endDateFilter])
 
   // Handle Create Submit
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -725,6 +758,50 @@ export function BookingModule() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                {/* Date Filter */}
+                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Date:</Label>
+                  <Select value={dateFilterType} onValueChange={(val: any) => {
+                    setDateFilterType(val)
+                    if (val !== "custom") {
+                      setStartDateFilter("")
+                      setEndDateFilter("")
+                    }
+                  }}>
+                    <SelectTrigger className="w-full md:w-36">
+                      <SelectValue placeholder="All Dates" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="this-week">This Week</SelectItem>
+                      <SelectItem value="this-month">This Month</SelectItem>
+                      <SelectItem value="custom">Custom Range...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {dateFilterType === "custom" && (
+                  <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-150 flex-1 md:flex-none">
+                    <Input
+                      type="date"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      className="h-9 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="Start Date"
+                    />
+                    <span className="text-muted-foreground text-xs font-semibold">to</span>
+                    <Input
+                      type="date"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      className="h-9 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="End Date"
+                    />
+                  </div>
+                )}
+
                 {/* Appliance Filter */}
                 <div className="flex items-center gap-1.5 flex-1 md:flex-none">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Appliance:</Label>
@@ -989,29 +1066,27 @@ export function BookingModule() {
                                 {cust?.referralSource || "Other"}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={cust?.review}>
-                              {cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
+                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={b.review}>
+                              {b.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
                             </td>
                             <td className="px-3 py-2.5">
                               <Select 
-                                value={cust?.reviewStatus || "Review not done"} 
+                                value={b.reviewStatus || "Review not done"} 
                                 onValueChange={(val) => {
-                                  if (cust) {
-                                    updateCustomer(cust.id, { reviewStatus: val as any })
-                                  }
+                                  updateBooking(b.id, { reviewStatus: val as any })
                                 }}
                               >
                                 <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                  (cust?.reviewStatus || "Review not done") === "Positive" 
+                                  (b.reviewStatus || "Review not done") === "Positive" 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                    : (cust?.reviewStatus || "Review not done") === "Negative" 
+                                    : (b.reviewStatus || "Review not done") === "Negative" 
                                     ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                    : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                    : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                     ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                     : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                 }`}>
                                   <div className="flex items-center gap-1.5">
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
                                     <SelectValue />
                                   </div>
                                 </SelectTrigger>
@@ -1023,8 +1098,8 @@ export function BookingModule() {
                                 </SelectContent>
                               </Select>
                             </td>
-                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes)}>
-                              {getDisplayNotes(cust?.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
+                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(b.notes)}>
+                              {getDisplayNotes(b.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
                             </td>
  
                             {/* Booking columns */}
@@ -1199,29 +1274,27 @@ export function BookingModule() {
                                   <span className="text-[10px] text-muted-foreground tabular-nums">{cust?.mobile}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={cust?.review || ""}>
-                                {cust?.review || <span className="text-muted-foreground/45">—</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={b.review || ""}>
+                                {b.review || <span className="text-muted-foreground/45">—</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4">
                                 <Select 
-                                  value={cust?.reviewStatus || "Review not done"} 
+                                  value={b.reviewStatus || "Review not done"} 
                                   onValueChange={(val) => {
-                                    if (cust) {
-                                      updateCustomer(cust.id, { reviewStatus: val as any })
-                                    }
+                                    updateBooking(b.id, { reviewStatus: val as any })
                                   }}
                                 >
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                    (cust?.reviewStatus || "Review not done") === "Positive" 
+                                    (b.reviewStatus || "Review not done") === "Positive" 
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : (cust?.reviewStatus || "Review not done") === "Negative" 
+                                      : (b.reviewStatus || "Review not done") === "Negative" 
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                      : (cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                      : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                       ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                       : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                   }`}>
                                     <div className="flex items-center gap-1.5">
-                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} />
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
                                       <SelectValue />
                                     </div>
                                   </SelectTrigger>
@@ -1251,8 +1324,8 @@ export function BookingModule() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(cust?.notes) || ""}>
-                                {getDisplayNotes(cust?.notes) || <span className="text-muted-foreground/45">None</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(b.notes) || ""}>
+                                {getDisplayNotes(b.notes) || <span className="text-muted-foreground/45">None</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
@@ -1450,9 +1523,9 @@ export function BookingModule() {
                             <div className="line-clamp-2">
                               <span className="font-bold text-foreground">Complaint:</span> {b.issue}
                             </div>
-                            {getDisplayNotes(cust?.notes) && (
+                            {getDisplayNotes(b.notes) && (
                               <div className="line-clamp-1">
-                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(cust?.notes)}
+                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(b.notes)}
                               </div>
                             )}
                             {b.spareName !== "None" && (
