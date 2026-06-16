@@ -24,7 +24,8 @@ import {
   UserGroupIcon,
   CheckmarkCircle01Icon,
   HelpCircleIcon,
-  InvoiceIcon
+  InvoiceIcon,
+  Database01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -50,7 +51,7 @@ interface CustomerModuleProps {
 }
 
 export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, currentRole } = useCRM()
+  const { customers, addCustomer, updateCustomer, deleteCustomer, currentRole, setActiveTab } = useCRM()
   const [search, setSearch] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -208,6 +209,10 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
             <p className="text-sm text-muted-foreground">Manage client directories, track automated customer ID codes (CIN), and record satisfaction reviews.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={() => setActiveTab("import")} variant="outline" className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
+              <HugeiconsIcon icon={Database01Icon} strokeWidth={2} className="size-4" />
+              Import Customers
+            </Button>
             <Button onClick={handleExportCSV} variant="outline" className="w-fit cursor-pointer gap-1.5 h-10 text-xs font-bold">
               <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
               Export CSV
@@ -227,6 +232,10 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
             <p className="text-xs text-muted-foreground">Monitor client contact records, satisfaction levels, and active status codes.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={() => setActiveTab("import")} variant="outline" size="sm" className="cursor-pointer gap-1.5 h-9 text-xs font-bold">
+              <HugeiconsIcon icon={Database01Icon} strokeWidth={2} className="size-3.5" />
+              Import Customers
+            </Button>
             <Button onClick={handleExportCSV} variant="outline" size="sm" className="cursor-pointer gap-1.5 h-9 text-xs font-bold">
               <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-3.5" />
               Export CSV

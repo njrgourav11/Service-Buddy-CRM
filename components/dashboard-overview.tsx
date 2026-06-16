@@ -715,7 +715,7 @@ export function DashboardOverview() {
                           <td className="px-4 py-3 font-semibold text-xs text-foreground">
                             <div className="flex items-center gap-1.5">
                               <span>{customerName}</span>
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
                             </div>
                           </td>
                           <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
@@ -724,8 +724,8 @@ export function DashboardOverview() {
                               {b.serviceType}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(b.notes) || ""}>
-                            {getDisplayNotes(b.notes) || "—"}
+                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
+                            {getDisplayNotes(cust?.notes || b.notes) || "—"}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
@@ -1292,7 +1292,7 @@ export function DashboardOverview() {
                         <td className="px-4 py-3 font-semibold text-xs text-foreground">
                           <div className="flex items-center gap-1.5">
                             <span>{customerName}</span>
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
                           </div>
                         </td>
                         <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
@@ -1304,8 +1304,8 @@ export function DashboardOverview() {
                         <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
                           ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(b.notes) || ""}>
-                          {getDisplayNotes(b.notes) || "—"}
+                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
+                          {getDisplayNotes(cust?.notes || b.notes) || "—"}
                         </td>
                         <td className="px-4 py-3">
                           <Badge

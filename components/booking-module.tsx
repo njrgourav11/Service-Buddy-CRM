@@ -62,7 +62,8 @@ export function BookingModule() {
     updateCustomer,
     updateBooking, 
     deleteBooking,
-    currentRole 
+    currentRole,
+    setActiveTab
   } = useCRM()
 
   // Sub-module switcher
@@ -207,19 +208,24 @@ export function BookingModule() {
     const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
     const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
     const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
-    const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
-    const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-    const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
 
     setEditTotalCommission(totalCommission)
     setEditTechnicianCommission(technicianCommission)
     setEditCompanyCommission(companyCommission)
     setEditTechnicianServiceCommission(technicianServiceCommission)
     setEditCompanyServiceCommission(companyServiceCommission)
-    setEditTotalTechnicianAmount(totalTechnicianAmount)
-    setEditTotalCompanyAmount(totalCompanyAmount)
-    setEditTotalConsumerAmount(totalConsumerAmount)
   }, [editSpareCost, editSparePrice, editServiceCharge, selectedBooking, loadedBookingId])
+
+  // Synchronize totals in real-time when individual overrides or costs change
+  React.useEffect(() => {
+    const totalTech = Math.round((editTechnicianCommission + editTechnicianServiceCommission) * 100) / 100
+    const totalComp = Math.round((editCompanyCommission + editCompanyServiceCommission) * 100) / 100
+    const totalConsumer = Math.round((editSpareCost + editTechnicianCommission + editCompanyCommission + editTechnicianServiceCommission + editCompanyServiceCommission) * 100) / 100
+
+    setEditTotalTechnicianAmount(totalTech)
+    setEditTotalCompanyAmount(totalComp)
+    setEditTotalConsumerAmount(totalConsumer)
+  }, [editSpareCost, editTechnicianCommission, editCompanyCommission, editTechnicianServiceCommission, editCompanyServiceCommission])
 
   // Helpers for multi-technician displays
   const getTechNames = (idString: string) => {
@@ -264,9 +270,9 @@ export function BookingModule() {
     setEditCustMobile(cust?.mobile || "")
     setEditCustAddress(cust?.address || "")
     setEditCustReferral(cust?.referralSource || "Ad")
-    setEditCustNotes(getDisplayNotes(b.notes) || "")
-    setEditCustReview(b.review || "")
-    setEditCustReviewStatus(b.reviewStatus || "Review not done")
+    setEditCustNotes(getDisplayNotes(cust?.notes || b.notes) || "")
+    setEditCustReview(b.review || cust?.review || "")
+    setEditCustReviewStatus(b.reviewStatus || cust?.reviewStatus || "Review not done")
 
     // Seed calculations
     const spareCost = b.spareCost || 0
@@ -336,7 +342,10 @@ export function BookingModule() {
       name: editCustName,
       mobile: editCustMobile,
       address: editCustAddress,
-      referralSource: editCustReferral
+      referralSource: editCustReferral,
+      notes: editCustNotes,
+      review: editCustReview,
+      reviewStatus: editCustReviewStatus as any
     })
     
     setIsDetailsOpen(false)
@@ -411,7 +420,7 @@ export function BookingModule() {
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
-      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
+      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || cust?.reviewStatus || "Review not done") === reviewFilter
 
       // Date filtering logic
       let matchesDate = true
@@ -652,6 +661,11 @@ export function BookingModule() {
               </div>
 
               {/* CSV Exporter */}
+              <Button onClick={() => setActiveTab("import")} variant="outline" size="sm" className="h-9">
+                <HugeiconsIcon icon={Database01Icon} strokeWidth={2} className="size-4" />
+                Import Ledger
+              </Button>
+
               <Button onClick={handleExportCSV} variant="outline" size="sm" className="h-9">
                 <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
                 Export Ledger CSV
@@ -1066,27 +1080,27 @@ export function BookingModule() {
                                 {cust?.referralSource || "Other"}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={b.review}>
-                              {b.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
+                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={b.review || cust?.review || ""}>
+                              {b.review || cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
                             </td>
                             <td className="px-3 py-2.5">
                               <Select 
-                                value={b.reviewStatus || "Review not done"} 
+                                value={b.reviewStatus || cust?.reviewStatus || "Review not done"} 
                                 onValueChange={(val) => {
                                   updateBooking(b.id, { reviewStatus: val as any })
                                 }}
                               >
                                 <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                  (b.reviewStatus || "Review not done") === "Positive" 
+                                  (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Positive" 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                    : (b.reviewStatus || "Review not done") === "Negative" 
+                                    : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Negative" 
                                     ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                    : (b.reviewStatus || "Review not done") === "Call didn't receive"
+                                    : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Call didn't receive"
                                     ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                     : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                 }`}>
                                   <div className="flex items-center gap-1.5">
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} />
                                     <SelectValue />
                                   </div>
                                 </SelectTrigger>
@@ -1098,8 +1112,8 @@ export function BookingModule() {
                                 </SelectContent>
                               </Select>
                             </td>
-                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(b.notes)}>
-                              {getDisplayNotes(b.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
+                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes || b.notes)}>
+                              {getDisplayNotes(cust?.notes || b.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
                             </td>
  
                             {/* Booking columns */}
@@ -1274,27 +1288,27 @@ export function BookingModule() {
                                   <span className="text-[10px] text-muted-foreground tabular-nums">{cust?.mobile}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={b.review || ""}>
-                                {b.review || <span className="text-muted-foreground/45">—</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={b.review || cust?.review || ""}>
+                                {b.review || cust?.review || <span className="text-muted-foreground/45">—</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4">
                                 <Select 
-                                  value={b.reviewStatus || "Review not done"} 
+                                  value={b.reviewStatus || cust?.reviewStatus || "Review not done"} 
                                   onValueChange={(val) => {
                                     updateBooking(b.id, { reviewStatus: val as any })
                                   }}
                                 >
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                    (b.reviewStatus || "Review not done") === "Positive" 
+                                    (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Positive" 
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : (b.reviewStatus || "Review not done") === "Negative" 
+                                      : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Negative" 
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                      : (b.reviewStatus || "Review not done") === "Call didn't receive"
+                                      : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Call didn't receive"
                                       ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                       : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                   }`}>
                                     <div className="flex items-center gap-1.5">
-                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} />
                                       <SelectValue />
                                     </div>
                                   </SelectTrigger>
@@ -1324,8 +1338,8 @@ export function BookingModule() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(b.notes) || ""}>
-                                {getDisplayNotes(b.notes) || <span className="text-muted-foreground/45">None</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
+                                {getDisplayNotes(cust?.notes || b.notes) || <span className="text-muted-foreground/45">None</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
@@ -1481,7 +1495,7 @@ export function BookingModule() {
                           </div>
                           <CardTitle className="text-sm font-bold text-foreground mt-2.5 flex items-center justify-between gap-2">
                             <span className="truncate">{cust?.name || "Unknown"}</span>
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(cust?.reviewStatus || "Review not done")}`} title={cust?.reviewStatus || "Review not done"} />
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
                           </CardTitle>
                           <CardDescription className="text-[10px] font-semibold text-muted-foreground flex gap-1 items-center mt-0.5">
                             <Badge className="text-[9px] font-bold py-0 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
@@ -1523,9 +1537,9 @@ export function BookingModule() {
                             <div className="line-clamp-2">
                               <span className="font-bold text-foreground">Complaint:</span> {b.issue}
                             </div>
-                            {getDisplayNotes(b.notes) && (
+                            {getDisplayNotes(cust?.notes || b.notes) && (
                               <div className="line-clamp-1">
-                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(b.notes)}
+                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(cust?.notes || b.notes)}
                               </div>
                             )}
                             {b.spareName !== "None" && (
@@ -2031,7 +2045,12 @@ export function BookingModule() {
                       <Input 
                         type="number" 
                         value={editTotalCommission} 
-                        onChange={(e) => setEditTotalCommission(parseFloat(e.target.value) || 0)} 
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0
+                          setEditTotalCommission(val)
+                          setEditTechnicianCommission(Math.round(val * 0.7 * 100) / 100)
+                          setEditCompanyCommission(Math.round(val * 0.3 * 100) / 100)
+                        }} 
                         className="h-8 text-xs font-semibold tabular-nums"
                       />
                     </div>

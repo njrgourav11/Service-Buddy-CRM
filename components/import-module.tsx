@@ -32,6 +32,16 @@ interface ColumnMapping {
   type: "string" | "number" | "date"
 }
 
+const cleanReviewStatus = (status?: string): "Review not done" | "Positive" | "Negative" | "Call didn't receive" => {
+  if (!status) return "Review not done"
+  const s = status.trim().toLowerCase()
+  if (s === "positive") return "Positive"
+  if (s === "negative") return "Negative"
+  if (s === "unreachable" || s === "call didn't receive" || s === "call didnt receive") return "Call didn't receive"
+  if (s === "pending" || s === "review not done" || s === "not done") return "Review not done"
+  return "Review not done"
+}
+
 export function ImportModule() {
   const crm = useCRM()
   
@@ -44,7 +54,7 @@ export function ImportModule() {
   const [excelRows, setExcelRows] = React.useState<any[][]>([])
   
   // Importer settings
-  const [importTarget, setImportTarget] = React.useState<ImportTarget>("customers")
+  const [importTarget, setImportTarget] = React.useState<ImportTarget>("contacts")
   const [mappings, setMappings] = React.useState<ColumnMapping[]>([])
   const [previewRows, setPreviewRows] = React.useState<any[]>([])
   const [importing, setImporting] = React.useState(false)
@@ -61,6 +71,7 @@ export function ImportModule() {
       { dbField: "referralSource", label: "Referral Channel (Source)", required: false, type: "string" },
       { dbField: "notes", label: "Internal Memo Notes", required: false, type: "string" },
       { dbField: "review", label: "Satisfaction Review", required: false, type: "string" },
+      { dbField: "reviewStatus", label: "Satisfaction Status", required: false, type: "string" },
     ],
     bookings: [
       { dbField: "id", label: "CIN / Booking Ref (Auto-generates if blank)", required: false, type: "string" },
@@ -71,6 +82,7 @@ export function ImportModule() {
       { dbField: "referralSource", label: "Referral Source", required: false, type: "string" },
       { dbField: "notes", label: "Customer Notes", required: false, type: "string" },
       { dbField: "review", label: "Satisfaction Review", required: false, type: "string" },
+      { dbField: "reviewStatus", label: "Satisfaction Status", required: false, type: "string" },
       { dbField: "appliance", label: "Appliance (AC, TV, etc.)", required: false, type: "string" },
       { dbField: "serviceType", label: "Service Type", required: false, type: "string" },
       { dbField: "issue", label: "Issue Details", required: false, type: "string" },
@@ -841,6 +853,7 @@ export function ImportModule() {
             referralSource: (mappedObj.referralSource || "Other") as any,
             notes: mappedObj.notes || "Imported via Excel migration",
             review: mappedObj.review || "",
+            reviewStatus: cleanReviewStatus(mappedObj.reviewStatus || (mappedObj.review ? "Positive" : "Review not done")),
             status: "Active" as const,
             createdAt: new Date().toISOString().split("T")[0]
           }
@@ -890,11 +903,13 @@ export function ImportModule() {
           
           let finalCustomerId = ""
           if (custMatch) {
+            const updatedNotes = mappedObj.notes ? (custMatch.notes ? `${custMatch.notes} | ${mappedObj.notes}` : mappedObj.notes) : custMatch.notes
             const updatedCust = {
               ...custMatch,
               referralSource: cleanReferral(mappedObj.referralSource),
-              notes: mappedObj.notes ? `${custMatch.notes} | ${mappedObj.notes}` : custMatch.notes,
-              review: mappedObj.review || custMatch.review
+              notes: updatedNotes,
+              review: mappedObj.review || custMatch.review,
+              reviewStatus: cleanReviewStatus(mappedObj.reviewStatus || (mappedObj.review ? "Positive" : custMatch.reviewStatus || "Review not done"))
             }
             const idx = localCustomers.findIndex(c => c.id === custMatch.id)
             if (idx !== -1) {
@@ -906,8 +921,9 @@ export function ImportModule() {
             } else {
               crm.updateCustomer(custMatch.id, {
                 referralSource: cleanReferral(mappedObj.referralSource),
-                notes: mappedObj.notes,
-                review: mappedObj.review
+                notes: updatedNotes,
+                review: mappedObj.review || custMatch.review,
+                reviewStatus: cleanReviewStatus(mappedObj.reviewStatus || (mappedObj.review ? "Positive" : custMatch.reviewStatus || "Review not done"))
               })
             }
             finalCustomerId = custMatch.id
@@ -923,6 +939,7 @@ export function ImportModule() {
               referralSource: cleanReferral(mappedObj.referralSource),
               notes: mappedObj.notes || "Imported via Merged Spreadsheet Migration",
               review: mappedObj.review || "",
+              reviewStatus: cleanReviewStatus(mappedObj.reviewStatus || (mappedObj.review ? "Positive" : "Review not done")),
               status: "Active" as const,
               createdAt: new Date().toISOString().split("T")[0]
             }
@@ -1021,6 +1038,8 @@ export function ImportModule() {
             sparePrice: mappedObj.sparePrice || 0,
             serviceCharge: mappedObj.serviceCharge || 350,
             status: cleanStatus(mappedObj.status),
+            review: mappedObj.review || "",
+            reviewStatus: cleanReviewStatus(mappedObj.reviewStatus || (mappedObj.review ? "Positive" : "Review not done")),
             ...finance
           }
 

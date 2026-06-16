@@ -408,19 +408,27 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const computeBookingFinance = (booking: Booking, forceRecalculate = false): Booking => {
     const calculations = calculateBookingFinance(booking.spareCost || 0, booking.sparePrice || 0, booking.serviceCharge || 0)
-    if (forceRecalculate) {
-      return { ...calculations, ...booking }
-    }
+    
+    const totalComm = booking.totalCommission !== undefined && booking.totalCommission !== null ? booking.totalCommission : calculations.totalCommission
+    const techComm = booking.technicianCommission !== undefined && booking.technicianCommission !== null ? booking.technicianCommission : calculations.technicianCommission
+    const compComm = booking.companyCommission !== undefined && booking.companyCommission !== null ? booking.companyCommission : calculations.companyCommission
+    const techServComm = booking.technicianServiceCommission !== undefined && booking.technicianServiceCommission !== null ? booking.technicianServiceCommission : calculations.technicianServiceCommission
+    const compServComm = booking.companyServiceCommission !== undefined && booking.companyServiceCommission !== null ? booking.companyServiceCommission : calculations.companyServiceCommission
+
+    const totalTech = Math.round((techComm + techServComm) * 100) / 100
+    const totalComp = Math.round((compComm + compServComm) * 100) / 100
+    const totalConsumer = Math.round(((booking.spareCost || 0) + techComm + compComm + techServComm + compServComm) * 100) / 100
+
     return {
-      totalCommission: booking.totalCommission !== undefined ? booking.totalCommission : calculations.totalCommission,
-      technicianCommission: booking.technicianCommission !== undefined ? booking.technicianCommission : calculations.technicianCommission,
-      companyCommission: booking.companyCommission !== undefined ? booking.companyCommission : calculations.companyCommission,
-      technicianServiceCommission: booking.technicianServiceCommission !== undefined ? booking.technicianServiceCommission : calculations.technicianServiceCommission,
-      companyServiceCommission: booking.companyServiceCommission !== undefined ? booking.companyServiceCommission : calculations.companyServiceCommission,
-      totalTechnicianAmount: booking.totalTechnicianAmount !== undefined ? booking.totalTechnicianAmount : calculations.totalTechnicianAmount,
-      totalCompanyAmount: booking.totalCompanyAmount !== undefined ? booking.totalCompanyAmount : calculations.totalCompanyAmount,
-      totalConsumerAmount: booking.totalConsumerAmount !== undefined ? booking.totalConsumerAmount : calculations.totalConsumerAmount,
       ...booking,
+      totalCommission: totalComm,
+      technicianCommission: techComm,
+      companyCommission: compComm,
+      technicianServiceCommission: techServComm,
+      companyServiceCommission: compServComm,
+      totalTechnicianAmount: totalTech,
+      totalCompanyAmount: totalComp,
+      totalConsumerAmount: totalConsumer,
     }
   }
 
@@ -908,17 +916,52 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const oldStatus = b.status
     const newStatus = updates.status || b.status
     
-    if (oldStatus === "Completed") {
+    if (oldStatus === "Completed" && newStatus !== "Completed") {
       handleTechnicianReversal(b.id)
     }
 
     const combined = { ...b, ...updates }
-    const calculated = computeBookingFinance(combined, true)
+    
+    const priceInputsChanged = 
+      (updates.spareCost !== undefined && updates.spareCost !== b.spareCost) ||
+      (updates.sparePrice !== undefined && updates.sparePrice !== b.sparePrice) ||
+      (updates.serviceCharge !== undefined && updates.serviceCharge !== b.serviceCharge)
+
+    const hasExplicitSplits = 
+      updates.technicianCommission !== undefined || 
+      updates.technicianServiceCommission !== undefined || 
+      updates.companyCommission !== undefined || 
+      updates.companyServiceCommission !== undefined
+
+    let calculated: Booking
+    if (priceInputsChanged && !hasExplicitSplits) {
+      const calculations = calculateBookingFinance(combined.spareCost || 0, combined.sparePrice || 0, combined.serviceCharge || 0)
+      calculated = {
+        ...combined,
+        ...calculations
+      }
+    } else {
+      calculated = computeBookingFinance(combined)
+    }
 
     if (isFirebaseEnabled && db) {
       setDoc(doc(db, "bookings", id), calculated)
     } else {
       setBookings(prev => prev.map(item => item.id === id ? calculated : item))
+    }
+
+    // Sync review status and notes to customer profile silently if updated on the booking
+    if (updates.reviewStatus !== undefined || updates.review !== undefined || updates.notes !== undefined) {
+      const custUpdates: Partial<Customer> = {}
+      if (updates.reviewStatus !== undefined) custUpdates.reviewStatus = updates.reviewStatus
+      if (updates.review !== undefined) custUpdates.review = updates.review
+      if (updates.notes !== undefined) custUpdates.notes = updates.notes
+
+      if (isFirebaseEnabled && db) {
+        updateDoc(doc(db, "customers", b.customerId), custUpdates)
+      } else {
+        setCustomers(prev => prev.map(c => c.id === b.customerId ? { ...c, ...custUpdates } : c))
+      }
     }
 
     // Impact technician payout balances if status flipped to Completed or remains Completed
