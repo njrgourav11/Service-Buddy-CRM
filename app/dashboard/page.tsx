@@ -23,6 +23,7 @@ import { RemindersModule } from "@/components/reminders-module"
 import { ReportsModule } from "@/components/reports-module"
 import { ImportModule } from "@/components/import-module"
 import { ComplaintsModule } from "@/components/complaints-module"
+import { OfflineBlocker } from "@/components/offline-blocker"
 
 // Wrapper component to enable useCRM inside the providers
 function DashboardContent() {
@@ -89,6 +90,10 @@ function DashboardContent() {
     }
   }
 
+  if (!isOnline) {
+    return <OfflineBlocker />
+  }
+
   return (
     <TooltipProvider>
       <SidebarProvider
@@ -102,11 +107,6 @@ function DashboardContent() {
         <AppSidebar variant="inset" />
         <SidebarInset>
           <SiteHeader />
-          {!isOnline && (
-            <div className="bg-amber-500 text-white font-bold text-xs py-2.5 px-4 text-center border-b border-amber-600 animate-in fade-in duration-200">
-              ⚠️ No Internet Connection. Saved changes will only be stored locally and won't sync to the cloud database.
-            </div>
-          )}
           <div className="flex flex-1 flex-col overflow-y-auto min-w-0 max-w-full">
             {renderTabContent()}
           </div>

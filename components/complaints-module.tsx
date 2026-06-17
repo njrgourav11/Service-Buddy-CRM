@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/table"
 
 export function ComplaintsModule() {
-  const { bookings, customers, updateBooking, addCustomer, addBooking, currentRole } = useCRM()
+  const { bookings, customers, technicians, updateBooking, addCustomer, addBooking, currentRole } = useCRM()
 
   // State managers
   const [search, setSearch] = React.useState("")
@@ -600,6 +600,7 @@ export function ComplaintsModule() {
                       ) : (
                         availableBookingsForComplaint.map(b => {
                           const cust = customers.find(c => c.id === b.customerId)
+                          const tech = technicians.find(t => t.id === b.assignedTechnicianId)
                           const isSelected = selectedBookingId === b.id
                           return (
                             <button
@@ -617,10 +618,12 @@ export function ComplaintsModule() {
                                   <span>{b.id}</span>
                                   <span className="text-[10px] text-muted-foreground">({b.appliance})</span>
                                 </div>
-                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                   <span>Client: {cust?.name}</span>
                                   <span className="text-border">•</span>
                                   <span>Mobile: {cust?.mobile}</span>
+                                  <span className="text-border">•</span>
+                                  <span>Tech: {tech?.name || "Unassigned"}</span>
                                   <span className="text-border">•</span>
                                   <span>Date: {b.date}</span>
                                 </div>

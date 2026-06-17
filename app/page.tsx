@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { isFirebaseEnabled, auth } from "@/lib/firebase"
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from "firebase/auth"
+import { OfflineBlocker } from "@/components/offline-blocker"
 
 type SelectedRole = "Admin" | "Manager"
 type AuthMode = "signin" | "signup"
@@ -19,6 +20,32 @@ export default function Home() {
   const [email, setEmail] = React.useState("admin@servicebuddy.com")
   const [password, setPassword] = React.useState("admin123")
   const [loading, setLoading] = React.useState(false)
+
+  const [isOnline, setIsOnline] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return window.navigator.onLine
+    }
+    return true
+  })
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleOnline = () => setIsOnline(true)
+      const handleOffline = () => setIsOnline(false)
+
+      window.addEventListener("online", handleOnline)
+      window.addEventListener("offline", handleOffline)
+
+      return () => {
+        window.removeEventListener("online", handleOnline)
+        window.removeEventListener("offline", handleOffline)
+      }
+    }
+  }, [])
+
+  if (!isOnline) {
+    return <OfflineBlocker />
+  }
 
   // Redirect to dashboard if already logged in
   React.useEffect(() => {
