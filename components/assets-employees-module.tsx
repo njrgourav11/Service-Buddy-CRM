@@ -220,13 +220,15 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {currentRole === "Admin" && (
-            initialSubTab === "assets" ? (
+          {initialSubTab === "assets" ? (
+            currentRole === "Admin" && (
               <Button onClick={() => setIsAssetOpen(true)} className="h-9 text-xs">
                 <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
                 Register Asset
               </Button>
-            ) : (
+            )
+          ) : (
+            (currentRole === "Admin" || currentRole === "Manager") && (
               <Button onClick={() => setIsEmployeeOpen(true)} className="h-9 text-xs">
                 <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
                 Onboard Staff
@@ -495,7 +497,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                     <th className="px-4 py-3 text-right">Monthly Salary</th>
                     <th className="px-4 py-3">Joining Date</th>
                     <th className="px-4 py-3">Roster Status</th>
-                    {currentRole === "Admin" && <th className="px-4 py-3 text-right">Actions</th>}
+                    {(currentRole === "Admin" || currentRole === "Manager") && <th className="px-4 py-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -519,7 +521,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                         <td className="px-4 py-4">
                           <Badge 
                             variant="outline"
-                            onClick={() => currentRole === "Admin" && updateEmployee(emp.id, { status: emp.status === "Active" ? "Inactive" : "Active" })}
+                            onClick={() => (currentRole === "Admin" || currentRole === "Manager") && updateEmployee(emp.id, { status: emp.status === "Active" ? "Inactive" : "Active" })}
                             className={`text-[9px] font-bold py-0.5 px-1.5 cursor-pointer ${
                               emp.status === "Active" 
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
@@ -529,7 +531,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                             {emp.status}
                           </Badge>
                         </td>
-                        {currentRole === "Admin" && (
+                        {(currentRole === "Admin" || currentRole === "Manager") && (
                           <td className="px-4 py-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <Button 
@@ -540,17 +542,19 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                               >
                                 Edit
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete employee staff profile for ${emp.name}?`)) {
-                                    deleteEmployee(emp.id)
-                                  }
-                                }}
-                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                              >
-                                ×
-                              </Button>
+                              {currentRole === "Admin" && (
+                                <Button 
+                                  variant="ghost" 
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete employee staff profile for ${emp.name}?`)) {
+                                      deleteEmployee(emp.id)
+                                    }
+                                  }}
+                                  className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                >
+                                  ×
+                                </Button>
+                              )}
                             </div>
                           </td>
                         )}

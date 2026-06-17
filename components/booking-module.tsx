@@ -63,7 +63,8 @@ export function BookingModule() {
     updateBooking, 
     deleteBooking,
     currentRole,
-    setActiveTab
+    setActiveTab,
+    calculateBookingFinance
   } = useCRM()
 
   // Sub-module switcher
@@ -116,6 +117,7 @@ export function BookingModule() {
   const [editTotalTechnicianAmount, setEditTotalTechnicianAmount] = React.useState(0)
   const [editTotalCompanyAmount, setEditTotalCompanyAmount] = React.useState(0)
   const [editTotalConsumerAmount, setEditTotalConsumerAmount] = React.useState(0)
+  const [overrideFormula, setOverrideFormula] = React.useState(false)
 
   // Dynamic Spares arrays
   const [formSpares, setFormSpares] = React.useState<BookingSpare[]>([])
@@ -125,6 +127,7 @@ export function BookingModule() {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
   const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null)
+  const isPayoutFieldsDisabled = !!(currentRole === "Manager" && selectedBooking && (selectedBooking.payoutEditedCount || 0) >= 1)
 
   // Creation Form State
   const [formCustomerId, setFormCustomerId] = React.useState("")
@@ -191,6 +194,8 @@ export function BookingModule() {
 
   // Calculation Recalculator Effect for edits
   React.useEffect(() => {
+    if (overrideFormula) return // Skip defaults auto-fill if formula overrides is enabled!
+    
     if (selectedBooking && selectedBooking.id === loadedBookingId) {
       const matchesCost = editSpareCost === selectedBooking.spareCost
       const matchesPrice = editSparePrice === selectedBooking.sparePrice
@@ -214,7 +219,7 @@ export function BookingModule() {
     setEditCompanyCommission(companyCommission)
     setEditTechnicianServiceCommission(technicianServiceCommission)
     setEditCompanyServiceCommission(companyServiceCommission)
-  }, [editSpareCost, editSparePrice, editServiceCharge, selectedBooking, loadedBookingId])
+  }, [editSpareCost, editSparePrice, editServiceCharge, selectedBooking, loadedBookingId, overrideFormula])
 
   // Synchronize totals in real-time when individual overrides or costs change
   React.useEffect(() => {
@@ -271,8 +276,8 @@ export function BookingModule() {
     setEditCustAddress(cust?.address || "")
     setEditCustReferral(cust?.referralSource || "Ad")
     setEditCustNotes(getDisplayNotes(cust?.notes || b.notes) || "")
-    setEditCustReview(b.review || cust?.review || "")
-    setEditCustReviewStatus(b.reviewStatus || cust?.reviewStatus || "Review not done")
+    setEditCustReview(b.review || "")
+    setEditCustReviewStatus(b.reviewStatus || "Review not done")
 
     // Seed calculations
     const spareCost = b.spareCost || 0
@@ -293,6 +298,16 @@ export function BookingModule() {
     setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((technicianCommission + technicianServiceCommission) * 100) / 100)
     setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((companyCommission + companyServiceCommission) * 100) / 100)
     setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : calculatedConsumerAmount)
+
+    // Detect if split overrides differ from formula defaults
+    const calculations = calculateBookingFinance(spareCost, sparePrice, serviceCharge)
+    const isOverridden = 
+      (b.technicianCommission !== undefined && b.technicianCommission !== calculations.technicianCommission) ||
+      (b.companyCommission !== undefined && b.companyCommission !== calculations.companyCommission) ||
+      (b.technicianServiceCommission !== undefined && b.technicianServiceCommission !== calculations.technicianServiceCommission) ||
+      (b.companyServiceCommission !== undefined && b.companyServiceCommission !== calculations.companyServiceCommission)
+    
+    setOverrideFormula(isOverridden)
 
     // Seed sparesUsed
     setEditSpares(b.sparesUsed || (b.spareName && b.spareName !== "None" ? [{ name: b.spareName, cost: b.spareCost, price: b.sparePrice, qty: 1 }] : []))
@@ -412,15 +427,15 @@ export function BookingModule() {
     return bookings.filter((b) => {
       const cust = customers.find(c => c.id === b.customerId)
       
-      const techNames = b.assignedTechnicianId 
-        ? b.assignedTechnicianId.split(",").map(id => technicians.find(t => t.id === id.trim())?.name || "").filter(Boolean).join(" ")
-        : ""
-      const searchString = `${b.id} ${b.issue} ${cust?.name || ""} ${techNames}`.toLowerCase()
+      const searchString = `${b.id} ${b.issue} ${cust?.name || ""}`.toLowerCase()
       const matchesSearch = searchString.includes(search.toLowerCase())
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
-      const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
-      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || cust?.reviewStatus || "Review not done") === reviewFilter
+      const matchesStatus = statusFilter === "ALL" || 
+        (statusFilter === "PENDING" 
+          ? (b.status !== "Completed" && b.status !== "Cancelled") 
+          : b.status === statusFilter)
+      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
 
       // Date filtering logic
       let matchesDate = true
@@ -680,26 +695,33 @@ export function BookingModule() {
 
           {/* Bookings Analytics Stat Cards Panel */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+            <Card 
+              onClick={() => setStatusFilter("Completed")}
+              className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer transition-all hover:scale-[1.01] hover:border-primary/30 active:scale-95"
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Bookings</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Completed Jobs</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2.5} className="size-4" />
                 </div>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{bookings.length}</span>
-                  <span className="text-xs text-muted-foreground font-medium">jobs logged</span>
+                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+                    {bookings.filter(b => b.status === "Completed").length}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-medium font-bold text-emerald-600">completed</span>
                 </div>
                 <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block animate-pulse"></span>
-                  {bookings.filter(b => b.status === "Completed").length} completed successfully
+                  Total bookings logged: {bookings.length}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+            <Card 
+              onClick={() => setStatusFilter("PENDING")}
+              className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer transition-all hover:scale-[1.01] hover:border-primary/30 active:scale-95"
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Workload</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
@@ -711,7 +733,7 @@ export function BookingModule() {
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
                     {bookings.filter(b => b.status === "In Progress" || b.status === "Not Started" || b.status === "Inspected").length}
                   </span>
-                  <span className="text-xs text-muted-foreground font-medium">pending jobs</span>
+                  <span className="text-xs text-muted-foreground font-medium font-bold text-amber-600">pending jobs</span>
                 </div>
                 <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
                   {bookings.filter(b => b.status === "In Progress").length} currently in progress on site
@@ -719,7 +741,10 @@ export function BookingModule() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+            <Card 
+              onClick={() => setStatusFilter("ALL")}
+              className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer transition-all hover:scale-[1.01] hover:border-primary/30 active:scale-95"
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gross Billing</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
@@ -734,12 +759,18 @@ export function BookingModule() {
                   <span className="text-xs text-muted-foreground font-medium">total volume</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium mt-1.5">
-                  Avg value: ₹{bookings.length ? Math.round(bookings.reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0) / bookings.length) : 0} per service order
+                  Avg (Comp/Insp): ₹{(() => {
+                    const compOrInsp = bookings.filter(b => b.status === "Completed" || b.status === "Inspected");
+                    return compOrInsp.length ? Math.round(compOrInsp.reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0) / compOrInsp.length) : 0;
+                  })()} per service order
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+            <Card 
+              onClick={() => setActiveSubTab("customers")}
+              className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer transition-all hover:scale-[1.01] hover:border-primary/30 active:scale-95"
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Registered Customers</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
@@ -749,7 +780,7 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{customers.length}</span>
-                  <span className="text-xs text-muted-foreground font-medium">clients onboarded</span>
+                  <span className="text-xs text-muted-foreground font-medium font-bold text-blue-600">clients onboarded</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium mt-1.5">
                   Repeat clients: {customers.filter(c => bookings.filter(b => b.customerId === c.id).length > 1).length}
@@ -841,6 +872,7 @@ export function BookingModule() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Status</SelectItem>
+                      <SelectItem value="PENDING">Pending Jobs</SelectItem>
                       <SelectItem value="Not Started">Not Started</SelectItem>
                       <SelectItem value="In Progress">In Progress</SelectItem>
                       <SelectItem value="Inspected">Inspected</SelectItem>
@@ -1080,27 +1112,27 @@ export function BookingModule() {
                                 {cust?.referralSource || "Other"}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={b.review || cust?.review || ""}>
-                              {b.review || cust?.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
+                            <td className="px-3 py-2.5 text-foreground font-medium truncate max-w-[200px]" title={b.review || ""}>
+                              {b.review || <span className="text-[9px] text-muted-foreground/45">No review text</span>}
                             </td>
                             <td className="px-3 py-2.5">
                               <Select 
-                                value={b.reviewStatus || cust?.reviewStatus || "Review not done"} 
+                                value={b.reviewStatus || "Review not done"} 
                                 onValueChange={(val) => {
                                   updateBooking(b.id, { reviewStatus: val as any })
                                 }}
                               >
                                 <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                  (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Positive" 
+                                  (b.reviewStatus || "Review not done") === "Positive" 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                    : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Negative" 
+                                    : (b.reviewStatus || "Review not done") === "Negative" 
                                     ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                    : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                    : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                     ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                     : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                 }`}>
                                   <div className="flex items-center gap-1.5">
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} />
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
                                     <SelectValue />
                                   </div>
                                 </SelectTrigger>
@@ -1288,27 +1320,27 @@ export function BookingModule() {
                                   <span className="text-[10px] text-muted-foreground tabular-nums">{cust?.mobile}</span>
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={b.review || cust?.review || ""}>
-                                {b.review || cust?.review || <span className="text-muted-foreground/45">—</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-foreground" title={b.review || ""}>
+                                {b.review || <span className="text-muted-foreground/45">—</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4">
                                 <Select 
-                                  value={b.reviewStatus || cust?.reviewStatus || "Review not done"} 
+                                  value={b.reviewStatus || "Review not done"} 
                                   onValueChange={(val) => {
                                     updateBooking(b.id, { reviewStatus: val as any })
                                   }}
                                 >
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
-                                    (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Positive" 
+                                    (b.reviewStatus || "Review not done") === "Positive" 
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Negative" 
+                                      : (b.reviewStatus || "Review not done") === "Negative" 
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                      : (b.reviewStatus || cust?.reviewStatus || "Review not done") === "Call didn't receive"
+                                      : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                       ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
                                       : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
                                   }`}>
                                     <div className="flex items-center gap-1.5">
-                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} />
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} />
                                       <SelectValue />
                                     </div>
                                   </SelectTrigger>
@@ -1495,7 +1527,7 @@ export function BookingModule() {
                           </div>
                           <CardTitle className="text-sm font-bold text-foreground mt-2.5 flex items-center justify-between gap-2">
                             <span className="truncate">{cust?.name || "Unknown"}</span>
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
                           </CardTitle>
                           <CardDescription className="text-[10px] font-semibold text-muted-foreground flex gap-1 items-center mt-0.5">
                             <Badge className="text-[9px] font-bold py-0 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
@@ -1870,6 +1902,7 @@ export function BookingModule() {
                       size="sm" 
                       onClick={() => setEditSpares([...editSpares, { name: "", cost: 0, price: 0, qty: 1 }])}
                       className="h-7 text-[10px] font-bold"
+                      disabled={isPayoutFieldsDisabled}
                     >
                       + Add Spare Item
                     </Button>
@@ -1881,14 +1914,16 @@ export function BookingModule() {
                     <div className="flex flex-col gap-3">
                       {editSpares.map((sp, idx) => (
                         <div key={idx} className="flex flex-col gap-2 p-2 border rounded-lg bg-background relative">
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            onClick={() => setEditSpares(editSpares.filter((_, i) => i !== idx))}
-                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
-                          >
-                            ×
-                          </Button>
+                          {!isPayoutFieldsDisabled && (
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              onClick={() => setEditSpares(editSpares.filter((_, i) => i !== idx))}
+                              className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
+                            >
+                              ×
+                            </Button>
+                          )}
                           
                           <div className="grid grid-cols-1 gap-2">
                             <div>
@@ -1907,6 +1942,7 @@ export function BookingModule() {
                                   }
                                   setEditSpares(updated)
                                 }}
+                                disabled={isPayoutFieldsDisabled}
                               >
                                 <SelectTrigger className="h-7 text-[11px]">
                                   <SelectValue placeholder="Custom / Manual Entry" />
@@ -1932,6 +1968,7 @@ export function BookingModule() {
                                 }}
                                 className="h-7 text-xs"
                                 required
+                                disabled={isPayoutFieldsDisabled}
                               />
                             </div>
                           </div>
@@ -1950,6 +1987,7 @@ export function BookingModule() {
                                 }}
                                 className="h-7 text-xs font-semibold tabular-nums"
                                 required
+                                disabled={isPayoutFieldsDisabled}
                               />
                             </div>
                             
@@ -1966,6 +2004,7 @@ export function BookingModule() {
                                 }}
                                 className="h-7 text-xs font-semibold tabular-nums"
                                 required
+                                disabled={isPayoutFieldsDisabled}
                               />
                             </div>
 
@@ -1982,6 +2021,7 @@ export function BookingModule() {
                                 }}
                                 className="h-7 text-xs font-semibold tabular-nums"
                                 required
+                                disabled={isPayoutFieldsDisabled}
                               />
                             </div>
                           </div>
@@ -2009,34 +2049,65 @@ export function BookingModule() {
                       value={editServiceCharge} 
                       onChange={(e) => setEditServiceCharge(parseFloat(e.target.value) || 0)} 
                       className="h-8 text-xs font-semibold tabular-nums text-amber-600"
+                      disabled={isPayoutFieldsDisabled}
                     />
                   </div>
                 </div>
 
                 {/* 5. Pricing splits overrides */}
                 <div className="rounded-lg border border-border bg-primary/5 p-3.5 flex flex-col gap-3.5">
+                  {isPayoutFieldsDisabled && (
+                    <div className="bg-destructive/10 text-destructive border border-destructive/20 text-[10px] p-2 rounded-md font-semibold flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <HugeiconsIcon icon={Alert02Icon} strokeWidth={2.5} className="size-3.5" />
+                      Payout fields are locked. Managers can only edit booking finances once.
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between bg-background/50 p-2 rounded-lg border border-border/40 my-1">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-foreground">Override Default Formulas</span>
+                      <span className="text-[9px] text-muted-foreground">Enable to manually edit commissions & payouts</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isPayoutFieldsDisabled}
+                      onClick={() => setOverrideFormula(!overrideFormula)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                        overrideFormula ? 'bg-primary' : 'bg-input'
+                      } ${isPayoutFieldsDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          overrideFormula ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   <span className="font-bold text-foreground border-b border-border/40 pb-1 flex justify-between items-center text-[10px]">
                     <span>FINANCIAL CALCULATION ENGINE (EDITABLE OVERRIDES)</span>
-                    <Badge variant="secondary" className="text-[9px] py-0 px-1 hover:opacity-85 cursor-pointer" onClick={() => {
-                      const totalCommission = Math.max(0, editSparePrice - editSpareCost)
-                      const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
-                      const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
-                      const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
-                      const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
-                      const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
-                      const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-                      const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
+                    {!isPayoutFieldsDisabled && (
+                      <Badge variant="secondary" className="text-[9px] py-0 px-1 hover:opacity-85 cursor-pointer" onClick={() => {
+                        const totalCommission = Math.max(0, editSparePrice - editSpareCost)
+                        const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
+                        const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
+                        const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
+                        const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
+                        const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
+                        const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
+                        const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
 
-                      setEditTotalCommission(totalCommission)
-                      setEditTechnicianCommission(technicianCommission)
-                      setEditCompanyCommission(companyCommission)
-                      setEditTechnicianServiceCommission(technicianServiceCommission)
-                      setEditCompanyServiceCommission(companyServiceCommission)
-                      setEditTotalTechnicianAmount(totalTechnicianAmount)
-                      setEditTotalCompanyAmount(totalCompanyAmount)
-                      setEditTotalConsumerAmount(totalConsumerAmount)
-                      toast.info("Defaults restored.")
-                    }}>Reset formulas</Badge>
+                        setEditTotalCommission(totalCommission)
+                        setEditTechnicianCommission(technicianCommission)
+                        setEditCompanyCommission(companyCommission)
+                        setEditTechnicianServiceCommission(technicianServiceCommission)
+                        setEditCompanyServiceCommission(companyServiceCommission)
+                        setEditTotalTechnicianAmount(totalTechnicianAmount)
+                        setEditTotalCompanyAmount(totalCompanyAmount)
+                        setEditTotalConsumerAmount(totalConsumerAmount)
+                        toast.info("Defaults restored.")
+                      }}>Reset formulas</Badge>
+                    )}
                   </span>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -2052,6 +2123,7 @@ export function BookingModule() {
                           setEditCompanyCommission(Math.round(val * 0.3 * 100) / 100)
                         }} 
                         className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
                     
@@ -2062,6 +2134,7 @@ export function BookingModule() {
                         value={editTechnicianCommission} 
                         onChange={(e) => setEditTechnicianCommission(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2072,6 +2145,7 @@ export function BookingModule() {
                         value={editCompanyCommission} 
                         onChange={(e) => setEditCompanyCommission(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2082,6 +2156,7 @@ export function BookingModule() {
                         value={editTechnicianServiceCommission} 
                         onChange={(e) => setEditTechnicianServiceCommission(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2092,6 +2167,7 @@ export function BookingModule() {
                         value={editCompanyServiceCommission} 
                         onChange={(e) => setEditCompanyServiceCommission(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2102,6 +2178,7 @@ export function BookingModule() {
                         value={editTotalTechnicianAmount} 
                         onChange={(e) => setEditTotalTechnicianAmount(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2112,6 +2189,7 @@ export function BookingModule() {
                         value={editTotalCompanyAmount} 
                         onChange={(e) => setEditTotalCompanyAmount(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-bold text-cyan-600 dark:text-cyan-400 tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
 
@@ -2122,6 +2200,7 @@ export function BookingModule() {
                         value={editTotalConsumerAmount} 
                         onChange={(e) => setEditTotalConsumerAmount(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-bold text-primary tabular-nums"
+                        disabled={isPayoutFieldsDisabled || !overrideFormula}
                       />
                     </div>
                   </div>

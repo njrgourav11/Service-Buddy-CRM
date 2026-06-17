@@ -88,6 +88,7 @@ export interface Booking {
   notes?: string
   review?: string
   reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive"
+  payoutEditedCount?: number
 
   
   // Financial computed properties stored or calculated
@@ -179,7 +180,7 @@ export interface Lead {
   createdAt: string
   customerNotes?: string
   staffNotes?: string
-
+  customerId?: string
 }
 
 export interface Contact {
@@ -341,6 +342,31 @@ export const compareIdsNumerically = (aId: string, bId: string) => {
   return numA - numB
 }
 
+export const sortBookingsByCompletedDate = (a: Booking, b: Booking) => {
+  const dateA = a.workCompletedDate;
+  const dateB = b.workCompletedDate;
+
+  // Bookings without completed date should be at the top
+  if (!dateA && !dateB) {
+    return compareIdsNumerically(b.id, a.id);
+  }
+  if (!dateA) return -1;
+  if (!dateB) return 1;
+
+  // Both have completed dates. Sort by proximity to today (closest first).
+  const timeA = new Date(dateA).getTime();
+  const timeB = new Date(dateB).getTime();
+
+  if (isNaN(timeA) && isNaN(timeB)) {
+    return compareIdsNumerically(b.id, a.id);
+  }
+  if (isNaN(timeA)) return 1;
+  if (isNaN(timeB)) return -1;
+
+  return timeB - timeA; // Descending (latest / closest to today first)
+}
+
+
 const CRMContext = createContext<CRMContextProps | undefined>(undefined)
 
 export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -459,7 +485,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayouts(loadState("payouts", INITIAL_PAYOUTS))
       
       const loadedBookings = loadState("bookings", INITIAL_BOOKINGS)
-      setBookings(loadedBookings.map(b => computeBookingFinance(b)).sort((a, b) => compareIdsNumerically(b.id, a.id)))
+      setBookings(loadedBookings.map(b => computeBookingFinance(b)).sort(sortBookingsByCompletedDate))
 
       const storedRole = localStorage.getItem("servicebuddy_role")
       if (storedRole) setCurrentRole(storedRole as UserRole)
@@ -518,6 +544,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setCustomers(list)
         } else {
+          setCustomers([])
+          localStorage.setItem("servicebuddy_customers", JSON.stringify([]))
           // Auto-seed collection if completely empty
           INITIAL_CUSTOMERS.forEach(c => setDoc(doc(db!, "customers", c.id), c))
         }
@@ -527,9 +555,11 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const list: Booking[] = []
         snap.forEach(d => list.push(computeBookingFinance(d.data() as Booking)))
         if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(b.id, a.id))
+          list.sort(sortBookingsByCompletedDate)
           setBookings(list)
         } else {
+          setBookings([])
+          localStorage.setItem("servicebuddy_bookings", JSON.stringify([]))
           INITIAL_BOOKINGS.forEach(b => setDoc(doc(db!, "bookings", b.id), b))
         }
       }, (err) => handleListenerError(err, "bookings")),
@@ -541,6 +571,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setTechnicians(list)
         } else {
+          setTechnicians([])
+          localStorage.setItem("servicebuddy_technicians", JSON.stringify([]))
           INITIAL_TECHNICIANS.forEach(t => setDoc(doc(db!, "technicians", t.id), t))
         }
       }, (err) => handleListenerError(err, "technicians")),
@@ -552,6 +584,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => b.date.localeCompare(a.date))
           setPayouts(list)
         } else {
+          setPayouts([])
+          localStorage.setItem("servicebuddy_payouts", JSON.stringify([]))
           INITIAL_PAYOUTS.forEach(p => setDoc(doc(db!, "payouts", p.id), p))
         }
       }, (err) => handleListenerError(err, "payouts")),
@@ -563,6 +597,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setSpares(list)
         } else {
+          setSpares([])
+          localStorage.setItem("servicebuddy_spares", JSON.stringify([]))
           INITIAL_SPARES.forEach(s => setDoc(doc(db!, "spares", s.id), s))
         }
       }, (err) => handleListenerError(err, "spares")),
@@ -574,6 +610,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => b.date.localeCompare(a.date))
           setExpenses(list)
         } else {
+          setExpenses([])
+          localStorage.setItem("servicebuddy_expenses", JSON.stringify([]))
           INITIAL_EXPENSES.forEach(e => setDoc(doc(db!, "expenses", e.id), e))
         }
       }, (err) => handleListenerError(err, "expenses")),
@@ -585,6 +623,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setOutstandingDues(list)
         } else {
+          setOutstandingDues([])
+          localStorage.setItem("servicebuddy_outstanding", JSON.stringify([]))
           INITIAL_OUTSTANDING.forEach(o => setDoc(doc(db!, "outstanding", o.id), o))
         }
       }, (err) => handleListenerError(err, "outstanding")),
@@ -596,6 +636,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => b.createdAt.localeCompare(a.createdAt))
           setLeads(list)
         } else {
+          setLeads([])
+          localStorage.setItem("servicebuddy_leads", JSON.stringify([]))
           INITIAL_LEADS.forEach(l => setDoc(doc(db!, "leads", l.id), l))
         }
       }, (err) => handleListenerError(err, "leads")),
@@ -607,6 +649,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setContacts(list)
         } else {
+          setContacts([])
+          localStorage.setItem("servicebuddy_contacts", JSON.stringify([]))
           INITIAL_CONTACTS.forEach(c => setDoc(doc(db!, "contacts", c.id), c))
         }
       }, (err) => handleListenerError(err, "contacts")),
@@ -618,6 +662,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setAssets(list)
         } else {
+          setAssets([])
+          localStorage.setItem("servicebuddy_assets", JSON.stringify([]))
           INITIAL_ASSETS.forEach(a => setDoc(doc(db!, "assets", a.id), a))
         }
       }, (err) => handleListenerError(err, "assets")),
@@ -629,6 +675,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           list.sort((a,b) => compareIdsNumerically(a.id, b.id))
           setEmployees(list)
         } else {
+          setEmployees([])
+          localStorage.setItem("servicebuddy_employees", JSON.stringify([]))
           INITIAL_EMPLOYEES.forEach(e => setDoc(doc(db!, "employees", e.id), e))
         }
       }, (err) => handleListenerError(err, "employees"))
@@ -920,12 +968,43 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleTechnicianReversal(b.id)
     }
 
-    const combined = { ...b, ...updates }
-    
-    const priceInputsChanged = 
+    // Check if any payout/financial parameters have changed from their original values
+    const financialChanged =
       (updates.spareCost !== undefined && updates.spareCost !== b.spareCost) ||
       (updates.sparePrice !== undefined && updates.sparePrice !== b.sparePrice) ||
-      (updates.serviceCharge !== undefined && updates.serviceCharge !== b.serviceCharge)
+      (updates.serviceCharge !== undefined && updates.serviceCharge !== b.serviceCharge) ||
+      (updates.totalCommission !== undefined && updates.totalCommission !== b.totalCommission) ||
+      (updates.technicianCommission !== undefined && updates.technicianCommission !== b.technicianCommission) ||
+      (updates.companyCommission !== undefined && updates.companyCommission !== b.companyCommission) ||
+      (updates.technicianServiceCommission !== undefined && updates.technicianServiceCommission !== b.technicianServiceCommission) ||
+      (updates.companyServiceCommission !== undefined && updates.companyServiceCommission !== b.companyServiceCommission) ||
+      (updates.totalTechnicianAmount !== undefined && updates.totalTechnicianAmount !== b.totalTechnicianAmount) ||
+      (updates.totalCompanyAmount !== undefined && updates.totalCompanyAmount !== b.totalCompanyAmount) ||
+      (updates.totalConsumerAmount !== undefined && updates.totalConsumerAmount !== b.totalConsumerAmount)
+
+    if (currentRole === "Manager" && (b.payoutEditedCount ?? 0) >= 1 && financialChanged) {
+      toast.error("Managers are not allowed to edit booking payout details more than once.")
+      return
+    }
+
+    const combined = { 
+      ...b, 
+      ...updates,
+      payoutEditedCount: financialChanged ? (b.payoutEditedCount ?? 0) + 1 : b.payoutEditedCount
+    }
+    
+    const oldSpareCost = b.spareCost || 0
+    const oldSparePrice = b.sparePrice || 0
+    const oldServiceCharge = b.serviceCharge || 0
+
+    const newSpareCost = updates.spareCost !== undefined ? (updates.spareCost || 0) : oldSpareCost
+    const newSparePrice = updates.sparePrice !== undefined ? (updates.sparePrice || 0) : oldSparePrice
+    const newServiceCharge = updates.serviceCharge !== undefined ? (updates.serviceCharge || 0) : oldServiceCharge
+
+    const priceInputsChanged = 
+      newSpareCost !== oldSpareCost ||
+      newSparePrice !== oldSparePrice ||
+      newServiceCharge !== oldServiceCharge
 
     const hasExplicitSplits = 
       updates.technicianCommission !== undefined || 
@@ -933,8 +1012,15 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updates.companyCommission !== undefined || 
       updates.companyServiceCommission !== undefined
 
+    const currentCalculations = calculateBookingFinance(oldSpareCost, oldSparePrice, oldServiceCharge)
+    const hadCustomSplits = 
+      (b.technicianCommission !== undefined && b.technicianCommission !== currentCalculations.technicianCommission) ||
+      (b.companyCommission !== undefined && b.companyCommission !== currentCalculations.companyCommission) ||
+      (b.technicianServiceCommission !== undefined && b.technicianServiceCommission !== currentCalculations.technicianServiceCommission) ||
+      (b.companyServiceCommission !== undefined && b.companyServiceCommission !== currentCalculations.companyServiceCommission)
+
     let calculated: Booking
-    if (priceInputsChanged && !hasExplicitSplits) {
+    if (priceInputsChanged && !hasExplicitSplits && !hadCustomSplits) {
       const calculations = calculateBookingFinance(combined.spareCost || 0, combined.sparePrice || 0, combined.serviceCharge || 0)
       calculated = {
         ...combined,
@@ -1484,17 +1570,20 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const lead = leads.find(l => l.id === leadId)
     if (!lead) return
 
-    // 1. Convert Lead to Customer first
-    const cust = addCustomer({
-      name: lead.name,
-      mobile: lead.mobile,
-      address: lead.address,
-      referralSource: lead.source,
-      review: "",
-      reviewStatus: "Review not done",
-      notes: `Converted from lead with requirements: ${lead.requirement}${lead.customerNotes ? `\nCustomer Notes: ${lead.customerNotes}` : ""}${lead.staffNotes ? `\nStaff Notes: ${lead.staffNotes}` : ""}`,
-      status: "Active"
-    })
+    // 1. Convert Lead to Customer first (or link to existing if customerId exists)
+    let cust = lead.customerId ? customers.find(c => c.id === lead.customerId) : null
+    if (!cust) {
+      cust = addCustomer({
+        name: lead.name,
+        mobile: lead.mobile,
+        address: lead.address,
+        referralSource: lead.source,
+        review: "",
+        reviewStatus: "Review not done",
+        notes: `Converted from lead with requirements: ${lead.requirement}${lead.customerNotes ? `\nCustomer Notes: ${lead.customerNotes}` : ""}${lead.staffNotes ? `\nStaff Notes: ${lead.staffNotes}` : ""}`,
+        status: "Active"
+      })
+    }
 
     // 2. Auto match spare part if possible
     let spareName = "None"

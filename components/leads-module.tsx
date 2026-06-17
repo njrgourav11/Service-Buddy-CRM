@@ -29,7 +29,7 @@ import {
 import { toast } from "sonner"
 
 export function LeadsModule() {
-  const { leads, technicians, addLead, updateLead, deleteLead, convertLeadToBooking, currentRole } = useCRM()
+  const { leads, technicians, addLead, updateLead, deleteLead, convertLeadToBooking, currentRole, customers } = useCRM()
   
   // State managers
   const [search, setSearch] = React.useState("")
@@ -52,6 +52,12 @@ export function LeadsModule() {
   const [editCustomerNotes, setEditCustomerNotes] = React.useState("")
   const [editStaffNotes, setEditStaffNotes] = React.useState("")
 
+  // Customer Linking States
+  const [linkCustomer, setLinkCustomer] = React.useState(false)
+  const [customerId, setCustomerId] = React.useState("")
+  const [editLinkCustomer, setEditLinkCustomer] = React.useState(false)
+  const [editCustomerId, setEditCustomerId] = React.useState("")
+
   // Open Edit Drawer
   const handleOpenEdit = (l: Lead) => {
     setSelectedLead(l)
@@ -65,6 +71,8 @@ export function LeadsModule() {
     setEditStatus(l.status)
     setEditCustomerNotes(l.customerNotes || "")
     setEditStaffNotes(l.staffNotes || "")
+    setEditCustomerId(l.customerId || "")
+    setEditLinkCustomer(!!l.customerId)
     setIsEditOpen(true)
   }
 
@@ -83,7 +91,8 @@ export function LeadsModule() {
       assignedTo: editAssignedTo,
       status: editStatus,
       customerNotes: editCustomerNotes,
-      staffNotes: editStaffNotes
+      staffNotes: editStaffNotes,
+      customerId: editLinkCustomer ? editCustomerId : undefined
     })
 
     setIsEditOpen(false)
@@ -129,7 +138,8 @@ export function LeadsModule() {
       assignedTo: assignedTo || "Manager",
       status: "New",
       customerNotes,
-      staffNotes
+      staffNotes,
+      customerId: linkCustomer ? customerId : undefined
     })
 
     // Reset Form
@@ -142,6 +152,8 @@ export function LeadsModule() {
     setAssignedTo("")
     setCustomerNotes("")
     setStaffNotes("")
+    setLinkCustomer(false)
+    setCustomerId("")
     setIsAddOpen(false)
   }
 
@@ -335,6 +347,56 @@ export function LeadsModule() {
             <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex flex-col gap-4">
                 
+                {/* Link Customer Toggle */}
+                <div className="flex items-center gap-2 mb-2 p-1 bg-muted/30 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="link-customer-checkbox"
+                    checked={linkCustomer}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setLinkCustomer(checked)
+                      if (!checked) {
+                        setCustomerId("")
+                        setName("")
+                        setMobile("")
+                        setAddress("")
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="link-customer-checkbox" className="text-xs font-bold text-foreground cursor-pointer">
+                    Link to Registered Customer (Optional)
+                  </Label>
+                </div>
+
+                {linkCustomer && (
+                  <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
+                    <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
+                    <Select
+                      value={customerId}
+                      onValueChange={(val) => {
+                        setCustomerId(val)
+                        const cust = customers.find(c => c.id === val)
+                        if (cust) {
+                          setName(cust.name)
+                          setMobile(cust.mobile)
+                          setAddress(cust.address)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Choose a registered customer..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Name */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="lead-name" className="text-xs font-bold text-muted-foreground">Lead Customer Name</Label>
@@ -344,6 +406,7 @@ export function LeadsModule() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    disabled={linkCustomer}
                   />
                 </div>
 
@@ -356,6 +419,7 @@ export function LeadsModule() {
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value)}
                     required
+                    disabled={linkCustomer}
                   />
                 </div>
 
@@ -368,6 +432,7 @@ export function LeadsModule() {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     required
+                    disabled={linkCustomer}
                   />
                 </div>
 
@@ -542,6 +607,56 @@ export function LeadsModule() {
             <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex flex-col gap-4">
                 
+                {/* Link Customer Toggle */}
+                <div className="flex items-center gap-2 mb-2 p-1 bg-muted/30 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="edit-link-customer-checkbox"
+                    checked={editLinkCustomer}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setEditLinkCustomer(checked)
+                      if (!checked) {
+                        setEditCustomerId("")
+                        setEditName("")
+                        setEditMobile("")
+                        setEditAddress("")
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <Label htmlFor="edit-link-customer-checkbox" className="text-xs font-bold text-foreground cursor-pointer">
+                    Link to Registered Customer (Optional)
+                  </Label>
+                </div>
+
+                {editLinkCustomer && (
+                  <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
+                    <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
+                    <Select
+                      value={editCustomerId}
+                      onValueChange={(val) => {
+                        setEditCustomerId(val)
+                        const cust = customers.find(c => c.id === val)
+                        if (cust) {
+                          setEditName(cust.name)
+                          setEditMobile(cust.mobile)
+                          setEditAddress(cust.address)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Choose a registered customer..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Name */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-lead-name" className="text-xs font-bold text-muted-foreground">Lead Customer Name</Label>
@@ -551,6 +666,7 @@ export function LeadsModule() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
+                    disabled={editLinkCustomer}
                   />
                 </div>
 
@@ -563,6 +679,7 @@ export function LeadsModule() {
                     value={editMobile}
                     onChange={(e) => setEditMobile(e.target.value)}
                     required
+                    disabled={editLinkCustomer}
                   />
                 </div>
 
@@ -575,6 +692,7 @@ export function LeadsModule() {
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
                     required
+                    disabled={editLinkCustomer}
                   />
                 </div>
 

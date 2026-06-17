@@ -394,6 +394,12 @@ export function PayoutModule() {
     setIsEditOpen(false)
   }
 
+  const handleDeletePayout = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this payout log? This will also revert technician dues and advance balance calculations.")) {
+      deletePayout(id)
+    }
+  }
+
   const selectedTechForForm = technicians.find(t => t.id === formTechId)
   const currentTechDue = selectedTechForForm ? selectedTechForForm.dueAmount : 0
 
@@ -587,6 +593,14 @@ export function PayoutModule() {
                                     className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
                                   >
                                     Edit
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleDeletePayout(p.id)}
+                                    className="h-6 text-[10px] font-semibold px-2 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                                  >
+                                    Delete
                                   </Button>
                                 </div>
                               </td>

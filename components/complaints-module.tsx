@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/table"
 
 export function ComplaintsModule() {
-  const { bookings, customers, updateBooking, addCustomer, addBooking } = useCRM()
+  const { bookings, customers, updateBooking, addCustomer, addBooking, currentRole } = useCRM()
 
   // State managers
   const [search, setSearch] = React.useState("")
@@ -252,6 +252,18 @@ export function ComplaintsModule() {
       complaintStatus: "Dismissed"
     })
     toast.info(`Complaint dismissed for booking ${bookingId}.`)
+  }
+
+  // Delete Complaint
+  const handleDeleteComplaint = (bookingId: string) => {
+    if (window.confirm("Are you sure you want to delete this complaint?")) {
+      updateBooking(bookingId, {
+        complaint: "",
+        complaintDate: "",
+        complaintStatus: undefined
+      })
+      toast.success("Complaint deleted successfully.")
+    }
   }
 
   // Open Edit drawer
@@ -470,6 +482,16 @@ export function ComplaintsModule() {
                                   Dismiss
                                 </Button>
                               </>
+                            )}
+                            {currentRole === "Admin" && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleDeleteComplaint(b.id)}
+                                className="h-7 text-xs font-bold px-2 border-rose-200 bg-rose-50/20 text-rose-700 hover:bg-rose-50 hover:text-rose-800 cursor-pointer"
+                              >
+                                Delete
+                              </Button>
                             )}
                           </div>
                         </TableCell>

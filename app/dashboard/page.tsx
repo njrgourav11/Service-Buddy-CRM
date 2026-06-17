@@ -27,6 +27,27 @@ import { ComplaintsModule } from "@/components/complaints-module"
 // Wrapper component to enable useCRM inside the providers
 function DashboardContent() {
   const { activeTab } = useCRM()
+  const [isOnline, setIsOnline] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return window.navigator.onLine
+    }
+    return true
+  })
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleOnline = () => setIsOnline(true)
+      const handleOffline = () => setIsOnline(false)
+
+      window.addEventListener("online", handleOnline)
+      window.addEventListener("offline", handleOffline)
+
+      return () => {
+        window.removeEventListener("online", handleOnline)
+        window.removeEventListener("offline", handleOffline)
+      }
+    }
+  }, [])
 
   // Dynamic selector for sub-view rendering
   const renderTabContent = () => {
@@ -81,6 +102,11 @@ function DashboardContent() {
         <AppSidebar variant="inset" />
         <SidebarInset>
           <SiteHeader />
+          {!isOnline && (
+            <div className="bg-amber-500 text-white font-bold text-xs py-2.5 px-4 text-center border-b border-amber-600 animate-in fade-in duration-200">
+              ⚠️ No Internet Connection. Saved changes will only be stored locally and won't sync to the cloud database.
+            </div>
+          )}
           <div className="flex flex-1 flex-col overflow-y-auto min-w-0 max-w-full">
             {renderTabContent()}
           </div>

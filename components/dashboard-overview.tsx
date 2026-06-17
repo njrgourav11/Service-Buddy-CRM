@@ -715,7 +715,7 @@ export function DashboardOverview() {
                           <td className="px-4 py-3 font-semibold text-xs text-foreground">
                             <div className="flex items-center gap-1.5">
                               <span>{customerName}</span>
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
                             </div>
                           </td>
                           <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>
@@ -1292,7 +1292,7 @@ export function DashboardOverview() {
                         <td className="px-4 py-3 font-semibold text-xs text-foreground">
                           <div className="flex items-center gap-1.5">
                             <span>{customerName}</span>
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || cust?.reviewStatus || "Review not done")}`} title={b.reviewStatus || cust?.reviewStatus || "Review not done"} />
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
                           </div>
                         </td>
                         <td className="px-4 py-3 font-medium text-xs text-muted-foreground">{b.appliance}</td>

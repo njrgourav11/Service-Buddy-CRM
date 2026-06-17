@@ -4,12 +4,15 @@ import * as React from "react"
 import { useCRM } from "@/context/crm-context"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   ChartUpIcon,
   CreditCardIcon,
-  Menu01Icon
+  Menu01Icon,
+  Analytics01Icon,
+  Alert02Icon
 } from "@hugeicons/core-free-icons"
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -21,19 +24,129 @@ export function ReportsModule() {
   const { bookings, expenses, technicians, spares, customers } = useCRM()
 
   // ==========================================
-  // Calculations
+  // Interactive Filters State
   // ==========================================
-  const totalRevenue = bookings
+  const [applianceFilter, setApplianceFilter] = React.useState("ALL")
+  const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [yearFilter, setYearFilter] = React.useState("ALL")
+
+  // ==========================================
+  // Filter Options Extraction
+  // ==========================================
+  const uniqueAppliances = React.useMemo(() => {
+    return Array.from(new Set(bookings.map(b => b.appliance).filter(Boolean))).sort()
+  }, [bookings])
+
+  const uniqueYears = React.useMemo(() => {
+    const years = bookings
+      .map(b => b.date ? new Date(b.date).getFullYear() : null)
+      .filter((y): y is number => y !== null)
+    return Array.from(new Set(years)).sort((a, b) => b - a)
+  }, [bookings])
+
+  // ==========================================
+  // Filter Logic
+  // ==========================================
+  const filteredBookings = React.useMemo(() => {
+    return bookings.filter(b => {
+      const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
+      const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
+      
+      let matchesYear = true
+      if (yearFilter !== "ALL" && b.date) {
+        matchesYear = new Date(b.date).getFullYear().toString() === yearFilter
+      }
+      
+      return matchesAppliance && matchesStatus && matchesYear
+    })
+  }, [bookings, applianceFilter, statusFilter, yearFilter])
+
+  // ==========================================
+  // KPI Calculations
+  // ==========================================
+  const totalRevenue = filteredBookings
     .filter(b => b.status === "Completed")
     .reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0)
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
 
-  const totalTechLiability = bookings
+  const totalTechLiability = filteredBookings
     .filter(b => b.status === "Completed")
     .reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
 
   const netProfit = Math.round((totalRevenue - totalExpenses - totalTechLiability) * 100) / 100
+
+  // ==========================================
+  // Day-wise & Month-wise Analytics & KPIs
+  // ==========================================
+  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+  const dayWiseData = React.useMemo(() => {
+    const counts = [0, 0, 0, 0, 0, 0, 0] // Sun-Sat
+    filteredBookings.forEach(b => {
+      if (b.date) {
+        const day = new Date(b.date).getDay()
+        counts[day]++
+      }
+    })
+    return daysOfWeek.map((day, idx) => ({
+      day: day.substring(0, 3),
+      Bookings: counts[idx]
+    }))
+  }, [filteredBookings])
+
+  const mostActiveDay = React.useMemo(() => {
+    if (filteredBookings.length === 0) return "N/A"
+    const counts = [0, 0, 0, 0, 0, 0, 0]
+    filteredBookings.forEach(b => {
+      if (b.date) {
+        counts[new Date(b.date).getDay()]++
+      }
+    })
+    let maxIdx = 0
+    let maxVal = -1
+    counts.forEach((val, idx) => {
+      if (val > maxVal) {
+        maxVal = val
+        maxIdx = idx
+      }
+    })
+    return maxVal > 0 ? daysOfWeek[maxIdx] : "N/A"
+  }, [filteredBookings])
+
+  const monthWiseData = React.useMemo(() => {
+    const counts = Array(12).fill(0)
+    filteredBookings.forEach(b => {
+      if (b.date) {
+        const month = new Date(b.date).getMonth()
+        counts[month]++
+      }
+    })
+    return months.map((month, idx) => ({
+      month,
+      Bookings: counts[idx]
+    }))
+  }, [filteredBookings])
+
+  const mostActiveMonth = React.useMemo(() => {
+    if (filteredBookings.length === 0) return "N/A"
+    const counts = Array(12).fill(0)
+    filteredBookings.forEach(b => {
+      if (b.date) {
+        counts[new Date(b.date).getMonth()]++
+      }
+    })
+    let maxIdx = 0
+    let maxVal = -1
+    counts.forEach((val, idx) => {
+      if (val > maxVal) {
+        maxVal = val
+        maxIdx = idx
+      }
+    })
+    return maxVal > 0 ? months[maxIdx] : "N/A"
+  }, [filteredBookings])
 
   // ==========================================
   // Review Stats Calculations
@@ -69,7 +182,7 @@ export function ReportsModule() {
   // Graph 2: Technician Performance Rankings
   // ==========================================
   const techPerformanceData = technicians.map(t => {
-    const techBookings = bookings.filter(b => b.assignedTechnicianId === t.id && b.status === "Completed")
+    const techBookings = filteredBookings.filter(b => b.assignedTechnicianId === t.id && b.status === "Completed")
     const jobsCount = techBookings.length
     const commission = techBookings.reduce((sum, b) => sum + (b.technicianCommission || 0), 0)
     const earnings = techBookings.reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
@@ -102,38 +215,118 @@ export function ReportsModule() {
         </div>
       </div>
 
+      {/* Interactive Select Filters */}
+      <Card className="border-border/60 bg-muted/20/45 backdrop-blur-md">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Interactive Report Filters</div>
+          <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            {/* Appliance Filter */}
+            <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Appliance:</Label>
+              <Select value={applianceFilter} onValueChange={setApplianceFilter}>
+                <SelectTrigger className="w-full md:w-40 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Appliances" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Appliances</SelectItem>
+                  {uniqueAppliances.map(app => (
+                    <SelectItem key={app} value={app}>{app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status:</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-40 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  <SelectItem value="Not Started">Not Started</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Inspected">Inspected</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Year Filter */}
+            <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Year:</Label>
+              <Select value={yearFilter} onValueChange={setYearFilter}>
+                <SelectTrigger className="w-full md:w-40 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Years" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Years</SelectItem>
+                  {uniqueYears.map(yr => (
+                    <SelectItem key={yr} value={yr.toString()}>{yr}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* High level KPI Row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-border/60">
           <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Gross Business Billing</CardDescription>
+            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Gross Billing</CardDescription>
             <div className="text-emerald-500"><HugeiconsIcon icon={ChartUpIcon} strokeWidth={2.5} className="size-4" /></div>
           </CardHeader>
           <CardContent>
-            <span className="text-2xl font-black tabular-nums">₹{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Total customer billings logged completed</span>
+            <span className="text-xl font-black tabular-nums">₹{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Total customer billings completed</span>
           </CardContent>
         </Card>
 
         <Card className="border-border/60">
           <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Overhead Expenses</CardDescription>
+            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Expenses</CardDescription>
             <div className="text-rose-500"><HugeiconsIcon icon={CreditCardIcon} strokeWidth={2.5} className="size-4" /></div>
           </CardHeader>
           <CardContent>
-            <span className="text-2xl font-black tabular-nums">₹{totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Total category vouchers and advertising spends</span>
+            <span className="text-xl font-black tabular-nums">₹{totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Total advertisement & operational spends</span>
           </CardContent>
         </Card>
 
         <Card className="border-border/60">
           <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Gross Company Margin</CardDescription>
+            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Company Margin</CardDescription>
             <div className="text-blue-500"><HugeiconsIcon icon={ChartUpIcon} strokeWidth={2.5} className="size-4" /></div>
           </CardHeader>
           <CardContent>
-            <span className="text-2xl font-black tabular-nums">₹{netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Net company gain (excluding technician splits)</span>
+            <span className="text-xl font-black tabular-nums">₹{netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Net company gain (excluding tech payout)</span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-gradient-to-br from-purple-500/5 to-transparent">
+          <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
+            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Most Active Day</CardDescription>
+            <div className="text-purple-500"><HugeiconsIcon icon={Analytics01Icon} strokeWidth={2.5} className="size-4" /></div>
+          </CardHeader>
+          <CardContent>
+            <span className="text-xl font-black text-purple-600 dark:text-purple-400 capitalize">{mostActiveDay}</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Day of week with most bookings</span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-gradient-to-br from-amber-500/5 to-transparent">
+          <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
+            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Most Active Month</CardDescription>
+            <div className="text-amber-500"><HugeiconsIcon icon={ChartUpIcon} strokeWidth={2.5} className="size-4" /></div>
+          </CardHeader>
+          <CardContent>
+            <span className="text-xl font-black text-amber-600 dark:text-amber-400">{mostActiveMonth}</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Month with highest booking volume</span>
           </CardContent>
         </Card>
       </div>
@@ -188,6 +381,44 @@ export function ReportsModule() {
                 <Legend verticalAlign="top" height={36} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
                 <Bar name="Jobs Completed" dataKey="Jobs" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                 <Bar name="Earnings (₹)" dataKey="Earnings" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Graph 5: Month-wise Booking Volume */}
+        <Card className="border-border/60 bg-card/60 backdrop-blur-md">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-foreground">Month-wise Booking Volume</CardTitle>
+            <CardDescription className="text-xs">Distribution of service requests across the calendar months.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <BarChart data={monthWiseData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
+                <XAxis dataKey="month" fontSize={10} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={10} stroke="var(--muted-foreground)" allowDecimals={false} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px' }} />
+                <Bar name="Bookings Count" dataKey="Bookings" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Graph 6: Day-of-Week Booking Volume */}
+        <Card className="border-border/60 bg-card/60 backdrop-blur-md">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-foreground">Day-of-Week Booking Volume</CardTitle>
+            <CardDescription className="text-xs">Analyzing daily service demand to optimize technician scheduling.</CardDescription>
+          </CardHeader>
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <BarChart data={dayWiseData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
+                <XAxis dataKey="day" fontSize={10} stroke="var(--muted-foreground)" />
+                <YAxis fontSize={10} stroke="var(--muted-foreground)" allowDecimals={false} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px' }} />
+                <Bar name="Bookings Count" dataKey="Bookings" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
