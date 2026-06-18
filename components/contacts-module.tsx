@@ -22,14 +22,28 @@ import {
   PlusSignCircleIcon, 
   SearchIcon,
   UserCircle02Icon,
-  InvoiceIcon
+  InvoiceIcon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 
 export function ContactsModule() {
   const { contacts, addContact, updateContact, deleteContact, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState("ALL")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const pageSize = 8
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [search, typeFilter])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedContact, setSelectedContact] = React.useState<Contact | null>(null)
@@ -111,6 +125,12 @@ export function ContactsModule() {
     return matchesSearch && matchesType
   })
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredContacts.length / pageSize)
+  const paginatedContacts = React.useMemo(() => {
+    return filteredContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  }, [filteredContacts, currentPage])
+
   // Submit Contact
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -154,6 +174,67 @@ export function ContactsModule() {
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Contacts Stat Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <Card 
+          className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${typeFilter === "ALL" ? "ring-1 ring-primary bg-primary/5 border-primary/30" : ""}`}
+          onClick={() => setTypeFilter("ALL")}
+        >
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Directory</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">{contacts.length}</CardTitle>
+            <span className="text-[10px] text-muted-foreground mt-1 block">All stakeholders registered</span>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${typeFilter === "VIP" ? "ring-1 ring-purple-500 bg-purple-500/5 border-purple-500/30" : ""}`}
+          onClick={() => setTypeFilter("VIP")}
+        >
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">VIP Profiles</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-purple-600 dark:text-purple-400">
+              {contacts.filter(c => c.customerType === "VIP").length}
+            </CardTitle>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Premium client accounts</span>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${typeFilter === "Corporate" ? "ring-1 ring-blue-500 bg-blue-500/5 border-blue-500/30" : ""}`}
+          onClick={() => setTypeFilter("Corporate")}
+        >
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Corporate Profiles</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-blue-600 dark:text-blue-400">
+              {contacts.filter(c => c.customerType === "Corporate").length}
+            </CardTitle>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Enterprise and B2B clients</span>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${typeFilter === "Regular" ? "ring-1 ring-zinc-500 bg-zinc-500/5 border-zinc-500/30" : ""}`}
+          onClick={() => setTypeFilter("Regular")}
+        >
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Regular Contacts</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">
+              {contacts.filter(c => c.customerType === "Regular").length}
+            </CardTitle>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Standard customer cards</span>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Control Panel: Filters */}
@@ -203,14 +284,14 @@ export function ContactsModule() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {filteredContacts.length === 0 ? (
+                {paginatedContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" || currentRole === "Manager" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
                       No business contacts recorded.
                     </td>
                   </tr>
                 ) : (
-                  filteredContacts.map((c) => (
+                  paginatedContacts.map((c) => (
                     <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{c.id}</td>
                       <td className="px-4 py-4 font-semibold text-xs text-foreground">{c.name}</td>
@@ -233,29 +314,37 @@ export function ContactsModule() {
                       <td className="px-4 py-4 text-xs font-bold text-foreground tabular-nums">{c.lastServiceDate}</td>
                       {(currentRole === "Admin" || currentRole === "Manager") && (
                         <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleOpenEdit(c)}
-                              className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                            >
-                              Edit
-                            </Button>
-                            {currentRole === "Admin" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                               <Button 
                                 variant="ghost" 
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete contact card for ${c.name}?`)) {
-                                    deleteContact(c.id)
-                                  }
-                                }}
-                                className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                className="h-8 w-8 p-0 cursor-pointer"
                               >
-                                ×
+                                <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                <span className="sr-only">Actions</span>
                               </Button>
-                            )}
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(c)} className="cursor-pointer">
+                                Edit
+                              </DropdownMenuItem>
+                              {currentRole === "Admin" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to delete contact card for ${c.name}?`)) {
+                                        deleteContact(c.id)
+                                      }
+                                    }}
+                                    className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       )}
                     </tr>
@@ -265,6 +354,48 @@ export function ContactsModule() {
             </table>
           </div>
         </CardContent>
+
+        {/* Contacts Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3.5 border-t border-border/40 bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              Showing {Math.min(filteredContacts.length, (currentPage - 1) * pageSize + 1)} to {Math.min(filteredContacts.length, currentPage * pageSize)} of {filteredContacts.length} contacts
+            </span>
+            <div className="flex items-center gap-2.5">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="h-7 text-xs px-2 bg-background shadow-xs hover:bg-muted cursor-pointer"
+              >
+                Previous
+              </Button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={`h-7 w-7 text-xs p-0 cursor-pointer ${currentPage === page ? "pointer-events-none" : "bg-background hover:bg-muted"}`}
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="h-7 text-xs px-2 bg-background shadow-xs hover:bg-muted cursor-pointer"
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Contact Add Drawer */}

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useCRM, Booking, Customer } from "@/context/crm-context"
+import { APPLIANCE_OPTIONS } from "./booking-module"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,13 @@ import {
   DrawerHeader, 
   DrawerTitle 
 } from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
@@ -25,7 +33,8 @@ import {
   CheckmarkCircle01Icon, 
   Alert02Icon,
   Cancel01Icon,
-  HelpCircleIcon
+  HelpCircleIcon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import { 
@@ -65,6 +74,7 @@ export function ComplaintsModule() {
   const [newCustAddress, setNewCustAddress] = React.useState("")
   const [newCustReferral, setNewCustReferral] = React.useState<any>("Ad")
   const [customAppliance, setCustomAppliance] = React.useState("General")
+  const [customApplianceText, setCustomApplianceText] = React.useState("")
   const [customTechId, setCustomTechId] = React.useState("")
   const [customServiceCharge, setCustomServiceCharge] = React.useState(0)
 
@@ -75,6 +85,22 @@ export function ComplaintsModule() {
   const [editComplaintNotes, setEditComplaintNotes] = React.useState("")
   const [editComplaintDate, setEditComplaintDate] = React.useState("")
   const [editComplaintStatus, setEditComplaintStatus] = React.useState<any>("Open")
+  
+  // Technician assignments in complaints
+  const [logTechId, setLogTechId] = React.useState("")
+  const [editTechId, setEditTechId] = React.useState("")
+
+  // Sync selected booking technician to logTechId
+  React.useEffect(() => {
+    if (selectedBookingId) {
+      const b = bookings.find(x => x.id === selectedBookingId)
+      if (b) {
+        setLogTechId(b.assignedTechnicianId || "")
+      }
+    } else {
+      setLogTechId("")
+    }
+  }, [selectedBookingId, bookings])
 
   // Reset page index when search or status filters change
   React.useEffect(() => {
@@ -140,6 +166,7 @@ export function ComplaintsModule() {
         complaint: logComplaintText,
         complaintDate: logComplaintDate,
         complaintStatus: logComplaintStatus,
+        assignedTechnicianId: logTechId !== "none" ? logTechId : "",
         notes: logComplaintNotes || undefined
       })
       toast.success("Complaint logged against booking successfully.")
@@ -161,6 +188,10 @@ export function ComplaintsModule() {
         // Create new customer first
         if (!newCustName.trim() || !newCustMobile.trim() || !newCustAddress.trim()) {
           toast.error("Please fill in all customer details.")
+          return
+        }
+        if (!/^\d{10}$/.test(newCustMobile.trim())) {
+          toast.error("Mobile number must be exactly 10 digits.")
           return
         }
         const duplicate = customers.find(c => c.name.toLowerCase() === newCustName.toLowerCase() && c.mobile === newCustMobile)
@@ -187,11 +218,13 @@ export function ComplaintsModule() {
         }
       }
 
+      const finalAppliance = customAppliance === "Other" ? (customApplianceText.trim() || "Other") : (customAppliance || "General")
+
       // Add a placeholder booking with complaint details
       addBooking({
         date: logComplaintDate,
         customerId: customerId,
-        appliance: customAppliance || "General",
+        appliance: finalAppliance,
         serviceType: "Service",
         issue: "Custom Complaint (No Booking)",
         assignedTechnicianId: customTechId === "none" ? "" : customTechId,
@@ -215,6 +248,7 @@ export function ComplaintsModule() {
     setLogComplaintNotes("")
     setLogComplaintDate(new Date().toISOString().split("T")[0])
     setLogComplaintStatus("Open")
+    setLogTechId("")
     
     setCustomCustomerId("")
     setCustomerSearch("")
@@ -223,6 +257,7 @@ export function ComplaintsModule() {
     setNewCustAddress("")
     setNewCustReferral("Ad")
     setCustomAppliance("General")
+    setCustomApplianceText("")
     setCustomTechId("")
     setCustomServiceCharge(0)
     setLogMode("link")
@@ -236,10 +271,16 @@ export function ComplaintsModule() {
     e.preventDefault()
     if (!selectedBookingForEdit) return
 
+    const closedDate = (editComplaintStatus === "Resolved" || editComplaintStatus === "Dismissed")
+      ? (selectedBookingForEdit.complaintClosedDate || new Date().toISOString().split("T")[0])
+      : ""
+
     updateBooking(selectedBookingForEdit.id, {
       complaint: editComplaintText,
       complaintDate: editComplaintDate,
       complaintStatus: editComplaintStatus,
+      complaintClosedDate: closedDate,
+      assignedTechnicianId: editTechId === "none" ? "" : editTechId,
       notes: editComplaintNotes || selectedBookingForEdit.notes
     })
 
@@ -248,20 +289,16 @@ export function ComplaintsModule() {
     toast.success("Complaint details updated successfully.")
   }
 
-  // Quick Resolve
-  const handleQuickResolve = (bookingId: string) => {
-    updateBooking(bookingId, {
-      complaintStatus: "Resolved"
+  // Inline status Select change handler
+  const handleComplaintStatusChange = (bookingId: string, status: any) => {
+    const closedDate = (status === "Resolved" || status === "Dismissed") 
+      ? new Date().toISOString().split("T")[0] 
+      : ""
+    updateBooking(bookingId, { 
+      complaintStatus: status,
+      complaintClosedDate: closedDate
     })
-    toast.success(`Complaint resolved for booking ${bookingId}.`)
-  }
-
-  // Quick Dismiss
-  const handleQuickDismiss = (bookingId: string) => {
-    updateBooking(bookingId, {
-      complaintStatus: "Dismissed"
-    })
-    toast.info(`Complaint dismissed for booking ${bookingId}.`)
+    toast.success(`Complaint status updated to ${status}.`)
   }
 
   // Delete Complaint
@@ -270,7 +307,8 @@ export function ComplaintsModule() {
       updateBooking(bookingId, {
         complaint: "",
         complaintDate: "",
-        complaintStatus: undefined
+        complaintStatus: undefined,
+        complaintClosedDate: ""
       })
       toast.success("Complaint deleted successfully.")
     }
@@ -294,19 +332,29 @@ export function ComplaintsModule() {
     setEditComplaintNotes(b.notes || "")
     setEditComplaintDate(b.complaintDate || new Date().toISOString().split("T")[0])
     setEditComplaintStatus(b.complaintStatus || "Open")
+    setEditTechId(b.assignedTechnicianId || "")
     setIsEditOpen(true)
   }
 
+  // Filtered complaints for stats (independent of statusFilter)
+  const filteredComplaintsForStats = React.useMemo(() => {
+    return bookingsWithComplaints.filter(b => {
+      const cust = customers.find(c => c.id === b.customerId)
+      const searchString = `${b.id} ${b.complaint || ""} ${cust?.name || ""} ${cust?.mobile || ""} ${b.appliance}`.toLowerCase()
+      return searchString.includes(search.toLowerCase())
+    })
+  }, [bookingsWithComplaints, customers, search])
+
   // Metrics
   const metrics = React.useMemo(() => {
-    const total = bookingsWithComplaints.length
-    const open = bookingsWithComplaints.filter(b => b.complaintStatus === "Open").length
-    const review = bookingsWithComplaints.filter(b => b.complaintStatus === "In Review").length
-    const resolved = bookingsWithComplaints.filter(b => b.complaintStatus === "Resolved").length
-    const dismissed = bookingsWithComplaints.filter(b => b.complaintStatus === "Dismissed").length
+    const total = filteredComplaintsForStats.length
+    const open = filteredComplaintsForStats.filter(b => b.complaintStatus === "Open").length
+    const review = filteredComplaintsForStats.filter(b => b.complaintStatus === "In Review").length
+    const resolved = filteredComplaintsForStats.filter(b => b.complaintStatus === "Resolved").length
+    const dismissed = filteredComplaintsForStats.filter(b => b.complaintStatus === "Dismissed").length
 
     return { total, open, review, resolved, dismissed }
-  }, [bookingsWithComplaints])
+  }, [filteredComplaintsForStats])
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -343,7 +391,10 @@ export function ComplaintsModule() {
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+        <Card 
+          onClick={() => setStatusFilter("ALL")}
+          className={`border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer hover:bg-muted/30 transition-colors select-none ${statusFilter === "ALL" ? "ring-2 ring-primary border-transparent" : ""}`}
+        >
           <CardHeader className="py-3.5 pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Filed</CardDescription>
           </CardHeader>
@@ -353,7 +404,10 @@ export function ComplaintsModule() {
           </CardContent>
         </Card>
 
-        <Card className="border-rose-200/50 dark:border-rose-950/20 shadow-xs bg-rose-50/5 dark:bg-rose-950/5">
+        <Card 
+          onClick={() => setStatusFilter("Open")}
+          className={`border-rose-200/50 dark:border-rose-950/20 shadow-xs bg-rose-50/5 dark:bg-rose-950/5 cursor-pointer hover:bg-rose-500/10 dark:hover:bg-rose-950/10 transition-colors select-none ${statusFilter === "Open" ? "ring-2 ring-rose-500 border-transparent" : ""}`}
+        >
           <CardHeader className="py-3.5 pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Open Dues</CardDescription>
           </CardHeader>
@@ -363,7 +417,10 @@ export function ComplaintsModule() {
           </CardContent>
         </Card>
 
-        <Card className="border-orange-200/50 dark:border-orange-950/20 shadow-xs bg-orange-50/5 dark:bg-orange-950/5">
+        <Card 
+          onClick={() => setStatusFilter("In Review")}
+          className={`border-orange-200/50 dark:border-orange-950/20 shadow-xs bg-orange-50/5 dark:bg-orange-950/5 cursor-pointer hover:bg-orange-500/10 dark:hover:bg-orange-950/10 transition-colors select-none ${statusFilter === "In Review" ? "ring-2 ring-orange-500 border-transparent" : ""}`}
+        >
           <CardHeader className="py-3.5 pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">In Review</CardDescription>
           </CardHeader>
@@ -373,7 +430,10 @@ export function ComplaintsModule() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-200/50 dark:border-emerald-950/20 shadow-xs bg-emerald-50/5 dark:bg-emerald-950/5">
+        <Card 
+          onClick={() => setStatusFilter("Resolved")}
+          className={`border-emerald-200/50 dark:border-emerald-950/20 shadow-xs bg-emerald-50/5 dark:bg-emerald-950/5 cursor-pointer hover:bg-emerald-500/10 dark:hover:bg-emerald-950/10 transition-colors select-none ${statusFilter === "Resolved" ? "ring-2 ring-emerald-500 border-transparent" : ""}`}
+        >
           <CardHeader className="py-3.5 pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Resolved</CardDescription>
           </CardHeader>
@@ -383,7 +443,10 @@ export function ComplaintsModule() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs">
+        <Card 
+          onClick={() => setStatusFilter("Dismissed")}
+          className={`border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer hover:bg-muted/30 transition-colors select-none ${statusFilter === "Dismissed" ? "ring-2 ring-zinc-500 border-transparent" : ""}`}
+        >
           <CardHeader className="py-3.5 pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider">Dismissed</CardDescription>
           </CardHeader>
@@ -435,8 +498,11 @@ export function ComplaintsModule() {
                   <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Booking CIN</TableHead>
                   <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Customer Details</TableHead>
                   <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Appliance Details</TableHead>
+                  <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Assigned Tech</TableHead>
                   <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Date Filed</TableHead>
-                  <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-96">Complaint Details</TableHead>
+                  <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Date Closed</TableHead>
+                  <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-80">Complaint Details</TableHead>
+                  <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-60">Notes</TableHead>
                   <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
                   <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>
                 </TableRow>
@@ -444,13 +510,14 @@ export function ComplaintsModule() {
               <TableBody>
                 {paginatedComplaints.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground font-medium">
+                    <TableCell colSpan={10} className="text-center py-12 text-muted-foreground font-medium">
                       No complaints match filters.
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedComplaints.map((b) => {
                     const cust = customers.find(c => c.id === b.customerId)
+                    const tech = technicians.find(t => t.id === b.assignedTechnicianId)
                     return (
                       <TableRow key={b.id} className="hover:bg-muted/20 transition-colors">
                         <TableCell className="px-4 py-4 font-bold text-xs tabular-nums text-foreground">{b.id}</TableCell>
@@ -468,64 +535,62 @@ export function ComplaintsModule() {
                             <span className="text-[10px] text-muted-foreground font-medium mt-0.5">{b.serviceType}</span>
                           </div>
                         </TableCell>
+                        <TableCell className="px-4 py-4 text-xs font-semibold text-foreground">{tech?.name || <span className="text-muted-foreground/40">Unassigned</span>}</TableCell>
                         <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{b.complaintDate || "—"}</TableCell>
-                        <TableCell className="px-4 py-4 text-xs font-semibold leading-relaxed text-foreground max-w-sm whitespace-pre-wrap">{b.complaint}</TableCell>
+                        <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{b.complaintClosedDate || "—"}</TableCell>
+                        <TableCell className="px-4 py-4 text-xs font-semibold leading-relaxed text-foreground max-w-xs whitespace-pre-wrap">{b.complaint}</TableCell>
+                        <TableCell className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate" title={b.notes || cust?.notes || ""}>
+                          {b.notes || cust?.notes || <span className="text-muted-foreground/30">—</span>}
+                        </TableCell>
                         <TableCell className="px-4 py-4">
-                          <Badge variant="outline" className={`text-[9px] font-bold py-0.5 px-1.5 ${getStatusBadgeColor(b.complaintStatus || "Open")}`}>
-                            {b.complaintStatus || "Open"}
-                          </Badge>
+                          <Select
+                            value={b.complaintStatus || "Open"}
+                            onValueChange={(val: any) => handleComplaintStatusChange(b.id, val)}
+                          >
+                            <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${getStatusBadgeColor(b.complaintStatus || "Open")}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Open" className="text-rose-600 dark:text-rose-400 font-bold focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">Open</SelectItem>
+                              <SelectItem value="In Review" className="text-orange-600 dark:text-orange-400 font-bold focus:text-orange-600 focus:bg-orange-50 dark:focus:bg-orange-950/30">In Review</SelectItem>
+                              <SelectItem value="Resolved" className="text-emerald-600 dark:text-emerald-400 font-bold focus:text-emerald-600 focus:bg-emerald-50 dark:focus:bg-emerald-950/30">Resolved</SelectItem>
+                              <SelectItem value="Dismissed" className="text-zinc-600 dark:text-zinc-400 font-bold focus:text-zinc-600 focus:bg-zinc-50 dark:focus:bg-zinc-950/30">Dismissed</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleOpenEdit(b)}
-                              className="h-7 text-xs font-bold px-2 bg-background hover:bg-muted cursor-pointer"
-                            >
-                              Edit
-                            </Button>
-                            {(b.complaintStatus === "Open" || b.complaintStatus === "In Review") && (
-                              <>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => handleQuickResolve(b.id)}
-                                  className="h-7 text-xs font-bold px-2 border-emerald-200 bg-emerald-50/20 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 cursor-pointer"
-                                >
-                                  Resolve
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleQuickDismiss(b.id)}
-                                  className="h-7 text-xs font-bold px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 cursor-pointer"
-                                >
-                                  Dismiss
-                                </Button>
-                                </>
-                              )}
-                              {b.issue === "Custom Complaint (No Booking)" && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => handleConvertToBooking(b.id)}
-                                  className="h-7 text-[10px] font-bold px-2 border-indigo-200 bg-indigo-50/20 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 cursor-pointer"
-                                >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="h-8 w-8 p-0 cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(b)} className="cursor-pointer">
+                                Edit
+                              </DropdownMenuItem>
+                              {b.issue === "Custom Complaint (No Booking)" && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed" && (
+                                <DropdownMenuItem onClick={() => handleConvertToBooking(b.id)} className="cursor-pointer">
                                   Convert to Booking
-                                </Button>
+                                </DropdownMenuItem>
                               )}
                               {currentRole === "Admin" && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleDeleteComplaint(b.id)}
-                                className="h-7 text-xs font-bold px-2 border-rose-200 bg-rose-50/20 text-rose-700 hover:bg-rose-50 hover:text-rose-800 cursor-pointer"
-                              >
-                                Delete
-                              </Button>
-                            )}
-                          </div>
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteComplaint(b.id)}
+                                    className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     )
@@ -610,64 +675,102 @@ export function ComplaintsModule() {
 
             <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex flex-col gap-4">
-                
-                {logMode === "link" ? (
+                           {logMode === "link" ? (
                   /* Search & Select Booking */
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="booking-search" className="text-xs font-bold text-muted-foreground">Search and Select Booking</Label>
-                    <div className="relative">
-                      <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                      <Input
-                        id="booking-search"
-                        placeholder="Search by CIN, customer name, mobile or appliance..."
-                        value={bookingSearch}
-                        onChange={(e) => setBookingSearch(e.target.value)}
-                        className="pl-9 bg-background h-9 text-xs border-border/60"
-                      />
-                    </div>
-                    
-                    <div className="border border-border/60 rounded-lg max-h-72 overflow-y-auto bg-muted/10 divide-y divide-border/40">
-                      {availableBookingsForComplaint.length === 0 ? (
-                        <div className="p-3 text-xs text-muted-foreground text-center">No bookings match "{bookingSearch}"</div>
-                      ) : (
-                        availableBookingsForComplaint.map(b => {
-                          const cust = customers.find(c => c.id === b.customerId)
-                          const tech = technicians.find(t => t.id === b.assignedTechnicianId)
-                          const isSelected = selectedBookingId === b.id
-                          return (
-                            <button
-                              key={b.id}
-                              type="button"
-                              onClick={() => setSelectedBookingId(b.id)}
-                              className={`w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors ${
-                                isSelected 
-                                  ? "bg-rose-500/15 text-rose-700 font-semibold" 
-                                  : "hover:bg-muted/50 text-foreground"
-                              }`}
-                            >
-                              <div className="flex flex-col gap-0.5">
-                                <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                                  <span>{b.id}</span>
-                                  <span className="text-[10px] text-muted-foreground">({b.appliance})</span>
-                                </div>
-                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                                  <span>Client: {cust?.name}</span>
-                                  <span className="text-border">•</span>
-                                  <span>Mobile: {cust?.mobile}</span>
-                                  <span className="text-border">•</span>
-                                  <span>Tech: {tech?.name || "Unassigned"}</span>
-                                  <span className="text-border">•</span>
-                                  <span>Date: {b.date}</span>
-                                </div>
+                    <Label htmlFor="booking-search" className="text-xs font-bold text-muted-foreground">Search and Select Booking *</Label>
+                    {selectedBookingId ? (
+                      /* Selected Booking Card */
+                      (() => {
+                        const selB = bookings.find(b => b.id === selectedBookingId)
+                        const selC = selB ? customers.find(c => c.id === selB.customerId) : null
+                        return selB ? (
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/5 animate-in fade-in duration-200">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-foreground">Booking {selB.id}</span>
+                                <span className="text-[10px] text-muted-foreground">({selB.appliance})</span>
                               </div>
-                              {isSelected && (
-                                <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[8px] font-bold">Selected</Badge>
-                              )}
+                              <span className="text-[10px] text-muted-foreground">{selC?.name || "Unknown"} • {selB.date}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedBookingId(""); setBookingSearch("") }}
+                              className="shrink-0 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                              title="Deselect booking"
+                            >
+                              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
                             </button>
-                          )
-                        })
-                      )}
-                    </div>
+                          </div>
+                        ) : null
+                      })()
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input
+                            id="booking-search"
+                            placeholder="Search by CIN, customer name, mobile or appliance..."
+                            value={bookingSearch}
+                            onChange={(e) => setBookingSearch(e.target.value)}
+                            className="pl-9 bg-background h-9 text-xs border-border/60"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        <div className="border border-border/60 rounded-lg max-h-56 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                          {availableBookingsForComplaint.length === 0 ? (
+                            <div className="p-3 text-xs text-muted-foreground text-center">No bookings match "{bookingSearch}"</div>
+                          ) : (
+                            availableBookingsForComplaint.map(b => {
+                              const cust = customers.find(c => c.id === b.customerId)
+                              const tech = technicians.find(t => t.id === b.assignedTechnicianId)
+                              return (
+                                <button
+                                  key={b.id}
+                                  type="button"
+                                  onClick={() => { setSelectedBookingId(b.id); setBookingSearch("") }}
+                                  className="w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors hover:bg-muted/50 text-foreground"
+                                >
+                                  <div className="flex flex-col gap-0.5">
+                                    <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                      <span>Booking {b.id}</span>
+                                      <span className="text-[10px] text-muted-foreground">({b.appliance})</span>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                      <span>Client: {cust?.name || "Unknown"}</span>
+                                      <span className="text-border">•</span>
+                                      <span>Mobile: {cust?.mobile}</span>
+                                      <span className="text-border">•</span>
+                                      <span>Tech: {tech?.name || "Unassigned"}</span>
+                                      <span className="text-border">•</span>
+                                      <span>Date: {b.date}</span>
+                                    </div>
+                                  </div>
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {selectedBookingId && (
+                      <div className="flex flex-col gap-1.5 mt-2 animate-in fade-in duration-200">
+                        <Label htmlFor="link-tech" className="text-xs font-bold text-muted-foreground">Re-assign Technician (Optional)</Label>
+                        <Select value={logTechId} onValueChange={setLogTechId}>
+                          <SelectTrigger id="link-tech" className="h-9 text-xs bg-background border-border/60">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned / None</SelectItem>
+                            {technicians.map(t => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Custom Complaint customer details */
@@ -702,45 +805,72 @@ export function ComplaintsModule() {
 
                       {customCustomerMode === "registered" ? (
                         <div className="flex flex-col gap-2">
-                          <div className="relative">
-                            <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                            <Input
-                              placeholder="Search by CIN, name, mobile or location..."
-                              value={customerSearch}
-                              onChange={(e) => setCustomerSearch(e.target.value)}
-                              className="pl-9 bg-background h-9 text-xs border-border/60"
-                            />
-                          </div>
-                          
-                          <div className="border border-border/60 rounded-lg max-h-48 overflow-y-auto bg-muted/10 divide-y divide-border/40">
-                            {filteredCustomersForComplaint.length === 0 ? (
-                              <div className="p-3 text-xs text-muted-foreground text-center">No customers match "{customerSearch}"</div>
-                            ) : (
-                              filteredCustomersForComplaint.map(c => {
-                                const isSelected = customCustomerId === c.id
-                                return (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => setCustomCustomerId(c.id)}
-                                    className={`w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors ${
-                                      isSelected 
-                                        ? "bg-rose-500/15 text-rose-700 font-semibold" 
-                                        : "hover:bg-muted/50 text-foreground"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col gap-0.5">
-                                      <div className="font-semibold text-foreground">{c.name} ({c.id})</div>
-                                      <div className="text-[10px] text-muted-foreground">Mobile: {c.mobile} | Address: {c.address}</div>
+                          {customCustomerId ? (
+                            (() => {
+                              const sel = customers.find(c => c.id === customCustomerId)
+                              return sel ? (
+                                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-primary/30 bg-primary/5 animate-in fade-in duration-200">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="size-7 rounded-md bg-primary/10 text-primary border border-primary/20 text-[10px] font-black flex items-center justify-center shrink-0">
+                                      {sel.name.charAt(0).toUpperCase()}
                                     </div>
-                                    {isSelected && (
-                                      <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[8px] font-bold">Selected</Badge>
-                                    )}
+                                    <div className="flex flex-col gap-0 min-w-0">
+                                      <span className="text-xs font-bold text-foreground truncate">{sel.name}</span>
+                                      <span className="text-[10px] text-muted-foreground">{sel.mobile} • {sel.id}</span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setCustomCustomerId(""); setCustomerSearch("") }}
+                                    className="shrink-0 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                                    title="Deselect customer"
+                                  >
+                                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
                                   </button>
-                                )
-                              })
-                            )}
-                          </div>
+                                </div>
+                              ) : null
+                            })()
+                          ) : (
+                            <>
+                              <div className="relative">
+                                <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Search by CIN, name, mobile or location..."
+                                  value={customerSearch}
+                                  onChange={(e) => setCustomerSearch(e.target.value)}
+                                  className="pl-9 bg-background h-9 text-xs border-border/60"
+                                  autoFocus
+                                />
+                              </div>
+                              
+                              <div className="border border-border/60 rounded-lg max-h-48 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                                {filteredCustomersForComplaint.length === 0 ? (
+                                  <div className="p-3 text-xs text-muted-foreground text-center">No customers match "{customerSearch}"</div>
+                                ) : (
+                                  filteredCustomersForComplaint.map(c => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => { setCustomCustomerId(c.id); setCustomerSearch("") }}
+                                      className="w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors hover:bg-muted/50 text-foreground"
+                                    >
+                                      <div className="flex flex-col gap-0.5">
+                                        <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                          <span>{c.name}</span>
+                                          <span className="text-[10px] text-muted-foreground">({c.id})</span>
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                          <span>{c.mobile}</span>
+                                          <span className="text-border">•</span>
+                                          <span className="truncate max-w-[200px]">{c.address}</span>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="flex flex-col gap-3.5 border border-border/40 rounded-lg p-3 bg-muted/5">
@@ -801,13 +931,27 @@ export function ComplaintsModule() {
 
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="custom-appliance" className="text-xs font-bold text-muted-foreground">Appliance Details (Default: General)</Label>
-                      <Input
-                        id="custom-appliance"
-                        placeholder="E.g. AC, Washing Machine, Geyser..."
-                        value={customAppliance}
-                        onChange={(e) => setCustomAppliance(e.target.value)}
-                        className="bg-background h-9 text-xs border-border/60"
-                      />
+                      <Select value={customAppliance} onValueChange={setCustomAppliance}>
+                        <SelectTrigger id="custom-appliance" className="bg-background h-9 text-xs border-border/60">
+                          <SelectValue placeholder="Select Appliance Type..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="General">General</SelectItem>
+                          {APPLIANCE_OPTIONS.filter(o => o !== "Other").map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {customAppliance === "Other" && (
+                        <Input
+                          placeholder="Custom Appliance Name"
+                          value={customApplianceText}
+                          onChange={(e) => setCustomApplianceText(e.target.value)}
+                          className="bg-background h-9 text-xs border-border/60 mt-1.5"
+                          required
+                        />
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mt-1">
@@ -928,8 +1072,7 @@ export function ComplaintsModule() {
 
             <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="flex flex-col gap-4">
-                
-                {/* Associated Booking Info */}
+                  {/* Associated Booking Info */}
                 <div className="rounded-lg bg-muted/40 p-4 border flex flex-col gap-2">
                   <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Associated Service Job</span>
                   <div className="text-sm font-bold text-foreground">{selectedBookingForEdit?.id}</div>
@@ -940,6 +1083,21 @@ export function ComplaintsModule() {
                   </div>
                 </div>
 
+                {/* Edit Technician */}
+                <div className="flex flex-col gap-1.5 animate-in fade-in duration-200">
+                  <Label htmlFor="edit-complaint-tech" className="text-xs font-bold text-muted-foreground">Assigned Technician</Label>
+                  <Select value={editTechId} onValueChange={setEditTechId}>
+                    <SelectTrigger id="edit-complaint-tech" className="h-9 text-xs bg-background border-border/60">
+                      <SelectValue placeholder="Unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unassigned / None</SelectItem>
+                      {technicians.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">

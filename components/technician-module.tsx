@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { 
   Drawer, 
   DrawerClose, 
   DrawerContent, 
@@ -16,34 +25,42 @@ import {
   DrawerHeader, 
   DrawerTitle 
 } from "@/components/ui/drawer"
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator 
+} from "@/components/ui/dropdown-menu"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
-  UserGroupIcon,
   HelpCircleIcon,
   CheckmarkCircle01Icon,
   Loading03Icon,
-  InvoiceIcon
+  MoreHorizontalCircle01Icon,
+  SearchIcon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 export function TechnicianModule() {
   const { technicians, bookings, payouts, addPayout, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
+  const [search, setSearch] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [currentPage, setCurrentPage] = React.useState(1)
+  const pageSize = 8
+
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter])
+
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [isSettleOpen, setIsSettleOpen] = React.useState(false)
   const [selectedTech, setSelectedTech] = React.useState<Technician | null>(null)
   const [settleAmount, setSettleAmount] = React.useState("")
 
-  // Tab switcher
-  const [activeSubTab, setActiveSubTab] = React.useState<"list" | "logDaily">("list")
-
-  // Log Daily form state
-  const [logTechId, setLogTechId] = React.useState("")
-  const [logDate, setLogDate] = React.useState(new Date().toISOString().split("T")[0])
-  const [logEarnings, setLogEarnings] = React.useState("")
-  const [logAdvance, setLogAdvance] = React.useState("")
-  const [logStatus, setLogStatus] = React.useState<"Paid" | "Pending">("Paid")
+  // Tab switcher removed
 
   // Form State
   const [name, setName] = React.useState("")
@@ -66,6 +83,10 @@ export function TechnicianModule() {
   // Submit Technician Add
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!/^\d{10}$/.test(mobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
     const skills = skillsString.split(",").map(s => s.trim()).filter(Boolean)
     addTechnician({
       name,
@@ -101,6 +122,10 @@ export function TechnicianModule() {
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedTech) return
+    if (!/^\d{10}$/.test(editMobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
     const skills = editSkillsString.split(",").map(s => s.trim()).filter(Boolean)
     updateTechnician(selectedTech.id, {
       name: editName,
@@ -152,60 +177,32 @@ export function TechnicianModule() {
     setSettleAmount("")
   }
 
-  // Submit Daily Log Amount
-  const handleLogDailySubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!logTechId) {
-      toast.error("Please select a technician.")
-      return
-    }
+  // Daily log handlers removed
 
-    const earnings = parseFloat(logEarnings) || 0
-    const advance = parseFloat(logAdvance) || 0
-
-    if (earnings < 0 || advance < 0) {
-      toast.error("Earnings and advances cannot be negative values.")
-      return
-    }
-
-    // totalPayout calculation: if Paid, totalPayout = earnings - advance; else 0
-    const totalPayout = logStatus === "Paid" ? Math.max(0, earnings - advance) : 0
-
-    addPayout({
-      technicianId: logTechId,
-      date: logDate,
-      dailyEarnings: earnings,
-      totalPayout: totalPayout,
-      advance: advance,
-      extra: 0,
-      paymentStatus: logStatus,
-      customerName: "Daily Log",
-      cinNumber: "—"
+  // Filtered Technicians List
+  const filteredTechnicians = React.useMemo(() => {
+    return technicians.filter(t => {
+      const matchesSearch = `${t.name} ${t.mobile} ${(t.skills || []).join(" ")}`.toLowerCase().includes(search.toLowerCase())
+      const matchesStatus = statusFilter === "ALL" || t.status === statusFilter
+      return matchesSearch && matchesStatus
     })
+  }, [technicians, search, statusFilter])
 
-    toast.success("Daily technician amount logged successfully.")
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredTechnicians.length / pageSize)
+  const paginatedTechnicians = React.useMemo(() => {
+    return filteredTechnicians.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  }, [filteredTechnicians, currentPage])
 
-    // Reset Form
-    setLogTechId("")
-    setLogEarnings("")
-    setLogAdvance("")
-    setLogStatus("Paid")
-    setLogDate(new Date().toISOString().split("T")[0])
-  }
+  // Filtered payout sum removed
 
-  // Filtered recent daily logs to display
-  const dailyLogs = React.useMemo(() => {
-    return payouts.filter(p => p.customerName === "Daily Log")
-      .sort((a, b) => b.date.localeCompare(a.date))
-  }, [payouts])
+  const filteredDuesSum = React.useMemo(() => {
+    return filteredTechnicians.reduce((sum, t) => sum + t.dueAmount, 0)
+  }, [filteredTechnicians])
 
-  // Running KPI computations
-  const totalPayoutSum = payouts
-    .filter(p => p.paymentStatus === "Paid")
-    .reduce((sum, p) => sum + p.totalPayout, 0)
-  
-  const totalDuesSum = technicians.reduce((sum, t) => sum + t.dueAmount, 0)
-  const totalAdvancesSum = technicians.reduce((sum, t) => sum + t.advanceTaken, 0)
+  const filteredAdvancesSum = React.useMemo(() => {
+    return filteredTechnicians.reduce((sum, t) => sum + t.advanceTaken, 0)
+  }, [filteredTechnicians])
 
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
@@ -217,363 +214,283 @@ export function TechnicianModule() {
           <p className="text-sm text-muted-foreground">Manage dispatch staff profiles, skills directories, active job workloads, and running commissions.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/40 w-fit shrink-0">
+          {currentRole === "Admin" && technicians.length > 0 && (
             <Button 
               type="button"
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setActiveSubTab("list")}
-              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
-                activeSubTab === "list" 
-                  ? "bg-background text-foreground shadow-sm font-bold" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              variant="destructive" 
+              onClick={() => {
+                if (window.confirm("Are you sure you want to remove all technicians?")) {
+                  technicians.forEach(t => deleteTechnician(t.id))
+                }
+              }} 
+              className="w-fit cursor-pointer font-bold h-9 text-xs"
             >
-              <HugeiconsIcon icon={UserGroupIcon} strokeWidth={2} className="size-3.5" />
-              Technician List
+              Clear All Technicians
             </Button>
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setActiveSubTab("logDaily")}
-              className={`text-xs font-bold px-4 py-1.5 h-8 rounded-lg transition-all flex items-center gap-1.5 ${
-                activeSubTab === "logDaily" 
-                  ? "bg-background text-foreground shadow-sm font-bold" 
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-3.5" />
-              Log Daily Amount
-            </Button>
-          </div>
-          {activeSubTab === "list" && (
-            <>
-              {currentRole === "Admin" && technicians.length > 0 && (
-                <Button 
-                  type="button"
-                  variant="destructive" 
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to remove all technicians?")) {
-                      technicians.forEach(t => deleteTechnician(t.id))
-                    }
-                  }} 
-                  className="w-fit cursor-pointer font-bold h-9 text-xs"
-                >
-                  Clear All Technicians
-                </Button>
-              )}
-              <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer h-9 text-xs font-bold gap-1.5">
-                <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-4" />
-                Onboard Technician
-              </Button>
-            </>
           )}
+          <Button onClick={() => setIsAddOpen(true)} className="w-fit cursor-pointer h-9 text-xs font-bold gap-1.5">
+            <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} className="size-4" />
+            Onboard Technician
+          </Button>
         </div>
       </div>
-
-      {activeSubTab === "list" ? (
-        <>
-          {/* Technician Stat Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {/* Total Settled Payouts */}
-            <Card className="border-border/60">
+      <>
+          {/* Technician Clickable Stat Cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            {/* Total Staff */}
+            <Card 
+              className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${statusFilter === "ALL" ? "ring-1 ring-primary bg-primary/5 border-primary/30" : ""}`}
+              onClick={() => setStatusFilter("ALL")}
+            >
               <CardHeader className="py-3">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Settled Payouts</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Staff</CardDescription>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
-                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">₹{totalPayoutSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">{technicians.length}</CardTitle>
+                <span className="text-[10px] text-muted-foreground mt-1 block">All onboarded technicians</span>
+              </CardContent>
+            </Card>
+
+            {/* Active Staff */}
+            <Card 
+              className={`border-border/60 cursor-pointer hover:shadow-md transition-all duration-200 ${statusFilter === "Active" ? "ring-1 ring-emerald-500 bg-emerald-500/5 border-emerald-500/30" : ""}`}
+              onClick={() => setStatusFilter("Active")}
+            >
+              <CardHeader className="py-3">
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active Staff</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-3 pt-0">
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {technicians.filter(t => t.status === "Active").length}
+                </CardTitle>
+                <span className="text-[10px] text-muted-foreground mt-1 block">Available for dispatch</span>
               </CardContent>
             </Card>
 
             {/* Total Outstanding Dues */}
             <Card className="border-border/60">
               <CardHeader className="py-3">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Total Outstanding Dues</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Filtered Outstanding Dues</CardDescription>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
-                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-amber-600 dark:text-amber-400">₹{totalDuesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-amber-600 dark:text-amber-400">
+                  ₹{filteredDuesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </CardTitle>
+                <span className="text-[10px] text-muted-foreground mt-1 block">Unpaid commission balance</span>
               </CardContent>
             </Card>
 
             {/* Total Active Advances */}
             <Card className="border-border/60">
               <CardHeader className="py-3">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Total Running Advances</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Filtered Running Advances</CardDescription>
               </CardHeader>
               <CardContent className="pb-3 pt-0">
-                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">₹{totalAdvancesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">
+                  ₹{filteredAdvancesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </CardTitle>
+                <span className="text-[10px] text-muted-foreground mt-1 block">Active advance draw ledger</span>
               </CardContent>
             </Card>
           </div>
 
-          {/* Technician Dashboard Cards Grid */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {technicians.map((t) => {
-              // Dynamic metric computations from live bookings
-              const techBookings = bookings.filter(b => b.assignedTechnicianId === t.id)
-              const totalJobs = techBookings.length
-              const completedJobs = techBookings.filter(b => b.status === "Completed").length
-              const pendingJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
-              
-              // Earnings computed: Sum of dynamic totalTechnicianAmount on completed orders
-              const completedEarnings = techBookings
-                .filter(b => b.status === "Completed")
-                .reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
+          {/* Control Panel: Filters */}
+          <Card className="border-border/60">
+            <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:max-w-md">
+                <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search technicians by name, mobile or skills..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+                />
+              </div>
 
-              return (
-                <Card key={t.id} className="border-border/60 hover:shadow-md transition-all duration-300 relative overflow-hidden bg-card/60 backdrop-blur-md">
-                  {/* Background abstract gradient */}
-                  <div className="absolute right-0 top-0 size-28 rounded-full bg-primary/5 blur-2xl pointer-events-none" />
-                  
-                  <CardHeader className="pb-3 border-b border-border/40">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="size-10 bg-primary/10 text-primary border border-primary/20 text-sm font-black rounded-lg flex items-center justify-center">
-                          {t.name.split(" ").map(w => w.charAt(0)).join("")}
-                        </div>
-                        <CardTitle className="text-sm font-bold text-foreground">{t.name}</CardTitle>
-                      </div>
+              <div className="flex items-center gap-1.5 w-full md:w-auto">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-44">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Statuses</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
-                      <Badge 
-                        variant="outline"
-                        onClick={() => updateTechnician(t.id, { status: t.status === "Active" ? "Inactive" : "Active" })}
-                        className={`text-[9px] font-extrabold cursor-pointer py-0 px-1.5 ${
-                          t.status === "Active" 
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                            : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
-                        }`}
-                      >
-                        {t.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
+          {/* Technician Table UI */}
+          <Card className="border-border/60 overflow-hidden shadow-xs">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/60 border-b border-border/50">
+                    <TableRow>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">ID</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Technician Name</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Mobile</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Joining Date</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Skills</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-center">Jobs (Comp/Pend)</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-right">Dues</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-right">Advances</TableHead>
+                      <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-center">Status</TableHead>
+                      <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedTechnicians.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-12 text-muted-foreground font-medium">
+                          No technicians match the query.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedTechnicians.map((t) => {
+                        const techBookings = bookings.filter(b => 
+                          (b.assignedTechnicianId || "").split(",").map(id => id.trim()).includes(t.id)
+                        )
+                        const completedJobs = techBookings.filter(b => b.status === "Completed" || b.status === "Inspected").length
+                        const pendingJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
 
-                  <CardContent className="py-4 flex flex-col gap-3">
-                    {/* Financial balances */}
-                    <div className="flex flex-col gap-2.5 text-xs font-semibold">
-                      <div className="flex justify-between items-center bg-muted/20 px-2 py-1.5 rounded border border-border/40">
-                        <span className="text-muted-foreground font-medium">Total Completed:</span>
-                        <span className="font-bold tabular-nums text-foreground">₹{completedEarnings.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 bg-amber-500/5 px-2 py-1.5 rounded border border-amber-500/10">
-                        <span className="font-medium">Due:</span>
-                        <span className="font-black tabular-nums">₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 bg-rose-500/5 px-2 py-1.5 rounded border border-rose-500/10">
-                        <span className="font-medium">Total Advance:</span>
-                        <span className="font-black tabular-nums">₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="pt-0 border-t border-border/40 py-2.5 flex justify-between gap-2 items-center">
-                    <div className="flex gap-2 flex-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenEdit(t)}
-                        className="h-8 text-xs font-bold px-2.5 bg-background hover:bg-muted cursor-pointer flex-1"
-                      >
-                        Edit Profile
-                      </Button>
-                      {t.dueAmount > 0 && (currentRole === "Admin" || currentRole === "Manager") && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenSettle(t)}
-                          className="h-8 text-xs font-bold px-2.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 cursor-pointer flex-1"
-                        >
-                          Settle Dues
-                        </Button>
-                      )}
-                    </div>
-                    {currentRole === "Admin" && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          if (window.confirm(`Are you sure you want to delete profile for ${t.name}?`)) {
-                            deleteTechnician(t.id)
-                          }
-                        }}
-                        className="h-8 size-8 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
-                      >
-                        ×
-                      </Button>
+                        return (
+                          <TableRow key={t.id} className="hover:bg-muted/20 transition-colors">
+                            <TableCell className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{t.id}</TableCell>
+                            <TableCell className="px-4 py-4 font-semibold text-xs text-foreground">
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-8 bg-primary/10 text-primary border border-primary/20 text-[10px] font-black rounded-lg flex items-center justify-center">
+                                  {t.name.split(" ").map(w => w.charAt(0)).join("")}
+                                </div>
+                                <span className="font-semibold text-foreground text-xs">{t.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{t.mobile}</TableCell>
+                            <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{t.joiningDate}</TableCell>
+                            <TableCell className="px-4 py-4">
+                              <div className="flex flex-wrap gap-1 max-w-[160px]">
+                                {t.skills.map((skill, index) => (
+                                  <Badge key={index} variant="outline" className="text-[9px] font-semibold py-0 px-1 bg-muted/40">
+                                    {skill}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-center text-xs font-bold text-foreground tabular-nums">
+                              {completedJobs} / {pendingJobs}
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-right text-xs font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                              ₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-right text-xs font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+                              ₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-center">
+                              <Badge 
+                                variant="outline"
+                                onClick={() => updateTechnician(t.id, { status: t.status === "Active" ? "Inactive" : "Active" })}
+                                className={`text-[9px] font-extrabold cursor-pointer py-0 px-1.5 ${
+                                  t.status === "Active" 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
+                                    : "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800/40 dark:text-zinc-400"
+                                }`}
+                              >
+                                {t.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    className="h-8 w-8 p-0 cursor-pointer"
+                                  >
+                                    <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                    <span className="sr-only">Actions</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuItem onClick={() => handleOpenEdit(t)} className="cursor-pointer">
+                                    Edit Profile
+                                  </DropdownMenuItem>
+                                  {t.dueAmount > 0 && (currentRole === "Admin" || currentRole === "Manager") && (
+                                    <DropdownMenuItem onClick={() => handleOpenSettle(t)} className="cursor-pointer">
+                                      Settle Dues
+                                    </DropdownMenuItem>
+                                  )}
+                                  {currentRole === "Admin" && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        onClick={() => {
+                                          if (window.confirm(`Are you sure you want to delete profile for ${t.name}?`)) {
+                                            deleteTechnician(t.id)
+                                          }
+                                        }}
+                                        className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
-                  </CardFooter>
-                </Card>
-              )
-            })}
-          </div>
-        </>
-      ) : (
-        /* Log Daily Amount layout block */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
-          
-          {/* Left Column: Log Form */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            <Card className="border-border/60 bg-card/40 backdrop-blur-md">
-              <CardHeader className="border-b border-border/40 pb-4">
-                <CardTitle className="text-base font-bold">Record Daily Technician Amount</CardTitle>
-                <CardDescription className="text-xs">
-                  Directly post today's commission earnings, advances, and payout clear status for dispatch staff.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <form onSubmit={handleLogDailySubmit} className="flex flex-col gap-4 text-sm">
-                  
-                  {/* Select Date */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="log-date" className="text-xs font-bold text-muted-foreground">Select Log Date</Label>
-                    <Input
-                      type="date"
-                      id="log-date"
-                      value={logDate}
-                      onChange={(e) => setLogDate(e.target.value)}
-                      required
-                      className="bg-background"
-                    />
-                  </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
 
-                  {/* Select Technician */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="log-tech" className="text-xs font-bold text-muted-foreground">Choose Technician</Label>
-                    <select
-                      id="log-tech"
-                      value={logTechId}
-                      onChange={(e) => setLogTechId(e.target.value)}
-                      required
-                      className="h-9 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                    >
-                      <option value="">Select Technician...</option>
-                      {technicians.filter(t => t.status === "Active").map(t => (
-                        <option key={t.id} value={t.id}>{t.name} (Dues: ₹{t.dueAmount})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Today's Earning & Today's Advance */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="log-earnings" className="text-xs font-bold text-muted-foreground">Today's Earning (₹)</Label>
-                      <Input
-                        type="number"
-                        id="log-earnings"
-                        min="0"
-                        placeholder="E.g. 1500"
-                        value={logEarnings}
-                        onChange={(e) => setLogEarnings(e.target.value)}
-                        required
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="log-advance" className="text-xs font-bold text-muted-foreground">Today's Advance (₹)</Label>
-                      <Input
-                        type="number"
-                        id="log-advance"
-                        min="0"
-                        placeholder="E.g. 300"
-                        value={logAdvance}
-                        onChange={(e) => setLogAdvance(e.target.value)}
-                        required
-                        className="bg-background"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Payment Status (Paid / Pending) */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="log-status" className="text-xs font-bold text-muted-foreground">Payment Status</Label>
-                    <select
-                      id="log-status"
-                      value={logStatus}
-                      onChange={(e) => setLogStatus(e.target.value as any)}
-                      required
-                      className="h-9 text-xs font-semibold rounded-lg border border-border/80 bg-background px-2.5 focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                    >
-                      <option value="Paid">Paid / Settled Today</option>
-                      <option value="Pending">Pending / Added to Dues</option>
-                    </select>
-                  </div>
-
-                  {/* Submit Button */}
-                  <Button type="submit" className="w-full mt-2 cursor-pointer font-bold">
-                    Log Daily Amount
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3.5 border-t border-border/40 bg-muted/20">
+                <span className="text-xs text-muted-foreground">
+                  Showing {Math.min(filteredTechnicians.length, (currentPage - 1) * pageSize + 1)} to {Math.min(filteredTechnicians.length, currentPage * pageSize)} of {filteredTechnicians.length} technicians
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    className="h-7 text-xs px-2 bg-background shadow-xs hover:bg-muted cursor-pointer"
+                  >
+                    Previous
                   </Button>
-
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column: Recent Daily Logs */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            <Card className="border-border/60 bg-card/45 backdrop-blur-xs overflow-hidden">
-              <CardHeader className="border-b border-border/40 pb-4">
-                <CardTitle className="text-base font-bold">Recent Daily Logs Ledger</CardTitle>
-                <CardDescription className="text-xs">
-                  Overview of manual daily technician earnings and advance deduction sheets synced with settlements.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
-                      <tr>
-                        <th className="px-4 py-3">Date</th>
-                        <th className="px-4 py-3">Technician</th>
-                        <th className="px-4 py-3">Earnings</th>
-                        <th className="px-4 py-3">Advance</th>
-                        <th className="px-4 py-3">Payout</th>
-                        <th className="px-4 py-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40 text-xs">
-                      {dailyLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="text-center py-12 text-muted-foreground font-medium">
-                            No manual daily logs recorded.
-                          </td>
-                        </tr>
-                      ) : (
-                        dailyLogs.slice(0, 8).map((log) => {
-                          const tech = technicians.find(t => t.id === log.technicianId)
-                          return (
-                            <tr key={log.id} className="hover:bg-muted/10 transition-colors">
-                              <td className="px-4 py-3.5 font-semibold tabular-nums text-foreground">{log.date}</td>
-                              <td className="px-4 py-3.5 font-semibold text-foreground">{tech?.name || "Unknown"}</td>
-                              <td className="px-4 py-3.5 font-semibold text-foreground tabular-nums">₹{log.dailyEarnings}</td>
-                              <td className="px-4 py-3.5 font-medium text-rose-600 dark:text-rose-400 tabular-nums">-₹{log.advance}</td>
-                              <td className="px-4 py-3.5 font-extrabold text-foreground tabular-nums">₹{log.totalPayout}</td>
-                              <td className="px-4 py-3.5">
-                                <Badge 
-                                  variant="outline"
-                                  className={`text-[8px] font-extrabold py-0.5 px-1.5 ${
-                                    log.paymentStatus === "Paid" 
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                                  }`}
-                                >
-                                  {log.paymentStatus}
-                                </Badge>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className={`h-7 w-7 text-xs p-0 cursor-pointer ${currentPage === page ? "pointer-events-none" : "bg-background hover:bg-muted"}`}
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    className="h-7 text-xs px-2 bg-background shadow-xs hover:bg-muted cursor-pointer"
+                  >
+                    Next
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-        </div>
-      )}
+              </div>
+            )}
+          </Card>
+        </>
 
       {/* Technician Add Drawer */}
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen} direction="bottom">

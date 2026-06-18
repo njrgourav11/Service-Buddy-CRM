@@ -23,9 +23,17 @@ import {
   SearchIcon, 
   Database01Icon,
   CheckmarkCircle01Icon,
-  Notification03Icon
+  Notification03Icon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 
 export function InventoryModule() {
   const { spares, addSpare, updateSpare, deleteSpare, currentRole } = useCRM()
@@ -230,39 +238,42 @@ export function InventoryModule() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleQuickRestock(s.id, s.stockQty)}
-                              className="h-7 text-xs font-semibold px-2"
-                            >
-                              +5 Quick Restock
-                            </Button>
-                            {(currentRole === "Admin" || currentRole === "Manager") && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleOpenEdit(s)}
-                                className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
-                              >
-                                Edit
-                              </Button>
-                            )}
-                            {currentRole === "Admin" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                               <Button 
                                 variant="ghost" 
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete spare item: ${s.name}?`)) {
-                                    deleteSpare(s.id)
-                                  }
-                                }}
-                                className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                className="h-8 w-8 p-0 cursor-pointer"
                               >
-                                ×
+                                <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                <span className="sr-only">Actions</span>
                               </Button>
-                            )}
-                          </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem onClick={() => handleQuickRestock(s.id, s.stockQty)} className="cursor-pointer">
+                                +5 Quick Restock
+                              </DropdownMenuItem>
+                              {(currentRole === "Admin" || currentRole === "Manager") && (
+                                <DropdownMenuItem onClick={() => handleOpenEdit(s)} className="cursor-pointer">
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
+                              {currentRole === "Admin" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to delete spare item: ${s.name}?`)) {
+                                        deleteSpare(s.id)
+                                      }
+                                    }}
+                                    className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     )

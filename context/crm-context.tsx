@@ -85,6 +85,8 @@ export interface Booking {
   complaint?: string
   complaintDate?: string
   complaintStatus?: "Open" | "In Review" | "Resolved" | "Dismissed"
+  complaintNotes?: string
+  complaintClosedDate?: string
   notes?: string
   review?: string
   reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive" | "Cancel Order"

@@ -21,9 +21,29 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
   SearchIcon, 
-  CreditCardIcon
+  CreditCardIcon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts"
+
+export const STANDARD_EXPENSE_CATEGORIES = [
+  "Working expenses (beneficiary)",
+  "Outstanding",
+  "Tools and maintenance",
+  "Exp item",
+  "Non beneficiary items",
+  "Office expenses",
+  "Tools and subscriptions",
+  "Refunds"
+]
 
 export function ExpenditureModule() {
   const { expenses, addExpense, updateExpense, deleteExpense, currentRole } = useCRM()
@@ -36,6 +56,7 @@ export function ExpenditureModule() {
   // Form State
   const [item, setItem] = React.useState("")
   const [category, setCategory] = React.useState<any>("Working expenses (beneficiary)")
+  const [customCategory, setCustomCategory] = React.useState("")
   const [amount, setAmount] = React.useState(0)
   const [beneficiary, setBeneficiary] = React.useState("")
   const [remarks, setRemarks] = React.useState("")
@@ -44,6 +65,7 @@ export function ExpenditureModule() {
   // Edit Form State
   const [editItem, setEditItem] = React.useState("")
   const [editCategory, setEditCategory] = React.useState<any>("Working expenses (beneficiary)")
+  const [editCustomCategory, setEditCustomCategory] = React.useState("")
   const [editAmount, setEditAmount] = React.useState(0)
   const [editBeneficiary, setEditBeneficiary] = React.useState("")
   const [editRemarks, setEditRemarks] = React.useState("")
@@ -53,7 +75,13 @@ export function ExpenditureModule() {
   const handleOpenEdit = (e: Expense) => {
     setSelectedExpense(e)
     setEditItem(e.item)
-    setEditCategory(e.category)
+    if (STANDARD_EXPENSE_CATEGORIES.includes(e.category)) {
+      setEditCategory(e.category)
+      setEditCustomCategory("")
+    } else {
+      setEditCategory("CUSTOM")
+      setEditCustomCategory(e.category)
+    }
     setEditAmount(e.amount)
     setEditBeneficiary(e.beneficiary || "")
     setEditRemarks(e.remarks || "")
@@ -66,10 +94,12 @@ export function ExpenditureModule() {
     e.preventDefault()
     if (!selectedExpense) return
 
+    const finalCategory = editCategory === "CUSTOM" ? (editCustomCategory.trim() || "Other") : editCategory
+
     updateExpense(selectedExpense.id, {
       date: editDate,
       item: editItem,
-      category: editCategory,
+      category: finalCategory,
       amount: editAmount,
       beneficiary: editBeneficiary,
       remarks: editRemarks
@@ -91,10 +121,12 @@ export function ExpenditureModule() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
+    const finalCategory = category === "CUSTOM" ? (customCategory.trim() || "Other") : category
+
     addExpense({
       date,
       item,
-      category,
+      category: finalCategory,
       amount,
       beneficiary,
       remarks
@@ -103,6 +135,7 @@ export function ExpenditureModule() {
     // Reset Form
     setItem("")
     setCategory("Working expenses (beneficiary)")
+    setCustomCategory("")
     setAmount(0)
     setBeneficiary("")
     setRemarks("")
@@ -119,6 +152,16 @@ export function ExpenditureModule() {
     })
     
     return Object.entries(map).map(([name, value]) => ({ name, value }))
+  }, [expenses])
+
+  const uniqueCategories = React.useMemo(() => {
+    const set = new Set(STANDARD_EXPENSE_CATEGORIES)
+    expenses.forEach(e => {
+      if (e.category) {
+        set.add(e.category)
+      }
+    })
+    return Array.from(set).sort()
   }, [expenses])
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d", "#ffc658", "#38bdf8"]
@@ -227,14 +270,9 @@ export function ExpenditureModule() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Categories</SelectItem>
-                <SelectItem value="Working expenses (beneficiary)">Working expenses (beneficiary)</SelectItem>
-                <SelectItem value="Outstanding">Outstanding</SelectItem>
-                <SelectItem value="Tools and maintenance">Tools and maintenance</SelectItem>
-                <SelectItem value="Exp item">Exp item</SelectItem>
-                <SelectItem value="Non beneficiary items">Non beneficiary items</SelectItem>
-                <SelectItem value="Office expenses">Office expenses</SelectItem>
-                <SelectItem value="Tools and subscriptions">Tools and subscriptions</SelectItem>
-                <SelectItem value="Refunds">Refunds</SelectItem>
+                {uniqueCategories.map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -279,23 +317,29 @@ export function ExpenditureModule() {
                       <td className="px-4 py-4 text-xs text-muted-foreground max-w-xs truncate">{e.remarks}</td>
                       {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleOpenEdit(e)}
-                              className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                            >
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => deleteExpense(e.id)}
-                              className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                            >
-                              ×
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="h-8 w-8 p-0 cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-32">
+                              <DropdownMenuItem onClick={() => handleOpenEdit(e)} className="cursor-pointer">
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => deleteExpense(e.id)}
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       )}
                     </tr>
@@ -333,25 +377,34 @@ export function ExpenditureModule() {
                   />
                 </div>
 
-                {/* Category Selection */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="exp-cat" className="text-xs font-bold text-muted-foreground">Expense Category</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger id="exp-cat">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Working expenses (beneficiary)">Working expenses (beneficiary)</SelectItem>
-                      <SelectItem value="Outstanding">Outstanding</SelectItem>
-                      <SelectItem value="Tools and maintenance">Tools and maintenance</SelectItem>
-                      <SelectItem value="Exp item">Exp item</SelectItem>
-                      <SelectItem value="Non beneficiary items">Non beneficiary items</SelectItem>
-                      <SelectItem value="Office expenses">Office expenses</SelectItem>
-                      <SelectItem value="Tools and subscriptions">Tools and subscriptions</SelectItem>
-                      <SelectItem value="Refunds">Refunds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                 {/* Category Selection */}
+                 <div className="flex flex-col gap-1.5">
+                   <Label htmlFor="exp-cat" className="text-xs font-bold text-muted-foreground">Expense Category</Label>
+                   <Select value={category} onValueChange={setCategory}>
+                     <SelectTrigger id="exp-cat" className="bg-background border-border/60 text-xs">
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {STANDARD_EXPENSE_CATEGORIES.map(c => (
+                         <SelectItem key={c} value={c}>{c}</SelectItem>
+                       ))}
+                       <SelectItem value="CUSTOM">Other (Write Custom)...</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+
+                 {category === "CUSTOM" && (
+                   <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                     <Label htmlFor="custom-exp-cat" className="text-xs font-bold text-primary">Custom Category Name</Label>
+                     <Input 
+                       id="custom-exp-cat"
+                       placeholder="E.g. Marketing, Staff Welfare, Petrol..."
+                       value={customCategory}
+                       onChange={(e) => setCustomCategory(e.target.value)}
+                       required
+                     />
+                   </div>
+                 )}
 
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">
@@ -444,24 +497,33 @@ export function ExpenditureModule() {
                 </div>
 
                 {/* Category Selection */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="edit-exp-cat" className="text-xs font-bold text-muted-foreground">Expense Category</Label>
-                  <Select value={editCategory} onValueChange={setEditCategory}>
-                    <SelectTrigger id="edit-exp-cat">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Working expenses (beneficiary)">Working expenses (beneficiary)</SelectItem>
-                      <SelectItem value="Outstanding">Outstanding</SelectItem>
-                      <SelectItem value="Tools and maintenance">Tools and maintenance</SelectItem>
-                      <SelectItem value="Exp item">Exp item</SelectItem>
-                      <SelectItem value="Non beneficiary items">Non beneficiary items</SelectItem>
-                      <SelectItem value="Office expenses">Office expenses</SelectItem>
-                      <SelectItem value="Tools and subscriptions">Tools and subscriptions</SelectItem>
-                      <SelectItem value="Refunds">Refunds</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                 <div className="flex flex-col gap-1.5">
+                   <Label htmlFor="edit-exp-cat" className="text-xs font-bold text-muted-foreground">Expense Category</Label>
+                   <Select value={editCategory} onValueChange={setEditCategory}>
+                     <SelectTrigger id="edit-exp-cat" className="bg-background border-border/60 text-xs">
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       {STANDARD_EXPENSE_CATEGORIES.map(c => (
+                         <SelectItem key={c} value={c}>{c}</SelectItem>
+                       ))}
+                       <SelectItem value="CUSTOM">Other (Write Custom)...</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+
+                 {editCategory === "CUSTOM" && (
+                   <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                     <Label htmlFor="edit-custom-exp-cat" className="text-xs font-bold text-primary">Custom Category Name</Label>
+                     <Input 
+                       id="edit-custom-exp-cat"
+                       placeholder="E.g. Marketing, Staff Welfare, Petrol..."
+                       value={editCustomCategory}
+                       onChange={(e) => setEditCustomCategory(e.target.value)}
+                       required
+                     />
+                   </div>
+                 )}
 
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">

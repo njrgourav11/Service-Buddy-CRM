@@ -109,17 +109,27 @@ export function ReportsModule() {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
   const dayWiseData = React.useMemo(() => {
-    const counts = [0, 0, 0, 0, 0, 0, 0] // Sun-Sat
+    const data = daysOfWeek.map((day, idx) => ({
+      day: day.substring(0, 3),
+      "Booking Done": 0,
+      "Cancelled": 0,
+      "Work Done": 0,
+      "Inspected": 0,
+    }))
     filteredBookings.forEach(b => {
       if (b.date) {
         const day = new Date(b.date).getDay()
-        counts[day]++
+        data[day]["Booking Done"]++
+        if (b.status === "Cancelled") {
+          data[day]["Cancelled"]++
+        } else if (b.status === "Completed") {
+          data[day]["Work Done"]++
+        } else if (b.status === "Inspected") {
+          data[day]["Inspected"]++
+        }
       }
     })
-    return daysOfWeek.map((day, idx) => ({
-      day: day.substring(0, 3),
-      Bookings: counts[idx]
-    }))
+    return data
   }, [filteredBookings])
 
   const mostActiveDay = React.useMemo(() => {
@@ -175,51 +185,91 @@ export function ReportsModule() {
   }, [filteredBookings])
 
   // ==========================================
-  // Review Stats Calculations
+  // Review Stats Calculations (Filtered Dynamically)
   // ==========================================
-  const totalCustomers = customers.length
-  const positiveReviews = customers.filter(c => c.reviewStatus === "Positive").length
-  const negativeReviews = customers.filter(c => c.reviewStatus === "Negative").length
-  const callNotReceived = customers.filter(c => c.reviewStatus === "Call didn't receive").length
-  const reviewNotDone = customers.filter(c => !c.reviewStatus || c.reviewStatus === "Review not done").length
+  const filteredCustomersForSatisfaction = React.useMemo(() => {
+    if (applianceFilters.length === 0 && statusFilter === "ALL" && dateFilter === "ALL") {
+      return customers
+    }
+    const customerIds = new Set(filteredBookings.map(b => b.customerId))
+    return customers.filter(c => customerIds.has(c.id))
+  }, [customers, filteredBookings, applianceFilters, statusFilter, dateFilter])
 
-  const totalReviewsDone = positiveReviews + negativeReviews + callNotReceived
+  const totalCustomersCount = filteredCustomersForSatisfaction.length
+  const positiveReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Positive").length
+  const negativeReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Negative").length
+  const callNotReceived = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Call didn't receive").length
+  const reviewNotDone = filteredCustomersForSatisfaction.filter(c => !c.reviewStatus || c.reviewStatus === "Review not done").length
+  const cancelOrderReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Cancel Order").length
+
+  const totalReviewsDone = positiveReviews + negativeReviews + callNotReceived + cancelOrderReviews
   const satisfactionRate = totalReviewsDone > 0 ? Math.round((positiveReviews / totalReviewsDone) * 100) : 0
 
   const reviewDistributionData = [
     { name: "Positive", value: positiveReviews, color: "#10b981" },
     { name: "Negative", value: negativeReviews, color: "#f43f5e" },
     { name: "Call didn't receive", value: callNotReceived, color: "#f97316" },
+    { name: "Cancel Order", value: cancelOrderReviews, color: "#e11d48" },
     { name: "Review not done", value: reviewNotDone, color: "#3b82f6" },
   ].filter(d => d.value > 0)
 
   // ==========================================
-  // Graph 1: Revenue vs Expenses vs Net Margins (Monthly)
+  // Graph 1: Job Status Distribution
   // ==========================================
-  const monthlyData = [
-    { month: "Jan", Billing: 4200, Expenses: 1800, Profit: 2400 },
-    { month: "Feb", Billing: 5100, Expenses: 2200, Profit: 2900 },
-    { month: "Mar", Billing: 6800, Expenses: 3100, Profit: 3700 },
-    { month: "Apr", Billing: 7200, Expenses: 2900, Profit: 4300 },
-    { month: "May", Billing: Math.round(totalRevenue), Expenses: Math.round(totalExpenses), Profit: Math.round(netProfit) },
-  ]
+  const statusDistributionData = React.useMemo(() => {
+    const counts: Record<string, number> = {
+      "Not Started": 0,
+      "In Progress": 0,
+      "Inspected": 0,
+      "Completed": 0,
+      "Cancelled": 0,
+    }
+    filteredBookings.forEach(b => {
+      if (b.status && counts[b.status] !== undefined) {
+        counts[b.status]++
+      }
+    })
+    return [
+      { name: "Not Started", value: counts["Not Started"], color: "#94a3b8" },
+      { name: "In Progress", value: counts["In Progress"], color: "#3b82f6" },
+      { name: "Inspected", value: counts["Inspected"], color: "#eab308" },
+      { name: "Completed", value: counts["Completed"], color: "#10b981" },
+      { name: "Cancelled", value: counts["Cancelled"], color: "#ef4444" },
+    ].filter(item => item.value > 0)
+  }, [filteredBookings])
 
   // ==========================================
   // Graph 2: Technician Performance Rankings
   // ==========================================
-  const techPerformanceData = technicians.map(t => {
-    const techBookings = filteredBookings.filter(b => b.assignedTechnicianId === t.id && b.status === "Completed")
-    const jobsCount = techBookings.length
-    const commission = techBookings.reduce((sum, b) => sum + (b.technicianCommission || 0), 0)
-    const earnings = techBookings.reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
+  const techPerformanceData = React.useMemo(() => {
+    return technicians.map(t => {
+      const techBookings = filteredBookings.filter(b => {
+        if (!b.assignedTechnicianId) return false
+        const ids = b.assignedTechnicianId.split(",").map(id => id.trim())
+        return ids.includes(t.id) && b.status === "Completed"
+      })
+      const jobsCount = techBookings.length
+      
+      const commission = techBookings.reduce((sum, b) => {
+        const ids = b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(id => id.trim()) : []
+        const share = ids.length > 0 ? (b.technicianCommission || 0) / ids.length : 0
+        return sum + share
+      }, 0)
+      
+      const earnings = techBookings.reduce((sum, b) => {
+        const ids = b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(id => id.trim()) : []
+        const share = ids.length > 0 ? (b.totalTechnicianAmount || 0) / ids.length : 0
+        return sum + share
+      }, 0)
 
-    return {
-      name: t.name,
-      Jobs: jobsCount,
-      Commission: Math.round(commission),
-      Earnings: Math.round(earnings)
-    }
-  })
+      return {
+        name: t.name,
+        Jobs: jobsCount,
+        Commission: Math.round(commission),
+        Earnings: Math.round(earnings)
+      }
+    })
+  }, [technicians, filteredBookings])
 
   // ==========================================
   // Graph 3: Spares Stock Availability Chart
@@ -352,7 +402,7 @@ export function ReportsModule() {
       </Card>
 
       {/* High level KPI Row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="border-border/60">
           <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
             <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Gross Billing</CardDescription>
@@ -361,28 +411,6 @@ export function ReportsModule() {
           <CardContent>
             <span className="text-xl font-black tabular-nums">₹{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             <span className="text-[10px] text-muted-foreground mt-1 block">Total customer billings completed</span>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60">
-          <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Expenses</CardDescription>
-            <div className="text-rose-500"><HugeiconsIcon icon={CreditCardIcon} strokeWidth={2.5} className="size-4" /></div>
-          </CardHeader>
-          <CardContent>
-            <span className="text-xl font-black tabular-nums">₹{totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Total advertisement & operational spends</span>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60">
-          <CardHeader className="py-3 flex flex-row items-center justify-between gap-0 space-y-0 pb-1">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Company Margin</CardDescription>
-            <div className="text-blue-500"><HugeiconsIcon icon={ChartUpIcon} strokeWidth={2.5} className="size-4" /></div>
-          </CardHeader>
-          <CardContent>
-            <span className="text-xl font-black tabular-nums">₹{netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Net company gain (excluding tech payout)</span>
           </CardContent>
         </Card>
 
@@ -412,34 +440,69 @@ export function ReportsModule() {
       {/* Graphs Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         
-        {/* Graph 1: Financial margins area chart */}
+        {/* Graph 1: Job Status Distribution chart */}
         <Card className="border-border/60 bg-card/60 backdrop-blur-md">
           <CardHeader>
-            <CardTitle className="text-sm font-bold text-foreground">Overhead Costs & Margins Ratio</CardTitle>
-            <CardDescription className="text-xs">Reconciling monthly overhead, operational expenses, and net profit margins.</CardDescription>
+            <CardTitle className="text-sm font-bold text-foreground">Job Status Distribution</CardTitle>
+            <CardDescription className="text-xs">Breakdown of bookings across operational statuses in selected range.</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorBilling" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
-                <XAxis dataKey="month" fontSize={10} stroke="var(--muted-foreground)" />
-                <YAxis fontSize={10} stroke="var(--muted-foreground)" />
-                <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                <Legend verticalAlign="top" height={36} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                <Area type="monotone" name="Customer Billings" dataKey="Billing" stroke="var(--primary)" fillOpacity={1} fill="url(#colorBilling)" strokeWidth={2} />
-                <Area type="monotone" name="Net Margin Profit" dataKey="Profit" stroke="#3b82f6" fillOpacity={1} fill="url(#colorProfit)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <CardContent className="h-72 flex flex-col justify-between">
+            <div className="flex-1 flex items-center justify-between gap-4">
+              <div className="w-1/2 h-full min-h-[160px] relative flex items-center justify-center">
+                {statusDistributionData.length === 0 ? (
+                  <span className="text-[10px] text-muted-foreground">No bookings in selected range</span>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusDistributionData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {statusDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '10px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+                {statusDistributionData.length > 0 && (
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-lg font-black text-foreground tabular-nums">{filteredBookings.length}</span>
+                    <span className="text-[8px] font-bold text-muted-foreground uppercase">Total Jobs</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="w-1/2 flex flex-col gap-2 p-2 bg-muted/10 rounded-lg border border-border/20">
+                <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground border-b border-border/40 pb-1 px-1">
+                  <span>STATUS</span>
+                  <span>COUNT</span>
+                </div>
+                <div className="flex flex-col gap-1.5 px-1">
+                  {[
+                    { name: "Not Started", color: "bg-slate-400", value: filteredBookings.filter(b => b.status === "Not Started").length },
+                    { name: "In Progress", color: "bg-blue-500", value: filteredBookings.filter(b => b.status === "In Progress").length },
+                    { name: "Inspected", color: "bg-yellow-500", value: filteredBookings.filter(b => b.status === "Inspected").length },
+                    { name: "Completed", color: "bg-emerald-500", value: filteredBookings.filter(b => b.status === "Completed").length },
+                    { name: "Cancelled", color: "bg-red-500", value: filteredBookings.filter(b => b.status === "Cancelled").length },
+                  ].map(item => (
+                    <div key={item.name} className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2.5 h-2.5 rounded-full ${item.color} shrink-0`} />
+                        <span className="font-semibold text-foreground">{item.name}</span>
+                      </div>
+                      <span className="font-bold tabular-nums">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -496,7 +559,11 @@ export function ReportsModule() {
                 <XAxis dataKey="day" fontSize={10} stroke="var(--muted-foreground)" />
                 <YAxis fontSize={10} stroke="var(--muted-foreground)" allowDecimals={false} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-                <Bar name="Bookings Count" dataKey="Bookings" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                <Legend verticalAlign="top" height={36} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
+                <Bar name="Booking Done" dataKey="Booking Done" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar name="Cancelled" dataKey="Cancelled" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar name="Work Done" dataKey="Work Done" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar name="Inspected" dataKey="Inspected" fill="#eab308" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -593,6 +660,13 @@ export function ReportsModule() {
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
                     <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-700 shrink-0" />
+                      <span className="font-semibold text-rose-700 dark:text-rose-400 font-bold">Cancel Order</span>
+                    </div>
+                    <span className="font-bold tabular-nums">{cancelOrderReviews}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <div className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
                       <span className="font-semibold text-foreground">Pending</span>
                     </div>
@@ -605,10 +679,10 @@ export function ReportsModule() {
             <div className="border-t border-border/40 pt-2 flex flex-col gap-0.5">
               <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground">
                 <span>FEEDBACK COMPLIANCE</span>
-                <span className="tabular-nums">{totalReviewsDone} / {totalCustomers} CUSTOMERS</span>
+                <span className="tabular-nums">{totalReviewsDone} / {totalCustomersCount} CUSTOMERS</span>
               </div>
               <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${totalCustomers > 0 ? (totalReviewsDone / totalCustomers) * 100 : 0}%` }} />
+                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${totalCustomersCount > 0 ? (totalReviewsDone / totalCustomersCount) * 100 : 0}%` }} />
               </div>
             </div>
           </CardContent>

@@ -25,9 +25,17 @@ import {
   CheckmarkCircle01Icon,
   HelpCircleIcon,
   InvoiceIcon,
-  Database01Icon
+  Database01Icon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 
 import { 
   Table, 
@@ -137,6 +145,10 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCustomer) return
+    if (!/^\d{10}$/.test(editMobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
 
     updateCustomer(selectedCustomer.id, {
       name: editName,
@@ -163,6 +175,22 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     }).sort((a, b) => compareIdsNumerically(a.id, b.id))
   }, [customers, search, sourceFilter])
 
+  const stats = React.useMemo(() => {
+    const total = filteredCustomers.length
+    const active = filteredCustomers.filter(c => c.status === "Active").length
+    const repeat = filteredCustomers.filter(c => c.referralSource === "Repeat Consumer").length
+    
+    const positive = filteredCustomers.filter(c => c.reviewStatus === "Positive").length
+    const negative = filteredCustomers.filter(c => c.reviewStatus === "Negative").length
+    const unreachable = filteredCustomers.filter(c => c.reviewStatus === "Call didn't receive").length
+    const cancelOrder = filteredCustomers.filter(c => c.reviewStatus === "Cancel Order").length
+    
+    const reviewsDone = positive + negative + unreachable + cancelOrder
+    const satRate = reviewsDone > 0 ? Math.round((positive / reviewsDone) * 100) : 0
+    
+    return { total, active, repeat, satRate, reviewsDone }
+  }, [filteredCustomers])
+
   // Pagination Math
   const totalPages = Math.ceil(filteredCustomers.length / pageSize)
   const paginatedCustomers = React.useMemo(() => {
@@ -177,6 +205,10 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   // Submit Customer Add
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!/^\d{10}$/.test(mobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
     addCustomer({
       name,
       mobile,
@@ -250,26 +282,47 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
         </div>
       )}
 
-      {/* Analytics: Lead Acquisition Source Split */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          {["Ad", "Contact", "Repeat Consumer", "Website"].map((src) => {
-            const count = customers.filter(c => c.referralSource === src as any).length
-          const percentage = customers.length ? Math.round((count / customers.length) * 100) : 0
-          
-          return (
-            <Card key={src} className="border-border/60">
-              <CardHeader className="py-3">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider">{src} Acquisition</CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3 pt-0">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight">{count}</span>
-                  <span className="text-xs text-muted-foreground">clients ({percentage}%)</span>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      {/* Analytics: Customer directory parameters */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Directory</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <span className="text-2xl font-bold tracking-tight">{stats.total}</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">Total registered customers</span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active Accounts</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{stats.active}</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">Currently active status</span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Repeat Clients</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <span className="text-2xl font-bold tracking-tight">{stats.repeat}</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">Inbound repeat buyers</span>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="py-3">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-primary">Satisfaction Rate</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-3 pt-0">
+            <span className="text-2xl font-bold tracking-tight text-primary">{stats.satRate}%</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">Based on {stats.reviewsDone} reviews</span>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filter and Table Panel */}
@@ -389,25 +442,33 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                         </TableCell>
                         {(currentRole === "Admin" || currentRole === "Manager") && (
                           <TableCell className="px-4 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleOpenEdit(c)}
-                                className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted cursor-pointer"
-                              >
-                                Edit
-                              </Button>
-                              {currentRole === "Admin" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
                                 <Button 
                                   variant="ghost" 
-                                  onClick={() => deleteCustomer(c.id)}
-                                  className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold cursor-pointer"
+                                  className="h-8 w-8 p-0 cursor-pointer"
                                 >
-                                  ×
+                                  <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                  <span className="sr-only">Actions</span>
                                 </Button>
-                              )}
-                            </div>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem onClick={() => handleOpenEdit(c)} className="cursor-pointer">
+                                  Edit
+                                </DropdownMenuItem>
+                                {currentRole === "Admin" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => deleteCustomer(c.id)}
+                                      className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                    >
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         )}
                       </TableRow>
@@ -672,7 +733,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Positive">Positive</SelectItem>
                       <SelectItem value="Negative">Negative</SelectItem>
                       <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                      <SelectItem value="Cancel Order" className="text-rose-600 dark:text-rose-400 font-bold">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -811,7 +872,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Positive">Positive</SelectItem>
                       <SelectItem value="Negative">Negative</SelectItem>
                       <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                      <SelectItem value="Cancel Order" className="text-rose-600 dark:text-rose-400 font-bold">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

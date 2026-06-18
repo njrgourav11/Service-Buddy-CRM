@@ -22,9 +22,17 @@ import {
   PlusSignCircleIcon, 
   SearchIcon,
   CheckmarkCircle01Icon,
-  Loading03Icon
+  Loading03Icon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 
 export function OutstandingModule() {
   const { outstandingDues, addOutstandingDue, updateOutstandingDue, deleteOutstandingDue, currentRole } = useCRM()
@@ -182,31 +190,32 @@ export function OutstandingModule() {
                       </td>
                       {currentRole === "Admin" && (
                         <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleToggleSettle(d.id, d.status)}
-                              className="h-7 text-xs font-semibold px-2"
-                            >
-                              {d.status === "Pending" ? "Reconcile / Settle" : "Mark Pending"}
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleOpenEdit(d)}
-                              className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
-                            >
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              onClick={() => deleteOutstandingDue(d.id)}
-                              className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                            >
-                              ×
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="h-8 w-8 p-0 cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                <span className="sr-only">Actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem onClick={() => handleToggleSettle(d.id, d.status)} className="cursor-pointer">
+                                {d.status === "Pending" ? "Reconcile / Settle" : "Mark Pending"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenEdit(d)} className="cursor-pointer">
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => deleteOutstandingDue(d.id)}
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       )}
                     </tr>

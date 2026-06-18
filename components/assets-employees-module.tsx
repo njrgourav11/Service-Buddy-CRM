@@ -20,8 +20,17 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
-  SearchIcon
+  SearchIcon,
+  MoreHorizontalCircle01Icon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 
 
 export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSubTab?: "assets" | "employees" }) {
@@ -131,6 +140,10 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   const handleEditEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedEmployee) return
+    if (!/^\d{10}$/.test(editEmpMobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
 
     updateEmployee(selectedEmployee.id, {
       name: editEmpName,
@@ -169,6 +182,10 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   // Handle Employee submit
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!/^\d{10}$/.test(empMobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
     
     addEmployee({
       name: empName,
@@ -371,27 +388,33 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                           </td>
                           {currentRole === "Admin" && (
                             <td className="px-4 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => handleOpenEditAsset(a)}
-                                  className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                                >
-                                  Edit
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  onClick={() => {
-                                    if (window.confirm(`Are you sure you want to delete asset ${a.name}?`)) {
-                                      deleteAsset(a.id)
-                                    }
-                                  }}
-                                  className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                                >
-                                  ×
-                                </Button>
-                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    className="h-8 w-8 p-0 cursor-pointer"
+                                  >
+                                    <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                    <span className="sr-only">Actions</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-32">
+                                  <DropdownMenuItem onClick={() => handleOpenEditAsset(a)} className="cursor-pointer">
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to delete asset ${a.name}?`)) {
+                                        deleteAsset(a.id)
+                                      }
+                                    }}
+                                    className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </td>
                           )}
                         </tr>
@@ -533,29 +556,37 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                         </td>
                         {(currentRole === "Admin" || currentRole === "Manager") && (
                           <td className="px-4 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleOpenEditEmployee(emp)}
-                                className="h-6 text-[10px] font-semibold px-2 bg-background hover:bg-muted"
-                              >
-                                Edit
-                              </Button>
-                              {currentRole === "Admin" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
                                 <Button 
                                   variant="ghost" 
-                                  onClick={() => {
-                                    if (window.confirm(`Are you sure you want to delete employee staff profile for ${emp.name}?`)) {
-                                      deleteEmployee(emp.id)
-                                    }
-                                  }}
-                                  className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                                  className="h-8 w-8 p-0 cursor-pointer"
                                 >
-                                  ×
+                                  <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                  <span className="sr-only">Actions</span>
                                 </Button>
-                              )}
-                            </div>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-32">
+                                <DropdownMenuItem onClick={() => handleOpenEditEmployee(emp)} className="cursor-pointer">
+                                  Edit
+                                </DropdownMenuItem>
+                                {currentRole === "Admin" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => {
+                                        if (window.confirm(`Are you sure you want to delete employee staff profile for ${emp.name}?`)) {
+                                          deleteEmployee(emp.id)
+                                        }
+                                      }}
+                                      className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                    >
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         )}
                       </tr>

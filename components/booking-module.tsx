@@ -28,6 +28,13 @@ import {
   DrawerTitle, 
   DrawerTrigger 
 } from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
@@ -39,7 +46,9 @@ import {
   Database01Icon,
   UserCircle02Icon,
   Analytics01Icon,
-  Alert02Icon
+  Alert02Icon,
+  MoreHorizontalCircle01Icon,
+  Cancel01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -49,8 +58,25 @@ export const getReviewDotColor = (review: string) => {
   if (r === "Negative") return "bg-rose-500"
   if (r === "Call didn't receive") return "bg-orange-500"
   if (r === "Cancel Order") return "bg-zinc-500"
-  return "bg-blue-500" // Review not done
 }
+
+export const APPLIANCE_OPTIONS = [
+  "AC",
+  "Fridge",
+  "Washing Machine",
+  "Geyser",
+  "Air cooler",
+  "Chimney",
+  "Microwave",
+  "TV",
+  "Filter",
+  "Fan",
+  "Electrical",
+  "Plumbing",
+  "Cleaning",
+  "Carpentery",
+  "Other"
+]
 
 export function BookingModule() {
   const { 
@@ -79,12 +105,13 @@ export function BookingModule() {
   const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "custom">("ALL")
   const [startDateFilter, setStartDateFilter] = React.useState("")
   const [endDateFilter, setEndDateFilter] = React.useState("")
-  const [viewMode, setViewMode] = React.useState<"sheet" | "table" | "cards">("table")
+  const [viewMode, setViewMode] = React.useState<"sheet" | "table">("table")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(8)
 
   // Details & Row Editing State
   const [editAppliance, setEditAppliance] = React.useState<any>("AC")
+  const [editCustomAppliance, setEditCustomAppliance] = React.useState("")
   const [editServiceType, setEditServiceType] = React.useState<any>("Repair")
   const [editIssue, setEditIssue] = React.useState("")
   const [editTechId, setEditTechId] = React.useState("")
@@ -141,6 +168,7 @@ export function BookingModule() {
   const [newCustNotes, setNewCustNotes] = React.useState("")
 
   const [formAppliance, setFormAppliance] = React.useState<any>("AC")
+  const [formCustomAppliance, setFormCustomAppliance] = React.useState("")
   const [formServiceType, setFormServiceType] = React.useState<any>("Repair")
   const [formIssue, setFormIssue] = React.useState("")
   const [formTechId, setFormTechId] = React.useState("")
@@ -255,7 +283,13 @@ export function BookingModule() {
     setLoadedBookingId(b.id)
     const cust = customers.find(c => c.id === b.customerId)
     
-    setEditAppliance(b.appliance)
+    if (APPLIANCE_OPTIONS.filter(o => o !== "Other").includes(b.appliance)) {
+      setEditAppliance(b.appliance)
+      setEditCustomAppliance("")
+    } else {
+      setEditAppliance("Other")
+      setEditCustomAppliance(b.appliance)
+    }
     setEditServiceType(b.serviceType)
     setEditIssue(b.issue)
     setEditTechId(b.assignedTechnicianId)
@@ -321,7 +355,13 @@ export function BookingModule() {
     e.preventDefault()
     if (!selectedBooking) return
     
+    if (editCustMobile && !/^\d{10}$/.test(editCustMobile.trim())) {
+      toast.error("Mobile number must be exactly 10 digits.")
+      return
+    }
+    
     const finalTechId = selectedEditTechIds.join(",")
+    const finalAppliance = editAppliance === "Other" ? (editCustomAppliance.trim() || "Other") : editAppliance
     
     // Save booking updates
     updateBooking(selectedBooking.id, {
@@ -330,7 +370,7 @@ export function BookingModule() {
       complaint: editComplaint,
       complaintDate: editComplaintDate || (editComplaint ? new Date().toISOString().split("T")[0] : ""),
       complaintStatus: (editComplaintStatus as any) || (editComplaint ? "Open" : undefined),
-      appliance: editAppliance,
+      appliance: finalAppliance,
       serviceType: editServiceType,
       issue: editIssue,
       assignedTechnicianId: finalTechId,
@@ -435,6 +475,8 @@ export function BookingModule() {
       const matchesStatus = statusFilter === "ALL" || 
         (statusFilter === "PENDING" 
           ? (b.status !== "Completed" && b.status !== "Cancelled" && b.status !== "Inspected") 
+          : statusFilter === "CLOSED"
+          ? (b.status === "Completed" || b.status === "Inspected")
           : b.status === statusFilter)
       const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
 
@@ -486,6 +528,57 @@ export function BookingModule() {
     })
   }, [bookings, customers, technicians, search, applianceFilter, statusFilter, reviewFilter, dateFilterType, startDateFilter, endDateFilter])
 
+  // Filter Bookings for Stats calculation (ignores the status filter itself so cards don't drop to 0)
+  const filteredBookingsForStats = React.useMemo(() => {
+    return bookings.filter((b) => {
+      const cust = customers.find(c => c.id === b.customerId)
+      
+      const searchString = `${b.id} ${b.issue} ${cust?.name || ""}`.toLowerCase()
+      const matchesSearch = searchString.includes(search.toLowerCase())
+      
+      const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
+      const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
+
+      // Date filtering logic
+      let matchesDate = true
+      if (dateFilterType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        matchesDate = b.date === todayStr
+      } else if (dateFilterType === "yesterday") {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split("T")[0]
+        matchesDate = b.date === yesterdayStr
+      } else if (dateFilterType === "this-week") {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+        const startStr = startOfWeek.toISOString().split("T")[0]
+        matchesDate = b.date >= startStr
+      } else if (dateFilterType === "this-month") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+        matchesDate = (b.date || "").startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "custom") {
+        if (startDateFilter && endDateFilter) {
+          matchesDate = b.date >= startDateFilter && b.date <= endDateFilter
+        } else if (startDateFilter) {
+          matchesDate = b.date >= startDateFilter
+        } else if (endDateFilter) {
+          matchesDate = b.date <= endDateFilter
+        }
+      }
+
+      return matchesSearch && matchesAppliance && matchesReview && matchesDate
+    })
+  }, [bookings, customers, search, applianceFilter, reviewFilter, dateFilterType, startDateFilter, endDateFilter])
+
+  // Count unique customers matching active filters
+  const activeCustCount = React.useMemo(() => {
+    const set = new Set(filteredBookingsForStats.map(b => b.customerId))
+    return set.size
+  }, [filteredBookingsForStats])
+
   // Extract unique appliances for filter
   const uniqueAppliances = React.useMemo(() => {
     const set = new Set<string>()
@@ -528,6 +621,11 @@ export function BookingModule() {
         return
       }
       
+      if (!/^\d{10}$/.test(newCustMobile.trim())) {
+        toast.error("Mobile number must be exactly 10 digits.")
+        return
+      }
+      
       const newCust = addCustomer({
         name: newCustName,
         mobile: newCustMobile,
@@ -547,12 +645,13 @@ export function BookingModule() {
     }
 
     const finalTechId = selectedFormTechIds.join(",")
+    const finalAppliance = formAppliance === "Other" ? (formCustomAppliance.trim() || "Other") : formAppliance
 
     addBooking({
       date: formDate,
       workCompletedDate: formWorkCompletedDate || undefined,
       customerId: finalCustomerId,
-      appliance: formAppliance,
+      appliance: finalAppliance,
       serviceType: formServiceType,
       issue: formIssue,
       assignedTechnicianId: finalTechId,
@@ -582,6 +681,7 @@ export function BookingModule() {
     setFormSparePrice(0)
     setFormServiceCharge(0)
     setFormWorkCompletedDate("")
+    setFormCustomAppliance("")
     setIsCreateOpen(false)
   }
 
@@ -655,16 +755,6 @@ export function BookingModule() {
                   Table List
                 </button>
                 <button
-                  onClick={() => setViewMode("cards")}
-                  className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                    viewMode === "cards"
-                      ? "bg-background text-foreground shadow-sm font-bold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Card Grid
-                </button>
-                <button
                   onClick={() => setViewMode("sheet")}
                   className={`px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
                     viewMode === "sheet"
@@ -675,12 +765,6 @@ export function BookingModule() {
                   Spreadsheet
                 </button>
               </div>
-
-              {/* CSV Exporter */}
-              <Button onClick={() => setActiveTab("import")} variant="outline" size="sm" className="h-9">
-                <HugeiconsIcon icon={Database01Icon} strokeWidth={2} className="size-4" />
-                Import Ledger
-              </Button>
 
               <Button onClick={handleExportCSV} variant="outline" size="sm" className="h-9">
                 <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2} className="size-4" />
@@ -697,11 +781,11 @@ export function BookingModule() {
           {/* Bookings Analytics Stat Cards Panel */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card 
-              onClick={() => setStatusFilter("Completed")}
+              onClick={() => setStatusFilter("CLOSED")}
               className="border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer transition-all hover:scale-[1.01] hover:border-primary/30 active:scale-95"
             >
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Completed Jobs</CardDescription>
+                <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Closed Jobs</CardDescription>
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <HugeiconsIcon icon={InvoiceIcon} strokeWidth={2.5} className="size-4" />
                 </div>
@@ -709,12 +793,12 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {bookings.filter(b => b.status === "Completed").length}
+                    {filteredBookingsForStats.filter(b => b.status === "Completed" || b.status === "Inspected").length}
                   </span>
-                  <span className="text-xs text-muted-foreground font-medium font-bold text-emerald-600">completed</span>
+                  <span className="text-xs text-muted-foreground font-medium font-bold text-emerald-600">closed</span>
                 </div>
                 <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
-                  Total bookings logged: {bookings.length}
+                  Total filtered bookings: {filteredBookingsForStats.length}
                 </div>
               </CardContent>
             </Card>
@@ -732,12 +816,12 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {bookings.filter(b => b.status === "In Progress" || b.status === "Not Started" || b.status === "Inspected").length}
+                    {filteredBookingsForStats.filter(b => b.status === "In Progress" || b.status === "Not Started").length}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium font-bold text-amber-600">pending jobs</span>
                 </div>
                 <div className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
-                  {bookings.filter(b => b.status === "In Progress").length} currently in progress on site
+                  {filteredBookingsForStats.filter(b => b.status === "In Progress").length} currently in progress
                 </div>
               </CardContent>
             </Card>
@@ -755,13 +839,13 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    ₹{bookings.reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0).toLocaleString()}
+                    ₹{filteredBookingsForStats.reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0).toLocaleString()}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium">total volume</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium mt-1.5">
                   Avg (Comp/Insp): ₹{(() => {
-                    const compOrInsp = bookings.filter(b => b.status === "Completed" || b.status === "Inspected");
+                    const compOrInsp = filteredBookingsForStats.filter(b => b.status === "Completed" || b.status === "Inspected");
                     return compOrInsp.length ? Math.round(compOrInsp.reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0) / compOrInsp.length) : 0;
                   })()} per service order
                 </div>
@@ -780,11 +864,11 @@ export function BookingModule() {
               </CardHeader>
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{customers.length}</span>
-                  <span className="text-xs text-muted-foreground font-medium font-bold text-blue-600">clients onboarded</span>
+                  <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">{activeCustCount}</span>
+                  <span className="text-xs text-muted-foreground font-medium font-bold text-blue-600 font-bold">active clients</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground font-medium mt-1.5">
-                  Repeat clients: {customers.filter(c => bookings.filter(b => b.customerId === c.id).length > 1).length}
+                  Total catalog database: {customers.length}
                 </div>
               </CardContent>
             </Card>
@@ -792,114 +876,112 @@ export function BookingModule() {
 
           {/* Control Panel: Filters & Search */}
           <Card className="border-border/60">
-            <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-              <div className="relative w-full md:max-w-md">
+            <CardContent className="p-3 flex flex-row items-center gap-3 overflow-x-auto scrollbar-none w-full flex-nowrap">
+              <div className="relative w-72 shrink-0">
                 <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input 
                   placeholder="Search by CIN, customer, technician or issues..." 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
+                  className="pl-9 bg-muted/20 border-border/60 focus:bg-background h-9 text-xs"
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                {/* Date Filter */}
-                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Date:</Label>
-                  <Select value={dateFilterType} onValueChange={(val: any) => {
-                    setDateFilterType(val)
-                    if (val !== "custom") {
-                      setStartDateFilter("")
-                      setEndDateFilter("")
-                    }
-                  }}>
-                    <SelectTrigger className="w-full md:w-36">
-                      <SelectValue placeholder="All Dates" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Dates</SelectItem>
-                      <SelectItem value="today">Today</SelectItem>
-                      <SelectItem value="yesterday">Yesterday</SelectItem>
-                      <SelectItem value="this-week">This Week</SelectItem>
-                      <SelectItem value="this-month">This Month</SelectItem>
-                      <SelectItem value="custom">Custom Range...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Date Filter */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date:</Label>
+                <Select value={dateFilterType} onValueChange={(val: any) => {
+                  setDateFilterType(val)
+                  if (val !== "custom") {
+                    setStartDateFilter("")
+                    setEndDateFilter("")
+                  }
+                }}>
+                  <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                    <SelectValue placeholder="All Dates" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Dates</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="this-week">This Week</SelectItem>
+                    <SelectItem value="this-month">This Month</SelectItem>
+                    <SelectItem value="custom">Custom Range...</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                {dateFilterType === "custom" && (
-                  <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-150 flex-1 md:flex-none">
-                    <Input
-                      type="date"
-                      value={startDateFilter}
-                      onChange={(e) => setStartDateFilter(e.target.value)}
-                      className="h-9 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
-                      placeholder="Start Date"
-                    />
-                    <span className="text-muted-foreground text-xs font-semibold">to</span>
-                    <Input
-                      type="date"
-                      value={endDateFilter}
-                      onChange={(e) => setEndDateFilter(e.target.value)}
-                      className="h-9 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
-                      placeholder="End Date"
-                    />
-                  </div>
-                )}
-
-                {/* Appliance Filter */}
-                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Appliance:</Label>
-                  <Select value={applianceFilter} onValueChange={setApplianceFilter}>
-                    <SelectTrigger className="w-full md:w-44">
-                      <SelectValue placeholder="All Appliances" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Appliances</SelectItem>
-                      {uniqueAppliances.map(app => (
-                        <SelectItem key={app} value={app}>{app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-1 duration-150 shrink-0">
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                    placeholder="Start"
+                  />
+                  <span className="text-muted-foreground text-[10px] font-semibold">to</span>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                    placeholder="End"
+                  />
                 </div>
+              )}
 
-                {/* Status Filter */}
-                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full md:w-36">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Status</SelectItem>
-                      <SelectItem value="PENDING">Pending Jobs</SelectItem>
-                      <SelectItem value="Not Started">Not Started</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
-                      <SelectItem value="Inspected">Inspected</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Appliance Filter */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Appliance:</Label>
+                <Select value={applianceFilter} onValueChange={setApplianceFilter}>
+                  <SelectTrigger className="w-32 md:w-36 h-8 text-xs bg-background">
+                    <SelectValue placeholder="All Appliances" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Appliances</SelectItem>
+                    {uniqueAppliances.map(app => (
+                      <SelectItem key={app} value={app}>{app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                {/* Review Filter */}
-                <div className="flex items-center gap-1.5 flex-1 md:flex-none">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Review:</Label>
-                  <Select value={reviewFilter} onValueChange={setReviewFilter}>
-                    <SelectTrigger className="w-full md:w-36">
-                      <SelectValue placeholder="All Reviews" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Reviews</SelectItem>
-                      <SelectItem value="Review not done">Review not done</SelectItem>
-                      <SelectItem value="Positive">Positive</SelectItem>
-                      <SelectItem value="Negative">Negative</SelectItem>
-                      <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Status Filter */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status:</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Status</SelectItem>
+                    <SelectItem value="PENDING">Pending Jobs</SelectItem>
+                    <SelectItem value="Not Started">Not Started</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Inspected">Inspected</SelectItem>
+                    <SelectItem value="CLOSED">Closed Jobs</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Review Filter */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Review:</Label>
+                <Select value={reviewFilter} onValueChange={setReviewFilter}>
+                  <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                    <SelectValue placeholder="All Reviews" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Reviews</SelectItem>
+                    <SelectItem value="Review not done">Review not done</SelectItem>
+                    <SelectItem value="Positive">Positive</SelectItem>
+                    <SelectItem value="Negative">Negative</SelectItem>
+                    <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                    <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -927,12 +1009,6 @@ export function BookingModule() {
                       className="px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-all"
                     >
                       Table List
-                    </button>
-                    <button
-                      onClick={() => setViewMode("cards")}
-                      className="px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer transition-all"
-                    >
-                      Card Grid
                     </button>
                     <button
                       className="px-2.5 py-1.5 rounded-md bg-background text-foreground shadow-sm font-bold cursor-pointer transition-all"
@@ -1128,7 +1204,7 @@ export function BookingModule() {
                                 <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
                                   (b.reviewStatus || "Review not done") === "Positive" 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                    : (b.reviewStatus || "Review not done") === "Negative" 
+                                    : (b.reviewStatus || "Review not done") === "Negative" || (b.reviewStatus || "Review not done") === "Cancel Order"
                                     ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                                     : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                     ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
@@ -1144,7 +1220,7 @@ export function BookingModule() {
                                   <SelectItem value="Positive">Positive</SelectItem>
                                   <SelectItem value="Negative">Negative</SelectItem>
                                   <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                                  <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                                  <SelectItem value="Cancel Order" className="text-rose-600 dark:text-rose-400 font-bold focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">Cancel Order</SelectItem>
                                 </SelectContent>
                               </Select>
                             </td>
@@ -1238,26 +1314,36 @@ export function BookingModule() {
                               </Select>
                             </td>
  
-                            {/* Edit Row button in sticky end column */}
+                             {/* Edit Row button in sticky end column */}
                             <td className={`px-3 py-2.5 text-right sticky right-0 z-10 border-l border-border/40 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] ${stickyBgClass}`}>
-                              <div className="flex items-center justify-end gap-1">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => handleSelectBookingForDetails(b)}
-                                  className="h-6 text-[9px] font-bold px-1.5 bg-background shadow-xs hover:bg-muted"
-                                >
-                                  Edit Row
-                                </Button>
-                                {currentRole === "Admin" && (
-                                  <Button 
-                                    variant="ghost" 
-                                    onClick={() => handleDeleteBooking(b.id)}
-                                    className="h-6 size-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                                  >
-                                    ×
-                                  </Button>
-                                )}
+                              <div className="flex items-center justify-end">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      className="h-7 w-7 p-0 cursor-pointer"
+                                    >
+                                      <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                      <span className="sr-only">Actions</span>
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-32">
+                                    <DropdownMenuItem onClick={() => handleSelectBookingForDetails(b)} className="cursor-pointer">
+                                      Edit Row
+                                    </DropdownMenuItem>
+                                    {currentRole === "Admin" && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem 
+                                          onClick={() => handleDeleteBooking(b.id)}
+                                          className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                        >
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </td>
                           </tr>
@@ -1268,7 +1354,7 @@ export function BookingModule() {
                 </table>
               </div>
             </div>
-          ) : viewMode === "table" ? (
+          ) : (
             <Card className="border-border/60 overflow-hidden shadow-xs flex flex-col justify-between">
               <CardContent className="p-0">
                 <div className="overflow-x-auto min-w-0 max-w-full">
@@ -1285,8 +1371,8 @@ export function BookingModule() {
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Service Issue</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Notes</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Tech</TableHead>
-                        <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Spare Price</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Total Consumer</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Spare Price</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Tech Payout</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Company Comm</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
@@ -1338,7 +1424,7 @@ export function BookingModule() {
                                   <SelectTrigger className={`h-6 text-[9px] font-extrabold py-0.5 px-1.5 w-32 rounded-md border ${
                                     (b.reviewStatus || "Review not done") === "Positive" 
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                      : (b.reviewStatus || "Review not done") === "Negative" 
+                                      : (b.reviewStatus || "Review not done") === "Negative" || (b.reviewStatus || "Review not done") === "Cancel Order"
                                       ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
                                       : (b.reviewStatus || "Review not done") === "Call didn't receive"
                                       ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400"
@@ -1354,7 +1440,7 @@ export function BookingModule() {
                                     <SelectItem value="Positive">Positive</SelectItem>
                                     <SelectItem value="Negative">Negative</SelectItem>
                                     <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                                    <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                                    <SelectItem value="Cancel Order" className="text-rose-600 dark:text-rose-400 font-bold focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">Cancel Order</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </TableCell>
@@ -1382,11 +1468,11 @@ export function BookingModule() {
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
                               </TableCell>
-                              <TableCell className="px-4 py-4 text-right font-bold text-muted-foreground tabular-nums">
-                                ₹{b.sparePrice || 0}
-                              </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-primary tabular-nums">
                                 ₹{b.totalConsumerAmount}
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-right font-bold text-muted-foreground tabular-nums">
+                                ₹{b.sparePrice || 0}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                                 ₹{b.totalTechnicianAmount}
@@ -1418,29 +1504,39 @@ export function BookingModule() {
                                     <SelectItem value="In Progress">In Progress</SelectItem>
                                     <SelectItem value="Inspected">Inspected</SelectItem>
                                     <SelectItem value="Completed">Completed</SelectItem>
-                                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                    <SelectItem value="Cancelled" className="text-rose-600 dark:text-rose-400 font-bold focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">Cancelled</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => handleSelectBookingForDetails(b)}
-                                    className="h-6 text-[9px] font-bold px-2 bg-background hover:bg-muted"
-                                  >
-                                    Edit Row
-                                  </Button>
-                                  {currentRole === "Admin" && (
-                                    <Button 
-                                      variant="ghost" 
-                                      onClick={() => handleDeleteBooking(b.id)}
-                                      className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
-                                    >
-                                      ×
-                                    </Button>
-                                  )}
+                                <div className="flex items-center justify-end">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button 
+                                        variant="ghost" 
+                                        className="h-8 w-8 p-0 cursor-pointer"
+                                      >
+                                        <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                                        <span className="sr-only">Actions</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-32">
+                                      <DropdownMenuItem onClick={() => handleSelectBookingForDetails(b)} className="cursor-pointer">
+                                        Edit Row
+                                      </DropdownMenuItem>
+                                      {currentRole === "Admin" && (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem 
+                                            onClick={() => handleDeleteBooking(b.id)}
+                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                          >
+                                            Delete
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -1483,187 +1579,6 @@ export function BookingModule() {
                 </div>
               )}
             </Card>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {paginatedBookings.length === 0 ? (
-                  <Card className="col-span-full border-border/60 py-12 text-center text-muted-foreground font-medium">
-                    No service bookings match query.
-                  </Card>
-                ) : (
-                  paginatedBookings.map((b) => {
-                    const cust = customers.find(c => c.id === b.customerId)
-                    const hasComplaint = !!b.complaint
-                    const isComplaintActive = hasComplaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
-                    return (
-                      <Card key={b.id} className={`border-border/60 hover:border-primary/20 hover:shadow-md transition-all flex flex-col justify-between shadow-xs bg-card/40 backdrop-blur-xs ${
-                        isComplaintActive ? "border-rose-500/50 shadow-rose-100/50 dark:shadow-none ring-1 ring-rose-500/20" : hasComplaint ? "border-rose-400/30 ring-1 ring-rose-400/10" : ""
-                      }`}>
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex gap-1.5 items-center">
-                              <Badge variant="outline" className="text-[10px] font-bold tabular-nums">
-                                {b.id}
-                              </Badge>
-                              <span className="text-[10px] text-muted-foreground font-medium tabular-nums">{b.date}</span>
-                            </div>
-                            <Select 
-                              value={b.status} 
-                              disabled={false}
-                              onValueChange={(val) => handleStatusChange(b.id, val)}
-                            >
-                              <SelectTrigger className={`h-5 text-[9px] font-extrabold py-0.5 px-1.5 w-24 rounded-md border ${
-                                b.status === "Completed" 
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                  : b.status === "In Progress" 
-                                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400"
-                                  : b.status === "Inspected"
-                                  ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400"
-                                  : b.status === "Cancelled"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400"
-                                  : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-                              }`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Not Started">Not Started</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Inspected">Inspected</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
-                                <SelectItem value="Cancelled">Cancelled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <CardTitle className="text-sm font-bold text-foreground mt-2.5 flex items-center justify-between gap-2">
-                            <span className="truncate">{cust?.name || "Unknown"}</span>
-                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getReviewDotColor(b.reviewStatus || "Review not done")}`} title={b.reviewStatus || "Review not done"} />
-                          </CardTitle>
-                          <CardDescription className="text-[10px] font-semibold text-muted-foreground flex gap-1 items-center mt-0.5">
-                            <Badge className="text-[9px] font-bold py-0 bg-indigo-50/10 border-indigo-200/40 text-indigo-600 dark:text-indigo-400">
-                              {b.appliance === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : b.appliance}
-                            </Badge>
-                            <span>• {b.serviceType}</span>
-                          </CardDescription>
-                        </CardHeader>
-                        
-                        {hasComplaint && (
-                          <div className={`px-4 py-2 border-y text-xs flex flex-col gap-0.5 ${
-                            isComplaintActive 
-                              ? "bg-rose-50 text-rose-800 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-950/40" 
-                              : "bg-rose-50/40 text-rose-700 border-rose-100/30 dark:bg-rose-950/10 dark:text-rose-400/80 dark:border-rose-950/20"
-                          }`}>
-                            <div className="flex items-center justify-between font-bold text-[10px] uppercase tracking-wider">
-                              <span className="flex items-center gap-1">⚠️ Customer Complaint</span>
-                              <Badge className={`text-[8px] px-1 py-0 h-4 font-extrabold ${
-                                b.complaintStatus === "Resolved" 
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400" 
-                                  : b.complaintStatus === "Dismissed"
-                                  ? "bg-slate-100 text-slate-800 dark:bg-slate-950/40 dark:text-slate-400"
-                                  : "bg-rose-100 text-rose-800 animate-pulse dark:bg-rose-950/40 dark:text-rose-400"
-                              }`}>
-                                {b.complaintStatus || "Open"}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 font-semibold leading-relaxed line-clamp-3">{b.complaint}</p>
-                            {b.complaintDate && <span className="text-[9px] text-muted-foreground mt-0.5 font-medium">Logged on {b.complaintDate}</span>}
-                          </div>
-                        )}
-                        
-                        <CardContent className="pb-3 text-xs flex flex-col gap-2">
-                          <div className="flex flex-col gap-1 text-muted-foreground leading-relaxed">
-                            <div>
-                              <span className="font-bold text-foreground">Tech Assigned:</span>{" "}
-                              <span>{getTechNames(b.assignedTechnicianId)}</span>
-                            </div>
-                            <div className="line-clamp-2">
-                              <span className="font-bold text-foreground">Complaint:</span> {b.issue}
-                            </div>
-                            {getDisplayNotes(cust?.notes || b.notes) && (
-                              <div className="line-clamp-1">
-                                <span className="font-bold text-foreground">Notes:</span> {getDisplayNotes(cust?.notes || b.notes)}
-                              </div>
-                            )}
-                            {b.spareName !== "None" && (
-                              <div>
-                                <span className="font-bold text-foreground">Spare Used:</span>{" "}
-                                <span className="italic">{b.spareName}</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Financial Ratios container */}
-                          <div className="rounded-lg bg-muted/40 p-2.5 border border-border/20 flex flex-col gap-1 mt-1">
-                            <div className="flex justify-between items-center text-[10px]">
-                              <span className="text-muted-foreground font-semibold">Total Consumer Bill:</span>
-                              <span className="font-bold text-primary tabular-nums">₹{b.totalConsumerAmount}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-[10px]">
-                              <span className="text-muted-foreground font-semibold">Technician Payout:</span>
-                              <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">₹{b.totalTechnicianAmount}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-[10px]">
-                              <span className="text-muted-foreground font-semibold">Company Net Profit:</span>
-                              <span className="font-bold text-cyan-600 dark:text-cyan-400 tabular-nums">₹{b.totalCompanyAmount}</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                        <CardFooter className="pt-0 border-t border-border/40 py-2 flex justify-between gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleSelectBookingForDetails(b)}
-                            className="h-7 text-[10px] font-bold px-2 flex-1 hover:bg-muted"
-                          >
-                            Edit Details
-                          </Button>
-                          {currentRole === "Admin" && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDeleteBooking(b.id)}
-                              className="h-7 text-[10px] font-bold text-destructive hover:bg-destructive/10"
-                            >
-                              Delete
-                            </Button>
-                          )}
-                        </CardFooter>
-                      </Card>
-                    )
-                  })
-                )}
-              </div>
-              {/* Card View Pagination Controls */}
-              {totalPages > 1 && (
-                <Card className="border-border/60 bg-muted/20 py-3.5 px-4 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    Showing {Math.min(filteredBookings.length, (currentPage - 1) * pageSize + 1)} to {Math.min(filteredBookings.length, currentPage * pageSize)} of {filteredBookings.length} records
-                  </span>
-                  <div className="flex items-center gap-2.5">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="h-8 px-3 text-xs cursor-pointer select-none"
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-xs font-semibold tabular-nums text-foreground">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="h-8 px-3 text-xs cursor-pointer select-none"
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </div>
           )}
         </>
       )}
@@ -1779,7 +1694,7 @@ export function BookingModule() {
                           <SelectItem value="Positive">Positive</SelectItem>
                           <SelectItem value="Negative">Negative</SelectItem>
                           <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
-                          <SelectItem value="Cancel Order">Cancel Order</SelectItem>
+                          <SelectItem value="Cancel Order" className="text-rose-600 dark:text-rose-400 font-bold focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">Cancel Order</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1838,29 +1753,37 @@ export function BookingModule() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-appliance" className="text-[10px] font-bold text-muted-foreground uppercase">Appliance</Label>
-                      <Input
-                        id="edit-appliance"
-                        placeholder="E.g., AC, TV, Refrigerator"
-                        value={editAppliance}
-                        onChange={(e) => setEditAppliance(e.target.value)}
-                        className="h-8 text-xs bg-background"
-                        required
-                      />
+                      <Select value={editAppliance} onValueChange={setEditAppliance}>
+                        <SelectTrigger id="edit-appliance" className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Select Appliance..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {APPLIANCE_OPTIONS.map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {editAppliance === "Other" && (
+                        <Input
+                          placeholder="Custom Appliance Name"
+                          value={editCustomAppliance}
+                          onChange={(e) => setEditCustomAppliance(e.target.value)}
+                          className="h-8 text-xs bg-background mt-1.5"
+                          required
+                        />
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-serv-type" className="text-[10px] font-bold text-muted-foreground uppercase">Service Type</Label>
-                      <Select value={editServiceType} onValueChange={setEditServiceType}>
-                        <SelectTrigger id="edit-serv-type" className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Repair">Repair</SelectItem>
-                          <SelectItem value="Installation">Installation</SelectItem>
-                          <SelectItem value="Service">Service</SelectItem>
-                          <SelectItem value="Gas Filling">Gas Filling</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        id="edit-serv-type"
+                        placeholder="E.g. Repair, Installation, Service..."
+                        value={editServiceType}
+                        onChange={(e) => setEditServiceType(e.target.value)}
+                        className="h-8 text-xs bg-background"
+                        required
+                      />
                     </div>
                   </div>
 
@@ -2344,53 +2267,74 @@ export function BookingModule() {
                   /* Existing customer list Selector with Search */
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="cust-search" className="text-xs font-bold text-muted-foreground">Select Registered Customer</Label>
-                    <div className="relative">
-                      <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                      <Input
-                        id="cust-search"
-                        placeholder="Search by name, mobile, address or CIN..."
-                        value={customerSearch}
-                        onChange={(e) => setCustomerSearch(e.target.value)}
-                        className="pl-9 bg-background h-9 text-xs border-border/60"
-                      />
-                    </div>
-                    
-                    <div className="border border-border/60 rounded-lg max-h-40 overflow-y-auto bg-muted/10 divide-y divide-border/40">
-                      {filteredCustomers.length === 0 ? (
-                        <div className="p-3 text-xs text-muted-foreground text-center">No customers found matching "{customerSearch}"</div>
-                      ) : (
-                        filteredCustomers.map(c => {
-                          const isSelected = formCustomerId === c.id
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => setFormCustomerId(c.id)}
-                              className={`w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors ${
-                                isSelected 
-                                  ? "bg-primary/20 text-primary font-semibold" 
-                                  : "hover:bg-muted/50 text-foreground"
-                              }`}
-                            >
-                              <div className="flex flex-col gap-0.5">
-                                <div className="font-semibold flex items-center gap-1.5 text-foreground">
-                                  <span>{c.name}</span>
-                                  <span className="text-[10px] text-muted-foreground">({c.id})</span>
-                                </div>
-                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                                  <span>{c.mobile}</span>
-                                  <span className="text-border">•</span>
-                                  <span className="truncate max-w-[200px]">{c.address}</span>
-                                </div>
+                    {formCustomerId ? (
+                      /* Selected Customer Card */
+                      (() => {
+                        const selectedCust = customers.find(c => c.id === formCustomerId)
+                        return selectedCust ? (
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-primary/30 bg-primary/5 animate-in fade-in duration-200">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="size-7 rounded-md bg-primary/10 text-primary border border-primary/20 text-[10px] font-black flex items-center justify-center shrink-0">
+                                {selectedCust.name.charAt(0).toUpperCase()}
                               </div>
-                              {isSelected && (
-                                <HugeiconsIcon icon={CheckmarkCircle01Icon} strokeWidth={2.5} className="size-4 text-primary shrink-0" />
-                              )}
+                              <div className="flex flex-col gap-0 min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate">{selectedCust.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{selectedCust.mobile} • {selectedCust.id}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { setFormCustomerId(""); setCustomerSearch("") }}
+                              className="shrink-0 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                              title="Deselect customer"
+                            >
+                              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
                             </button>
-                          )
-                        })
-                      )}
-                    </div>
+                          </div>
+                        ) : null
+                      })()
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input
+                            id="cust-search"
+                            placeholder="Search by name, mobile, address or CIN..."
+                            value={customerSearch}
+                            onChange={(e) => setCustomerSearch(e.target.value)}
+                            className="pl-9 bg-background h-9 text-xs border-border/60"
+                            autoFocus
+                          />
+                        </div>
+                        
+                        <div className="border border-border/60 rounded-lg max-h-40 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                          {filteredCustomers.length === 0 ? (
+                            <div className="p-3 text-xs text-muted-foreground text-center">No customers found matching "{customerSearch}"</div>
+                          ) : (
+                            filteredCustomers.map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => { setFormCustomerId(c.id); setCustomerSearch("") }}
+                                className="w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors hover:bg-muted/50 text-foreground"
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                    <span>{c.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">({c.id})</span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                    <span>{c.mobile}</span>
+                                    <span className="text-border">•</span>
+                                    <span className="truncate max-w-[200px]">{c.address}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   /* Inline Client Form */
@@ -2451,33 +2395,41 @@ export function BookingModule() {
                   </div>
                 )}
 
-                {/* Appliance Input */}
+                {/* Appliance Selector */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="appliance" className="text-xs font-bold text-muted-foreground">Appliance</Label>
-                  <Input 
-                    id="appliance" 
-                    placeholder="E.g., AC, TV, Refrigerator"
-                    value={formAppliance}
-                    onChange={(e) => setFormAppliance(e.target.value)}
-                    className="bg-background"
-                    required
-                  />
-                </div>
-
-                {/* Service Type Selector */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="serv-type" className="text-xs font-bold text-muted-foreground">Service Type</Label>
-                  <Select value={formServiceType} onValueChange={setFormServiceType}>
-                    <SelectTrigger id="serv-type">
-                      <SelectValue />
+                  <Select value={formAppliance} onValueChange={setFormAppliance}>
+                    <SelectTrigger id="appliance" className="bg-background text-xs">
+                      <SelectValue placeholder="Select Appliance..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Repair">Repair</SelectItem>
-                      <SelectItem value="Installation">Installation</SelectItem>
-                      <SelectItem value="Service">Service</SelectItem>
-                      <SelectItem value="Gas Filling">Gas Filling</SelectItem>
+                      {APPLIANCE_OPTIONS.map(opt => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {formAppliance === "Other" && (
+                    <Input
+                      placeholder="Custom Appliance Name"
+                      value={formCustomAppliance}
+                      onChange={(e) => setFormCustomAppliance(e.target.value)}
+                      className="bg-background text-xs mt-1.5"
+                      required
+                    />
+                  )}
+                </div>
+
+                {/* Service Type Input */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="serv-type" className="text-xs font-bold text-muted-foreground">Service Type</Label>
+                  <Input 
+                    id="serv-type" 
+                    placeholder="E.g. Repair, Installation, Service, Gas Filling"
+                    value={formServiceType}
+                    onChange={(e) => setFormServiceType(e.target.value)}
+                    className="bg-background text-xs"
+                    required
+                  />
                 </div>
 
                 {/* Issue Text Box */}

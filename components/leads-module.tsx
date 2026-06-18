@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useCRM, Lead } from "@/context/crm-context"
+import { APPLIANCE_OPTIONS } from "./booking-module"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,13 +19,22 @@ import {
   DrawerHeader, 
   DrawerTitle 
 } from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
   SearchIcon,
   CheckmarkCircle01Icon,
   Loading03Icon,
-  Menu01Icon
+  Menu01Icon,
+  MoreHorizontalCircle01Icon,
+  Cancel01Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -46,6 +56,7 @@ export function LeadsModule() {
   const [editAddress, setEditAddress] = React.useState("")
   const [editSource, setEditSource] = React.useState<any>("Ad")
   const [editAppliance, setEditAppliance] = React.useState("AC")
+  const [editCustomAppliance, setEditCustomAppliance] = React.useState("")
   const [editRequirement, setEditRequirement] = React.useState("")
   const [editAssignedTo, setEditAssignedTo] = React.useState("")
   const [editStatus, setEditStatus] = React.useState<any>("New")
@@ -67,7 +78,13 @@ export function LeadsModule() {
     setEditMobile(l.mobile)
     setEditAddress(l.address)
     setEditSource(l.source)
-    setEditAppliance(l.appliance)
+    if (APPLIANCE_OPTIONS.filter(o => o !== "Other").includes(l.appliance)) {
+      setEditAppliance(l.appliance)
+      setEditCustomAppliance("")
+    } else {
+      setEditAppliance("Other")
+      setEditCustomAppliance(l.appliance)
+    }
     setEditRequirement(l.requirement)
     setEditAssignedTo(l.assignedTo)
     setEditStatus(l.status)
@@ -82,13 +99,19 @@ export function LeadsModule() {
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedLead) return
+    if (!editLinkCustomer && !/^\d{10}$/.test(editMobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
+
+    const finalAppliance = editAppliance === "Other" ? (editCustomAppliance.trim() || "Other") : editAppliance
 
     updateLead(selectedLead.id, {
       name: editName,
       mobile: editMobile,
       address: editAddress,
       source: editSource,
-      appliance: editAppliance,
+      appliance: finalAppliance,
       requirement: editRequirement,
       assignedTo: editAssignedTo,
       status: editStatus,
@@ -112,6 +135,7 @@ export function LeadsModule() {
   const [address, setAddress] = React.useState("")
   const [source, setSource] = React.useState<any>("Ad")
   const [appliance, setAppliance] = React.useState("AC")
+  const [customAppliance, setCustomAppliance] = React.useState("")
   const [requirement, setRequirement] = React.useState("")
   const [assignedTo, setAssignedTo] = React.useState("")
   const [customerNotes, setCustomerNotes] = React.useState("")
@@ -129,13 +153,19 @@ export function LeadsModule() {
   // Submit Lead
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!linkCustomer && !/^\d{10}$/.test(mobile)) {
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
     
+    const finalAppliance = appliance === "Other" ? (customAppliance.trim() || "Other") : appliance
+
     addLead({
       name,
       mobile,
       address,
       source,
-      appliance,
+      appliance: finalAppliance,
       requirement,
       assignedTo: assignedTo || "Manager",
       status: "New",
@@ -150,6 +180,7 @@ export function LeadsModule() {
     setAddress("")
     setSource("Ad")
     setAppliance("AC")
+    setCustomAppliance("")
     setRequirement("")
     setAssignedTo("")
     setCustomerNotes("")
@@ -290,41 +321,46 @@ export function LeadsModule() {
                         </Badge>
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {l.status !== "Converted" && l.status !== "Lost" && (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => {
-                                setActiveLead(l)
-                                setIsConvertOpen(true)
-                              }}
-                              className="h-7 text-xs font-semibold px-2"
-                            >
-                              <HugeiconsIcon icon={Menu01Icon} strokeWidth={2} />
-                              Convert to Job
-                            </Button>
-                          )}
-                          {(currentRole === "Admin" || currentRole === "Manager") && (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleOpenEdit(l)}
-                              className="h-7 text-xs font-semibold px-2 bg-background hover:bg-muted"
-                            >
-                              Edit
-                            </Button>
-                          )}
-                          {currentRole === "Admin" && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button 
                               variant="ghost" 
-                              onClick={() => deleteLead(l.id)}
-                              className="h-7 size-7 text-destructive hover:bg-destructive/10 rounded-md p-0 flex items-center justify-center font-bold"
+                              className="h-8 w-8 p-0 cursor-pointer"
                             >
-                              ×
+                              <HugeiconsIcon icon={MoreHorizontalCircle01Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
+                              <span className="sr-only">Actions</span>
                             </Button>
-                          )}
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            {(currentRole === "Admin" || currentRole === "Manager") && (
+                              <DropdownMenuItem onClick={() => handleOpenEdit(l)} className="cursor-pointer">
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {l.status !== "Converted" && l.status !== "Lost" && (
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setActiveLead(l)
+                                  setIsConvertOpen(true)
+                                }}
+                                className="cursor-pointer"
+                              >
+                                Convert to Job
+                              </DropdownMenuItem>
+                            )}
+                            {currentRole === "Admin" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => deleteLead(l.id)}
+                                  className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))
@@ -375,33 +411,69 @@ export function LeadsModule() {
                 {linkCustomer && (
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
                     <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
-                    <Input 
-                      placeholder="Search by name or phone..." 
-                      value={customerSearch} 
-                      onChange={(e) => setCustomerSearch(e.target.value)} 
-                      className="mb-1 bg-background h-8 text-xs"
-                    />
-                    <Select
-                      value={customerId}
-                      onValueChange={(val) => {
-                        setCustomerId(val)
-                        const cust = customers.find(c => c.id === val)
-                        if (cust) {
-                          setName(cust.name)
-                          setMobile(cust.mobile)
-                          setAddress(cust.address)
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Choose a registered customer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.mobile.includes(customerSearch)).map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {customerId ? (
+                      /* Selected Customer Card */
+                      (() => {
+                        const sel = customers.find(c => c.id === customerId)
+                        return sel ? (
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-primary/30 bg-primary/10">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="size-7 rounded-md bg-primary/20 text-primary text-[10px] font-black flex items-center justify-center shrink-0">
+                                {sel.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col gap-0 min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate">{sel.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{sel.mobile} • {sel.id}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { setCustomerId(""); setCustomerSearch(""); setName(""); setMobile(""); setAddress("") }}
+                              className="shrink-0 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                              title="Deselect customer"
+                            >
+                              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
+                            </button>
+                          </div>
+                        ) : null
+                      })()
+                    ) : (
+                      <>
+                        <Input 
+                          placeholder="Search by name or phone..." 
+                          value={customerSearch} 
+                          onChange={(e) => setCustomerSearch(e.target.value)} 
+                          className="bg-background h-8 text-xs"
+                          autoFocus
+                        />
+                        <div className="border border-border/60 rounded-lg max-h-48 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                          {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.mobile.includes(customerSearch)).length === 0 ? (
+                            <div className="p-3 text-xs text-muted-foreground text-center">No customers match "{customerSearch}"</div>
+                          ) : (
+                            customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.mobile.includes(customerSearch)).map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => { setCustomerId(c.id); setName(c.name); setMobile(c.mobile); setAddress(c.address); setCustomerSearch("") }}
+                                className="w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors hover:bg-muted/50 text-foreground"
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                    <span>{c.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">({c.id})</span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                    <span>{c.mobile}</span>
+                                    <span className="text-border">•</span>
+                                    <span className="truncate max-w-[200px]">{c.address}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -482,13 +554,25 @@ export function LeadsModule() {
                   {/* Appliance */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="lead-appliance" className="text-xs font-bold text-muted-foreground">Appliance Type</Label>
-                    <Input 
-                      id="lead-appliance"
-                      placeholder="E.g., AC, TV, Refrigerator"
-                      value={appliance}
-                      onChange={(e) => setAppliance(e.target.value)}
-                      required
-                    />
+                    <Select value={appliance} onValueChange={setAppliance}>
+                      <SelectTrigger id="lead-appliance" className="bg-background text-xs h-9 border-border/60">
+                        <SelectValue placeholder="Select Appliance Type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {APPLIANCE_OPTIONS.map(opt => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {appliance === "Other" && (
+                      <Input
+                        placeholder="Custom Appliance Name"
+                        value={customAppliance}
+                        onChange={(e) => setCustomAppliance(e.target.value)}
+                        className="bg-background text-xs h-9 border-border/60 mt-1.5"
+                        required
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -644,33 +728,68 @@ export function LeadsModule() {
                 {editLinkCustomer && (
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
                     <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
-                    <Input 
-                      placeholder="Search by name or phone..." 
-                      value={editCustomerSearch} 
-                      onChange={(e) => setEditCustomerSearch(e.target.value)} 
-                      className="mb-1 bg-background h-8 text-xs"
-                    />
-                    <Select
-                      value={editCustomerId}
-                      onValueChange={(val) => {
-                        setEditCustomerId(val)
-                        const cust = customers.find(c => c.id === val)
-                        if (cust) {
-                          setEditName(cust.name)
-                          setEditMobile(cust.mobile)
-                          setEditAddress(cust.address)
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Choose a registered customer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.filter(c => c.name.toLowerCase().includes(editCustomerSearch.toLowerCase()) || c.mobile.includes(editCustomerSearch)).map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {editCustomerId ? (
+                      (() => {
+                        const sel = customers.find(c => c.id === editCustomerId)
+                        return sel ? (
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-primary/30 bg-primary/10">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="size-7 rounded-md bg-primary/20 text-primary text-[10px] font-black flex items-center justify-center shrink-0">
+                                {sel.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col gap-0 min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate">{sel.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{sel.mobile} • {sel.id}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => { setEditCustomerId(""); setEditCustomerSearch(""); setEditName(""); setEditMobile(""); setEditAddress("") }}
+                              className="shrink-0 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                              title="Deselect customer"
+                            >
+                              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
+                            </button>
+                          </div>
+                        ) : null
+                      })()
+                    ) : (
+                      <>
+                        <Input 
+                          placeholder="Search by name or phone..." 
+                          value={editCustomerSearch} 
+                          onChange={(e) => setEditCustomerSearch(e.target.value)} 
+                          className="bg-background h-8 text-xs"
+                          autoFocus
+                        />
+                        <div className="border border-border/60 rounded-lg max-h-48 overflow-y-auto bg-muted/10 divide-y divide-border/40">
+                          {customers.filter(c => c.name.toLowerCase().includes(editCustomerSearch.toLowerCase()) || c.mobile.includes(editCustomerSearch)).length === 0 ? (
+                            <div className="p-3 text-xs text-muted-foreground text-center">No customers match "{editCustomerSearch}"</div>
+                          ) : (
+                            customers.filter(c => c.name.toLowerCase().includes(editCustomerSearch.toLowerCase()) || c.mobile.includes(editCustomerSearch)).map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => { setEditCustomerId(c.id); setEditName(c.name); setEditMobile(c.mobile); setEditAddress(c.address); setEditCustomerSearch("") }}
+                                className="w-full text-left p-2.5 text-xs flex items-center justify-between transition-colors hover:bg-muted/50 text-foreground"
+                              >
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="font-semibold flex items-center gap-1.5 text-foreground">
+                                    <span>{c.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">({c.id})</span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                    <span>{c.mobile}</span>
+                                    <span className="text-border">•</span>
+                                    <span className="truncate max-w-[200px]">{c.address}</span>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -768,13 +887,25 @@ export function LeadsModule() {
                   {/* Appliance */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-lead-appliance" className="text-xs font-bold text-muted-foreground">Appliance Type</Label>
-                    <Input 
-                      id="edit-lead-appliance"
-                      placeholder="E.g., AC, TV, Refrigerator"
-                      value={editAppliance}
-                      onChange={(e) => setEditAppliance(e.target.value)}
-                      required
-                    />
+                    <Select value={editAppliance} onValueChange={setEditAppliance}>
+                      <SelectTrigger id="edit-lead-appliance" className="bg-background text-xs h-9 border-border/60">
+                        <SelectValue placeholder="Select Appliance Type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {APPLIANCE_OPTIONS.map(opt => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editAppliance === "Other" && (
+                      <Input
+                        placeholder="Custom Appliance Name"
+                        value={editCustomAppliance}
+                        onChange={(e) => setEditCustomAppliance(e.target.value)}
+                        className="bg-background text-xs h-9 border-border/60 mt-1.5"
+                        required
+                      />
+                    )}
                   </div>
                 </div>
 

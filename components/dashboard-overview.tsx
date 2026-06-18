@@ -772,9 +772,11 @@ export function DashboardOverview() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {technicians.slice(0, 4).map((t) => {
-                const jobsDone = bookings.filter(
-                  (b) => b.assignedTechnicianId === t.id && b.status === "Completed"
-                ).length
+                const jobsDone = bookings.filter((b) => {
+                  if (!b.assignedTechnicianId) return false
+                  const ids = b.assignedTechnicianId.split(",").map(id => id.trim())
+                  return ids.includes(t.id) && b.status === "Completed"
+                }).length
                 return (
                   <div
                     key={t.id}
@@ -1376,9 +1378,11 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {technicians.slice(0, 4).map((t) => {
-              const jobsDone = bookings.filter(
-                (b) => b.assignedTechnicianId === t.id && b.status === "Completed"
-              ).length
+              const jobsDone = bookings.filter((b) => {
+                if (!b.assignedTechnicianId) return false
+                const ids = b.assignedTechnicianId.split(",").map(id => id.trim())
+                return ids.includes(t.id) && b.status === "Completed"
+              }).length
               return (
                 <div
                   key={t.id}
