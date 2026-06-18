@@ -269,6 +269,7 @@ export function ReportsModule() {
                   <DropdownMenuCheckboxItem
                     checked={applianceFilters.length === 0}
                     onCheckedChange={() => setApplianceFilters([])}
+                    onSelect={(e) => e.preventDefault()}
                     className="text-xs cursor-pointer focus:bg-muted"
                   >
                     <span className="font-semibold text-foreground">All Appliances</span>
@@ -284,6 +285,7 @@ export function ReportsModule() {
                           setApplianceFilters(prev => prev.filter(a => a !== app))
                         }
                       }}
+                      onSelect={(e) => e.preventDefault()}
                       className="text-xs cursor-pointer focus:bg-muted text-foreground"
                     >
                       {app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}

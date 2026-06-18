@@ -51,6 +51,7 @@ export function ComplaintsModule() {
   const [selectedBookingId, setSelectedBookingId] = React.useState("")
   const [bookingSearch, setBookingSearch] = React.useState("")
   const [logComplaintText, setLogComplaintText] = React.useState("")
+  const [logComplaintNotes, setLogComplaintNotes] = React.useState("")
   const [logComplaintDate, setLogComplaintDate] = React.useState(new Date().toISOString().split("T")[0])
   const [logComplaintStatus, setLogComplaintStatus] = React.useState<any>("Open")
 
@@ -71,6 +72,7 @@ export function ComplaintsModule() {
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedBookingForEdit, setSelectedBookingForEdit] = React.useState<Booking | null>(null)
   const [editComplaintText, setEditComplaintText] = React.useState("")
+  const [editComplaintNotes, setEditComplaintNotes] = React.useState("")
   const [editComplaintDate, setEditComplaintDate] = React.useState("")
   const [editComplaintStatus, setEditComplaintStatus] = React.useState<any>("Open")
 
@@ -137,9 +139,10 @@ export function ComplaintsModule() {
       updateBooking(selectedBookingId, {
         complaint: logComplaintText,
         complaintDate: logComplaintDate,
-        complaintStatus: logComplaintStatus
+        complaintStatus: logComplaintStatus,
+        notes: logComplaintNotes || undefined
       })
-      toast.success("Customer complaint logged successfully.")
+      toast.success("Complaint logged against booking successfully.")
     } else {
       // Custom Complaint Mode
       if (!logComplaintText.trim()) {
@@ -199,7 +202,8 @@ export function ComplaintsModule() {
         status: "Not Started",
         complaint: logComplaintText,
         complaintDate: logComplaintDate,
-        complaintStatus: logComplaintStatus
+        complaintStatus: logComplaintStatus,
+        notes: logComplaintNotes || undefined
       })
       toast.success("Custom complaint logged successfully.")
     }
@@ -208,6 +212,7 @@ export function ComplaintsModule() {
     setSelectedBookingId("")
     setBookingSearch("")
     setLogComplaintText("")
+    setLogComplaintNotes("")
     setLogComplaintDate(new Date().toISOString().split("T")[0])
     setLogComplaintStatus("Open")
     
@@ -234,7 +239,8 @@ export function ComplaintsModule() {
     updateBooking(selectedBookingForEdit.id, {
       complaint: editComplaintText,
       complaintDate: editComplaintDate,
-      complaintStatus: editComplaintStatus
+      complaintStatus: editComplaintStatus,
+      notes: editComplaintNotes || selectedBookingForEdit.notes
     })
 
     setSelectedBookingForEdit(null)
@@ -285,6 +291,7 @@ export function ComplaintsModule() {
   const handleOpenEdit = (b: Booking) => {
     setSelectedBookingForEdit(b)
     setEditComplaintText(b.complaint || "")
+    setEditComplaintNotes(b.notes || "")
     setEditComplaintDate(b.complaintDate || new Date().toISOString().split("T")[0])
     setEditComplaintStatus(b.complaintStatus || "Open")
     setIsEditOpen(true)
@@ -883,6 +890,18 @@ export function ComplaintsModule() {
                   </Select>
                 </div>
 
+                {/* Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="log-complaint-notes" className="text-xs font-bold text-muted-foreground">Internal Notes (Optional)</Label>
+                  <Textarea 
+                    id="log-complaint-notes" 
+                    placeholder="Any internal notes or follow-up actions..."
+                    value={logComplaintNotes} 
+                    onChange={(e) => setLogComplaintNotes(e.target.value)}
+                    className="min-h-[70px] text-xs bg-background"
+                  />
+                </div>
+
               </div>
             </div>
 
@@ -966,6 +985,18 @@ export function ComplaintsModule() {
                       <SelectItem value="Dismissed">Dismissed</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Notes */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-complaint-notes" className="text-xs font-bold text-muted-foreground">Internal Notes (Optional)</Label>
+                  <Textarea 
+                    id="edit-complaint-notes" 
+                    placeholder="Any internal notes or follow-up actions..."
+                    value={editComplaintNotes} 
+                    onChange={(e) => setEditComplaintNotes(e.target.value)}
+                    className="min-h-[70px] text-xs bg-background"
+                  />
                 </div>
 
               </div>
