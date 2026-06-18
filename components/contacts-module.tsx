@@ -297,11 +297,13 @@ export function ContactsModule() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="cont-phone" className="text-xs font-bold text-muted-foreground">Primary Mobile Phone</Label>
                   <Input 
-                    id="cont-phone"
-                    placeholder="E.g., 9911223344"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    required
+                    id="contact-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9911223344" 
+                    value={mobile} 
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 
@@ -380,11 +382,13 @@ export function ContactsModule() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-cont-phone" className="text-xs font-bold text-muted-foreground">Primary Mobile Phone</Label>
                   <Input 
-                    id="edit-cont-phone"
-                    placeholder="E.g., 9911223344"
-                    value={editMobile}
-                    onChange={(e) => setEditMobile(e.target.value)}
-                    required
+                    id="edit-contact-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9911223344" 
+                    value={editMobile} 
+                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 

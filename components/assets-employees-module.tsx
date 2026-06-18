@@ -685,7 +685,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 {/* Mobile */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="emp-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
-                  <Input id="emp-phone" placeholder="E.g., 9899001122" value={empMobile} onChange={(e) => setEmpMobile(e.target.value)} required />
+                  <Input id="emp-phone" type="tel" inputMode="numeric" placeholder="E.g., 9899001122" value={empMobile} onChange={(e) => setEmpMobile(e.target.value.replace(/\D/g, ''))} required />
                 </div>
               </div>
 
@@ -840,10 +840,9 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                     </SelectContent>
                   </Select>
                 </div>
-                {/* Mobile */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-emp-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
-                  <Input id="edit-emp-phone" placeholder="E.g., 9899001122" value={editEmpMobile} onChange={(e) => setEditEmpMobile(e.target.value)} required />
+                  <Input id="edit-emp-phone" type="tel" inputMode="numeric" placeholder="E.g., 9899001122" value={editEmpMobile} onChange={(e) => setEditEmpMobile(e.target.value.replace(/\D/g, ''))} required />
                 </div>
               </div>
 

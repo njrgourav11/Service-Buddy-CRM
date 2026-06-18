@@ -12,8 +12,19 @@ import {
   CreditCardIcon,
   Menu01Icon,
   Analytics01Icon,
-  Alert02Icon
+  Alert02Icon,
+  FilterIcon
 } from "@hugeicons/core-free-icons"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Legend, LineChart, Line,
@@ -26,10 +37,17 @@ export function ReportsModule() {
   // ==========================================
   // Interactive Filters State
   // ==========================================
-  const [applianceFilter, setApplianceFilter] = React.useState("ALL")
+  const [applianceFilters, setApplianceFilters] = React.useState<string[]>([])
   const [statusFilter, setStatusFilter] = React.useState("ALL")
-  const [yearFilter, setYearFilter] = React.useState("ALL")
-
+  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_WEEK" | "THIS_MONTH" | "CUSTOM">("ALL")
+  const [customStartDate, setCustomStartDate] = React.useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split("T")[0]
+  })
+  const [customEndDate, setCustomEndDate] = React.useState<string>(() => {
+    return new Date().toISOString().split("T")[0]
+  })
   // ==========================================
   // Filter Options Extraction
   // ==========================================
@@ -37,29 +55,37 @@ export function ReportsModule() {
     return Array.from(new Set(bookings.map(b => b.appliance).filter(Boolean))).sort()
   }, [bookings])
 
-  const uniqueYears = React.useMemo(() => {
-    const years = bookings
-      .map(b => b.date ? new Date(b.date).getFullYear() : null)
-      .filter((y): y is number => y !== null)
-    return Array.from(new Set(years)).sort((a, b) => b - a)
-  }, [bookings])
-
   // ==========================================
   // Filter Logic
   // ==========================================
   const filteredBookings = React.useMemo(() => {
     return bookings.filter(b => {
-      const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
+      const matchesAppliance = applianceFilters.length === 0 || applianceFilters.includes(b.appliance)
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
       
-      let matchesYear = true
-      if (yearFilter !== "ALL" && b.date) {
-        matchesYear = new Date(b.date).getFullYear().toString() === yearFilter
+      let matchesDate = true
+      if (dateFilter !== "ALL" && b.date) {
+        const bDate = new Date(b.date)
+        const now = new Date()
+        
+        if (dateFilter === "THIS_WEEK") {
+          const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
+          startOfWeek.setHours(0, 0, 0, 0)
+          matchesDate = bDate >= startOfWeek
+        } else if (dateFilter === "THIS_MONTH") {
+          matchesDate = bDate.getMonth() === new Date().getMonth() && bDate.getFullYear() === new Date().getFullYear()
+        } else if (dateFilter === "CUSTOM") {
+          const s = new Date(customStartDate)
+          const e = new Date(customEndDate)
+          s.setHours(0, 0, 0, 0)
+          e.setHours(23, 59, 59, 999)
+          matchesDate = bDate >= s && bDate <= e
+        }
       }
       
-      return matchesAppliance && matchesStatus && matchesYear
+      return matchesAppliance && matchesStatus && matchesDate
     })
-  }, [bookings, applianceFilter, statusFilter, yearFilter])
+  }, [bookings, applianceFilters, statusFilter, dateFilter, customStartDate, customEndDate])
 
   // ==========================================
   // KPI Calculations
@@ -220,20 +246,51 @@ export function ReportsModule() {
         <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Interactive Report Filters</div>
           <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-            {/* Appliance Filter */}
             <div className="flex items-center gap-1.5 flex-1 md:flex-none">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Appliance:</Label>
-              <Select value={applianceFilter} onValueChange={setApplianceFilter}>
-                <SelectTrigger className="w-full md:w-40 h-8 text-xs bg-background">
-                  <SelectValue placeholder="All Appliances" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Appliances</SelectItem>
-                  {uniqueAppliances.map(app => (
-                    <SelectItem key={app} value={app}>{app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}</SelectItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full md:w-48 h-8 justify-start text-left text-xs bg-background">
+                    <HugeiconsIcon icon={FilterIcon} strokeWidth={2} className="mr-2 size-3.5 opacity-50 shrink-0" />
+                    <span className="truncate">
+                      {applianceFilters.length === 0 
+                        ? "All Appliances" 
+                        : applianceFilters.length === 1 
+                          ? applianceFilters[0] 
+                          : `${applianceFilters.length} Selected`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48 bg-background border-border/60 shadow-lg">
+                  <DropdownMenuLabel className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2 py-1.5">
+                    Filter by Appliance
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-border/40" />
+                  <DropdownMenuCheckboxItem
+                    checked={applianceFilters.length === 0}
+                    onCheckedChange={() => setApplianceFilters([])}
+                    className="text-xs cursor-pointer focus:bg-muted"
+                  >
+                    <span className="font-semibold text-foreground">All Appliances</span>
+                  </DropdownMenuCheckboxItem>
+                  {uniqueAppliances.map((app) => (
+                    <DropdownMenuCheckboxItem
+                      key={app}
+                      checked={applianceFilters.includes(app)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setApplianceFilters(prev => [...prev, app])
+                        } else {
+                          setApplianceFilters(prev => prev.filter(a => a !== app))
+                        }
+                      }}
+                      className="text-xs cursor-pointer focus:bg-muted text-foreground"
+                    >
+                      {app === "TL-WM (Top Load Washing Machine)" ? "TL-WM" : app}
+                    </DropdownMenuCheckboxItem>
                   ))}
-                </SelectContent>
-              </Select>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Status Filter */}
@@ -254,21 +311,40 @@ export function ReportsModule() {
               </Select>
             </div>
 
-            {/* Year Filter */}
+            {/* Date Range Filter */}
             <div className="flex items-center gap-1.5 flex-1 md:flex-none">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Year:</Label>
-              <Select value={yearFilter} onValueChange={setYearFilter}>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date Range:</Label>
+              <Select value={dateFilter} onValueChange={(val: any) => setDateFilter(val)}>
                 <SelectTrigger className="w-full md:w-40 h-8 text-xs bg-background">
-                  <SelectValue placeholder="All Years" />
+                  <SelectValue placeholder="All Time" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Years</SelectItem>
-                  {uniqueYears.map(yr => (
-                    <SelectItem key={yr} value={yr.toString()}>{yr}</SelectItem>
-                  ))}
+                  <SelectItem value="ALL">All Time</SelectItem>
+                  <SelectItem value="THIS_WEEK">This Week</SelectItem>
+                  <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                  <SelectItem value="CUSTOM">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Custom Date Inputs (only show if CUSTOM selected) */}
+            {dateFilter === "CUSTOM" && (
+              <div className="flex items-center gap-2 flex-1 md:flex-none">
+                <Input 
+                  type="date" 
+                  value={customStartDate} 
+                  onChange={(e) => setCustomStartDate(e.target.value)} 
+                  className="h-8 text-xs w-32 bg-background tabular-nums"
+                />
+                <span className="text-xs text-muted-foreground font-medium">to</span>
+                <Input 
+                  type="date" 
+                  value={customEndDate} 
+                  onChange={(e) => setCustomEndDate(e.target.value)} 
+                  className="h-8 text-xs w-32 bg-background tabular-nums"
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -40,11 +40,13 @@ const pct = (n: number) =>
   `${isFinite(n) ? n.toFixed(1) : "0.0"}%`
 
 const getReviewDotColor = (status: string) => {
-  const s = status || "Review not done"
-  if (s === "Positive") return "bg-emerald-500"
-  if (s === "Negative") return "bg-rose-500"
-  if (s === "Call didn't receive") return "bg-orange-500"
-  return "bg-blue-500" // Review not done
+  switch (status) {
+    case "Positive": return "bg-green-500"
+    case "Negative": return "bg-red-500"
+    case "Call didn't receive": return "bg-amber-500"
+    case "Cancel Order": return "bg-zinc-500"
+    default: return "bg-slate-300"
+  }
 }
 
 // ─── Stat Card ───────────────────────────────────────────────────────────
@@ -134,7 +136,7 @@ export function DashboardOverview() {
   } = useCRM()
 
   // Breakdown state managers: Initial states are null so no detailed breakdown is shown by default
-  const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "expenses" | "operations" | null>(null)
+  const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "balance" | "expenses" | "operations" | null>(null)
   const [activeManagerBreakdown, setActiveManagerBreakdown] = React.useState<"bookings" | "clients" | "resources" | null>(null)
   const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "CUSTOM">("ALL")
   const [customStartDate, setCustomStartDate] = React.useState<string>(() => {
@@ -146,7 +148,7 @@ export function DashboardOverview() {
     return new Date().toISOString().split("T")[0]
   })
 
-  const handleCardClick = (category: "revenue" | "expenses" | "operations") => {
+  const handleCardClick = (category: "revenue" | "balance" | "expenses" | "operations") => {
     setActiveBreakdown(prev => prev === category ? null : category)
   }
 
@@ -234,7 +236,7 @@ export function DashboardOverview() {
   // ════════════════════════════════════════════
   // PROFIT CALCULATIONS
   // ════════════════════════════════════════════
-  const balance = companyRevenue
+  const balance = companyRevenue - totalExpenditure
   const netAmt = companyRevenue - totalExpenditure
   const netProfit = totalRevenue - totalExpenditure
   const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
@@ -244,7 +246,7 @@ export function DashboardOverview() {
   // OPERATIONS METRICS
   // ════════════════════════════════════════════
   const totalBookings  = filteredBookings.length
-  const pendingJobs    = filteredBookings.filter((b) => b.status !== "Completed").length
+  const pendingJobs    = filteredBookings.filter((b) => b.status !== "Completed" && b.status !== "Inspected").length
   const completionRate = totalBookings > 0 ? (completedJobs / totalBookings) * 100 : 0
 
   // ════════════════════════════════════════════
@@ -899,9 +901,12 @@ export function DashboardOverview() {
           <StatCard
             label="Balance"
             value={fmt(balance)}
-            sub="Sum of all company profit from bookings"
+            sub="Sum of company profit minus expenses"
             accent={balance >= 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"}
             icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+            onClick={() => handleCardClick("balance")}
+            selected={activeBreakdown === "balance"}
+            clickable
             negative={balance < 0}
           />
           <StatCard
@@ -935,12 +940,14 @@ export function DashboardOverview() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
                 {activeBreakdown === "revenue" && "Total Revenue breakdown details"}
+                {activeBreakdown === "balance" && "Balance breakdown details"}
                 {activeBreakdown === "expenses" && "Operating Expenses details"}
                 {activeBreakdown === "operations" && "Operations & Inventory status ledger"}
               </h3>
             </div>
             <span className="text-[9px] text-muted-foreground font-semibold">
               {activeBreakdown === "revenue" && "4 parameters logged"}
+              {activeBreakdown === "balance" && "2 parameters logged"}
               {activeBreakdown === "expenses" && "7 parameters logged"}
               {activeBreakdown === "operations" && "12 parameters logged"}
             </span>
@@ -976,6 +983,25 @@ export function DashboardOverview() {
                   sub="Total Revenue ÷ total bookings"
                   accent="bg-primary/10 text-primary border border-primary/20"
                   icon={(p) => <HugeiconsIcon icon={ChartUpIcon} strokeWidth={2} {...p} />}
+                />
+              </>
+            )}
+
+            {activeBreakdown === "balance" && (
+              <>
+                <StatCard
+                  label="Company Amount"
+                  value={fmt(companyRevenue)}
+                  sub="SUM(totalCompanyAmount)"
+                  accent="bg-primary/10 text-primary border border-primary/20"
+                  icon={(p) => <HugeiconsIcon icon={Money01Icon} strokeWidth={2} {...p} />}
+                />
+                <StatCard
+                  label="Total Expenditure"
+                  value={fmt(totalExpenditure)}
+                  sub="All operating expenses"
+                  accent="bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400"
+                  icon={(p) => <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} {...p} />}
                 />
               </>
             )}

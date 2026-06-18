@@ -39,11 +39,13 @@ import {
 } from "@/components/ui/table"
 
 const getReviewDotColor = (status: string) => {
-  const s = status || "Review not done"
-  if (s === "Positive") return "bg-emerald-500"
-  if (s === "Negative") return "bg-rose-500"
-  if (s === "Call didn't receive") return "bg-orange-500"
-  return "bg-blue-500" // Review not done
+  switch (status) {
+    case "Positive": return "bg-green-500"
+    case "Negative": return "bg-red-500"
+    case "Call didn't receive": return "bg-amber-500"
+    case "Cancel Order": return "bg-zinc-500"
+    default: return "bg-slate-300"
+  }
 }
 
 interface CustomerModuleProps {
@@ -249,9 +251,9 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
       )}
 
       {/* Analytics: Lead Acquisition Source Split */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {["Ad", "Contact", "Repeat Consumer"].map((src) => {
-          const count = customers.filter(c => c.referralSource === src as any).length
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {["Ad", "Contact", "Repeat Consumer", "Website"].map((src) => {
+            const count = customers.filter(c => c.referralSource === src as any).length
           const percentage = customers.length ? Math.round((count / customers.length) * 100) : 0
           
           return (
@@ -315,6 +317,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                   <SelectItem value="Ad">Ad</SelectItem>
                   <SelectItem value="Contact">Contact</SelectItem>
                   <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                  <SelectItem value="Website">Website</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -592,11 +595,13 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="cust-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
-                    id="cust-mob"
-                    placeholder="E.g., 9911223344"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    required
+                    id="cust-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9899001122" 
+                    value={mobile} 
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 
@@ -627,6 +632,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Ad">Ad</SelectItem>
                       <SelectItem value="Contact">Contact</SelectItem>
                       <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                      <SelectItem value="Website">Website</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
@@ -666,6 +672,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Positive">Positive</SelectItem>
                       <SelectItem value="Negative">Negative</SelectItem>
                       <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -713,11 +720,13 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-cust-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
-                    id="edit-cust-mob"
-                    placeholder="E.g., 9911223344"
-                    value={editMobile}
-                    onChange={(e) => setEditMobile(e.target.value)}
-                    required
+                    id="edit-cust-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9899001122" 
+                    value={editMobile} 
+                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 
@@ -762,6 +771,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Ad">Ad</SelectItem>
                       <SelectItem value="Contact">Contact</SelectItem>
                       <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                      <SelectItem value="Website">Website</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
@@ -801,6 +811,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       <SelectItem value="Positive">Positive</SelectItem>
                       <SelectItem value="Negative">Negative</SelectItem>
                       <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

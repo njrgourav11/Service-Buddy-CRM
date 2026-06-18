@@ -48,6 +48,7 @@ export const getReviewDotColor = (review: string) => {
   if (r === "Positive") return "bg-emerald-500"
   if (r === "Negative") return "bg-rose-500"
   if (r === "Call didn't receive") return "bg-orange-500"
+  if (r === "Cancel Order") return "bg-zinc-500"
   return "bg-blue-500" // Review not done
 }
 
@@ -433,7 +434,7 @@ export function BookingModule() {
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
       const matchesStatus = statusFilter === "ALL" || 
         (statusFilter === "PENDING" 
-          ? (b.status !== "Completed" && b.status !== "Cancelled") 
+          ? (b.status !== "Completed" && b.status !== "Cancelled" && b.status !== "Inspected") 
           : b.status === statusFilter)
       const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
 
@@ -895,6 +896,7 @@ export function BookingModule() {
                       <SelectItem value="Positive">Positive</SelectItem>
                       <SelectItem value="Negative">Negative</SelectItem>
                       <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                      <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1015,6 +1017,7 @@ export function BookingModule() {
                         <SelectItem value="Positive">Positive</SelectItem>
                         <SelectItem value="Negative">Negative</SelectItem>
                         <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                        <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1141,6 +1144,7 @@ export function BookingModule() {
                                   <SelectItem value="Positive">Positive</SelectItem>
                                   <SelectItem value="Negative">Negative</SelectItem>
                                   <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                                  <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                                 </SelectContent>
                               </Select>
                             </td>
@@ -1281,6 +1285,7 @@ export function BookingModule() {
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Service Issue</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Notes</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Tech</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Spare Price</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Total Consumer</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Tech Payout</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Company Comm</TableHead>
@@ -1291,7 +1296,7 @@ export function BookingModule() {
                     <TableBody>
                       {paginatedBookings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={15} className="text-center py-12 text-muted-foreground font-medium">
+                          <TableCell colSpan={16} className="text-center py-12 text-muted-foreground font-medium">
                             No service bookings match query.
                           </TableCell>
                         </TableRow>
@@ -1349,6 +1354,7 @@ export function BookingModule() {
                                     <SelectItem value="Positive">Positive</SelectItem>
                                     <SelectItem value="Negative">Negative</SelectItem>
                                     <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                                    <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </TableCell>
@@ -1375,6 +1381,9 @@ export function BookingModule() {
                               </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
+                              </TableCell>
+                              <TableCell className="px-4 py-4 text-right font-bold text-muted-foreground tabular-nums">
+                                ₹{b.sparePrice || 0}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-primary tabular-nums">
                                 ₹{b.totalConsumerAmount}
@@ -1721,8 +1730,10 @@ export function BookingModule() {
                       <Label htmlFor="edit-cust-mob" className="text-[10px] font-bold text-muted-foreground uppercase">Contact Number</Label>
                       <Input 
                         id="edit-cust-mob" 
+                        type="tel"
+                        inputMode="numeric"
                         value={editCustMobile} 
-                        onChange={(e) => setEditCustMobile(e.target.value)} 
+                        onChange={(e) => setEditCustMobile(e.target.value.replace(/\D/g, ''))} 
                         className="h-8 text-xs" 
                         required
                       />
@@ -1751,6 +1762,7 @@ export function BookingModule() {
                           <SelectItem value="Ad">Ad</SelectItem>
                           <SelectItem value="Contact">Contact</SelectItem>
                           <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                          <SelectItem value="Website">Website</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1767,6 +1779,7 @@ export function BookingModule() {
                           <SelectItem value="Positive">Positive</SelectItem>
                           <SelectItem value="Negative">Negative</SelectItem>
                           <SelectItem value="Call didn't receive">Call didn't receive</SelectItem>
+                          <SelectItem value="Cancel Order">Cancel Order</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2395,9 +2408,11 @@ export function BookingModule() {
                       <Label htmlFor="new-cust-mob" className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Mobile Number *</Label>
                       <Input 
                         id="new-cust-mob" 
+                        type="tel"
+                        inputMode="numeric"
                         placeholder="E.g., 9911223344"
                         value={newCustMobile}
-                        onChange={(e) => setNewCustMobile(e.target.value)}
+                        onChange={(e) => setNewCustMobile(e.target.value.replace(/\D/g, ''))}
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -2419,6 +2434,7 @@ export function BookingModule() {
                           <SelectItem value="Ad">Ad</SelectItem>
                           <SelectItem value="Contact">Contact</SelectItem>
                           <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                          <SelectItem value="Website">Website</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>

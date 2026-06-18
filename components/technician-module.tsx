@@ -605,11 +605,13 @@ export function TechnicianModule() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="tech-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
-                    id="tech-mob"
-                    placeholder="E.g., 9876543210"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    required
+                    id="tech-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9899001122" 
+                    value={mobile} 
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 
@@ -696,11 +698,13 @@ export function TechnicianModule() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-tech-mob" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
-                    id="edit-tech-mob"
-                    placeholder="E.g., 9876543210"
-                    value={editMobile}
-                    onChange={(e) => setEditMobile(e.target.value)}
-                    required
+                    id="edit-tech-phone" 
+                    type="tel" 
+                    inputMode="numeric"
+                    placeholder="E.g., 9899001122" 
+                    value={editMobile} 
+                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    required 
                   />
                 </div>
 

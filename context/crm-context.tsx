@@ -52,10 +52,10 @@ export interface Customer {
   name: string
   mobile: string
   address: string
-  referralSource: "Ad" | "Contact" | "Repeat Consumer" | "Other"
-  review: string
-  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive"
-  notes: string
+  referralSource: "Ad" | "Contact" | "Repeat Consumer" | "Website" | "Other"
+  notes?: string
+  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive" | "Cancel Order"
+  review?: string
   status: "Active" | "Inactive"
   createdAt: string
 }
@@ -87,7 +87,7 @@ export interface Booking {
   complaintStatus?: "Open" | "In Review" | "Resolved" | "Dismissed"
   notes?: string
   review?: string
-  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive"
+  reviewStatus?: "Review not done" | "Positive" | "Negative" | "Call didn't receive" | "Cancel Order"
   payoutEditedCount?: number
 
   
@@ -172,7 +172,7 @@ export interface Lead {
   name: string
   mobile: string
   address: string
-  source: "Ad" | "Contact" | "Repeat Consumer" | "Other"
+  source: "Ad" | "Contact" | "Repeat Consumer" | "Website" | "Other"
   appliance: string
   requirement: string
   assignedTo: string

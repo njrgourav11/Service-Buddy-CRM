@@ -64,6 +64,8 @@ export function ComplaintsModule() {
   const [newCustAddress, setNewCustAddress] = React.useState("")
   const [newCustReferral, setNewCustReferral] = React.useState<any>("Ad")
   const [customAppliance, setCustomAppliance] = React.useState("General")
+  const [customTechId, setCustomTechId] = React.useState("")
+  const [customServiceCharge, setCustomServiceCharge] = React.useState(0)
 
   // Edit Complaint State
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -189,11 +191,11 @@ export function ComplaintsModule() {
         appliance: customAppliance || "General",
         serviceType: "Service",
         issue: "Custom Complaint (No Booking)",
-        assignedTechnicianId: "",
+        assignedTechnicianId: customTechId === "none" ? "" : customTechId,
         spareName: "None",
         spareCost: 0,
         sparePrice: 0,
-        serviceCharge: 0,
+        serviceCharge: customServiceCharge,
         status: "Not Started",
         complaint: logComplaintText,
         complaintDate: logComplaintDate,
@@ -216,6 +218,8 @@ export function ComplaintsModule() {
     setNewCustAddress("")
     setNewCustReferral("Ad")
     setCustomAppliance("General")
+    setCustomTechId("")
+    setCustomServiceCharge(0)
     setLogMode("link")
     setCustomCustomerMode("registered")
     
@@ -263,6 +267,17 @@ export function ComplaintsModule() {
         complaintStatus: undefined
       })
       toast.success("Complaint deleted successfully.")
+    }
+  }
+
+  // Convert Custom Complaint to Booking
+  const handleConvertToBooking = (bookingId: string) => {
+    if (window.confirm("Are you sure you want to convert this complaint into a full booking?")) {
+      updateBooking(bookingId, {
+        issue: "Converted from Complaint",
+        status: "Open" as any
+      })
+      toast.success("Complaint converted to an active booking successfully.")
     }
   }
 
@@ -481,9 +496,19 @@ export function ComplaintsModule() {
                                 >
                                   Dismiss
                                 </Button>
-                              </>
-                            )}
-                            {currentRole === "Admin" && (
+                                </>
+                              )}
+                              {b.issue === "Custom Complaint (No Booking)" && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleConvertToBooking(b.id)}
+                                  className="h-7 text-[10px] font-bold px-2 border-indigo-200 bg-indigo-50/20 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 cursor-pointer"
+                                >
+                                  Convert to Booking
+                                </Button>
+                              )}
+                              {currentRole === "Admin" && (
                               <Button 
                                 variant="outline" 
                                 size="sm" 
@@ -725,11 +750,13 @@ export function ComplaintsModule() {
                             </div>
                             <div className="flex flex-col gap-1">
                               <Label htmlFor="new-cust-mobile" className="text-[10px] font-bold text-muted-foreground uppercase">Mobile Phone *</Label>
-                              <Input
-                                id="new-cust-mobile"
-                                placeholder="E.g. 9811223344"
-                                value={newCustMobile}
-                                onChange={(e) => setNewCustMobile(e.target.value)}
+                              <Input 
+                                id="new-cust-mobile" 
+                                type="tel" 
+                                inputMode="numeric"
+                                placeholder="E.g. 9811223344" 
+                                value={newCustMobile} 
+                                onChange={(e) => setNewCustMobile(e.target.value.replace(/\D/g, ''))} 
                                 className="bg-background h-8 text-xs font-semibold"
                               />
                             </div>
@@ -756,6 +783,7 @@ export function ComplaintsModule() {
                                 <SelectItem value="Ad">Ad</SelectItem>
                                 <SelectItem value="Contact">Contact</SelectItem>
                                 <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                                <SelectItem value="Website">Website</SelectItem>
                                 <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
@@ -773,6 +801,36 @@ export function ComplaintsModule() {
                         onChange={(e) => setCustomAppliance(e.target.value)}
                         className="bg-background h-9 text-xs border-border/60"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-1">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="custom-tech" className="text-xs font-bold text-muted-foreground">Assigned Technician</Label>
+                        <Select value={customTechId} onValueChange={setCustomTechId}>
+                          <SelectTrigger id="custom-tech" className="h-9 text-xs bg-background border-border/60">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {technicians.map(t => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="custom-svcharge" className="text-xs font-bold text-muted-foreground">Amount / Service Charge</Label>
+                        <Input
+                          id="custom-svcharge"
+                          type="number"
+                          min="0"
+                          placeholder="₹0"
+                          value={customServiceCharge}
+                          onChange={(e) => setCustomServiceCharge(parseFloat(e.target.value) || 0)}
+                          className="bg-background h-9 text-xs border-border/60 tabular-nums"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

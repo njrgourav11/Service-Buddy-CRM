@@ -57,6 +57,8 @@ export function LeadsModule() {
   const [customerId, setCustomerId] = React.useState("")
   const [editLinkCustomer, setEditLinkCustomer] = React.useState(false)
   const [editCustomerId, setEditCustomerId] = React.useState("")
+  const [customerSearch, setCustomerSearch] = React.useState("")
+  const [editCustomerSearch, setEditCustomerSearch] = React.useState("")
 
   // Open Edit Drawer
   const handleOpenEdit = (l: Lead) => {
@@ -373,6 +375,12 @@ export function LeadsModule() {
                 {linkCustomer && (
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
                     <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
+                    <Input 
+                      placeholder="Search by name or phone..." 
+                      value={customerSearch} 
+                      onChange={(e) => setCustomerSearch(e.target.value)} 
+                      className="mb-1 bg-background h-8 text-xs"
+                    />
                     <Select
                       value={customerId}
                       onValueChange={(val) => {
@@ -389,7 +397,7 @@ export function LeadsModule() {
                         <SelectValue placeholder="Choose a registered customer..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {customers.map(c => (
+                        {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.mobile.includes(customerSearch)).map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
                         ))}
                       </SelectContent>
@@ -415,9 +423,11 @@ export function LeadsModule() {
                   <Label htmlFor="lead-phone" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
                     id="lead-phone"
+                    type="tel"
+                    inputMode="numeric"
                     placeholder="E.g., 9555112233"
                     value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
                     required
                     disabled={linkCustomer}
                   />
@@ -463,6 +473,7 @@ export function LeadsModule() {
                         <SelectItem value="Ad">Ad</SelectItem>
                         <SelectItem value="Contact">Contact</SelectItem>
                         <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                        <SelectItem value="Website">Website</SelectItem>
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
@@ -633,6 +644,12 @@ export function LeadsModule() {
                 {editLinkCustomer && (
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5 mb-2 animate-in fade-in duration-200">
                     <Label className="text-xs font-bold text-primary">Search & Select Customer</Label>
+                    <Input 
+                      placeholder="Search by name or phone..." 
+                      value={editCustomerSearch} 
+                      onChange={(e) => setEditCustomerSearch(e.target.value)} 
+                      className="mb-1 bg-background h-8 text-xs"
+                    />
                     <Select
                       value={editCustomerId}
                       onValueChange={(val) => {
@@ -649,7 +666,7 @@ export function LeadsModule() {
                         <SelectValue placeholder="Choose a registered customer..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {customers.map(c => (
+                        {customers.filter(c => c.name.toLowerCase().includes(editCustomerSearch.toLowerCase()) || c.mobile.includes(editCustomerSearch)).map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.name} ({c.mobile})</SelectItem>
                         ))}
                       </SelectContent>
@@ -675,9 +692,11 @@ export function LeadsModule() {
                   <Label htmlFor="edit-lead-phone" className="text-xs font-bold text-muted-foreground">Mobile Phone Number</Label>
                   <Input 
                     id="edit-lead-phone"
-                    placeholder="E.g., 9555112233"
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="E.g., 9899001122"
                     value={editMobile}
-                    onChange={(e) => setEditMobile(e.target.value)}
+                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))}
                     required
                     disabled={editLinkCustomer}
                   />
@@ -740,6 +759,7 @@ export function LeadsModule() {
                         <SelectItem value="Ad">Ad</SelectItem>
                         <SelectItem value="Contact">Contact</SelectItem>
                         <SelectItem value="Repeat Consumer">Repeat Consumer</SelectItem>
+                        <SelectItem value="Website">Website</SelectItem>
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
