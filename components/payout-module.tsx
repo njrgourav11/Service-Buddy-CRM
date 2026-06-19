@@ -341,10 +341,6 @@ export function PayoutModule() {
       .reduce((sum, p) => sum + p.totalPayout, 0)
   }, [filteredPayouts, currentMonthKey])
 
-  const totalPendingPayout = React.useMemo(() => {
-    return filteredTechnicians.reduce((sum, t) => sum + t.dueAmount, 0)
-  }, [filteredTechnicians])
-
   const totalAdvanceBalance = React.useMemo(() => {
     return filteredTechnicians.reduce((sum, t) => sum + t.advanceTaken, 0)
   }, [filteredTechnicians])
@@ -356,6 +352,10 @@ export function PayoutModule() {
   const totalAdvanceVal = React.useMemo(() => {
     return filteredPayouts.reduce((sum, p) => sum + (p.advance || 0), 0)
   }, [filteredPayouts])
+
+  const totalPendingPayout = React.useMemo(() => {
+    return Math.max(0, totalEarningsVal - totalAdvanceVal)
+  }, [totalEarningsVal, totalAdvanceVal])
 
   const sortedPayouts = React.useMemo(() => {
     return [...filteredPayouts].sort((a, b) => {
