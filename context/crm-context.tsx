@@ -345,27 +345,38 @@ export const compareIdsNumerically = (aId: string, bId: string) => {
 }
 
 export const sortBookingsByCompletedDate = (a: Booking, b: Booking) => {
-  const dateA = a.workCompletedDate;
-  const dateB = b.workCompletedDate;
+  const dateA = a.workCompletedDate || "";
+  const dateB = b.workCompletedDate || "";
 
-  // Bookings without completed date should be at the top
-  if (!dateA && !dateB) {
+  if (dateA && dateB) {
+    const timeA = new Date(dateA).getTime();
+    const timeB = new Date(dateB).getTime();
+    if (!isNaN(timeA) && !isNaN(timeB)) {
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+    } else {
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+    }
+    const bDateA = a.date || "";
+    const bDateB = b.date || "";
+    if (bDateA !== bDateB) {
+      return bDateB.localeCompare(bDateA);
+    }
     return compareIdsNumerically(b.id, a.id);
   }
-  if (!dateA) return -1;
-  if (!dateB) return 1;
 
-  // Both have completed dates. Sort by proximity to today (closest first).
-  const timeA = new Date(dateA).getTime();
-  const timeB = new Date(dateB).getTime();
+  if (dateA && !dateB) return -1;
+  if (!dateA && dateB) return 1;
 
-  if (isNaN(timeA) && isNaN(timeB)) {
-    return compareIdsNumerically(b.id, a.id);
+  const bDateA = a.date || "";
+  const bDateB = b.date || "";
+  if (bDateA !== bDateB) {
+    return bDateB.localeCompare(bDateA);
   }
-  if (isNaN(timeA)) return 1;
-  if (isNaN(timeB)) return -1;
-
-  return timeB - timeA; // Descending (latest / closest to today first)
+  return compareIdsNumerically(b.id, a.id);
 }
 
 
@@ -943,6 +954,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateBooking = (id: string, updates: Partial<Booking>) => {
+    console.log("DEBUG: updateBooking called for ID:", id, "with updates:", updates)
     const b = bookings.find(item => item.id === id)
     if (!b) return
 

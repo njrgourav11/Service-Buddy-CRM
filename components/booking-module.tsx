@@ -69,7 +69,9 @@ export const APPLIANCE_OPTIONS = [
   "Chimney",
   "Microwave",
   "TV",
-  "Filter",
+  "Water Purifier",
+  "Inverter",
+  "Stabilizer",
   "Fan",
   "Electrical",
   "Plumbing",
@@ -514,11 +516,22 @@ export function BookingModule() {
     }).sort((a, b) => {
       const dateA = a.workCompletedDate || "";
       const dateB = b.workCompletedDate || "";
+      
       if (dateA && dateB) {
-        return dateB.localeCompare(dateA);
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        const bDateA = a.date || "";
+        const bDateB = b.date || "";
+        if (bDateA !== bDateB) {
+          return bDateB.localeCompare(bDateA);
+        }
+        return compareIdsNumerically(b.id, a.id);
       }
-      if (dateA) return -1;
-      if (dateB) return 1;
+      
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+      
       const bDateA = a.date || "";
       const bDateB = b.date || "";
       if (bDateA !== bDateB) {
@@ -1372,7 +1385,7 @@ export function BookingModule() {
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Notes</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Tech</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Total Consumer</TableHead>
-                        <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Spare Price</TableHead>
+                        <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Spare Cost (R)</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Tech Payout</TableHead>
                         <TableHead className="px-4 py-3 text-right font-bold uppercase tracking-wider text-[10px]">Company Comm</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Status</TableHead>
@@ -1472,7 +1485,7 @@ export function BookingModule() {
                                 ₹{b.totalConsumerAmount}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-muted-foreground tabular-nums">
-                                ₹{b.sparePrice || 0}
+                                ₹{b.spareCost || 0}
                               </TableCell>
                               <TableCell className="px-4 py-4 text-right font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                                 ₹{b.totalTechnicianAmount}

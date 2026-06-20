@@ -91,13 +91,11 @@ export function ReportsModule() {
   // KPI Calculations
   // ==========================================
   const totalRevenue = filteredBookings
-    .filter(b => b.status === "Completed")
     .reduce((sum, b) => sum + (b.totalConsumerAmount || 0), 0)
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
 
   const totalTechLiability = filteredBookings
-    .filter(b => b.status === "Completed")
     .reduce((sum, b) => sum + (b.totalTechnicianAmount || 0), 0)
 
   const netProfit = Math.round((totalRevenue - totalExpenses - totalTechLiability) * 100) / 100
@@ -410,7 +408,7 @@ export function ReportsModule() {
           </CardHeader>
           <CardContent>
             <span className="text-xl font-black tabular-nums">₹{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            <span className="text-[10px] text-muted-foreground mt-1 block">Total customer billings completed</span>
+            <span className="text-[10px] text-muted-foreground mt-1 block">Total volume of customer billings</span>
           </CardContent>
         </Card>
 
