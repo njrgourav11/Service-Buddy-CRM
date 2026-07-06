@@ -100,9 +100,11 @@ export function LeadsModule() {
     e.preventDefault()
     if (!selectedLead) return
     if (!editLinkCustomer && !/^\d{10}$/.test(editMobile)) {
+      setEditMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setEditMobileError("")
 
     const finalAppliance = editAppliance === "Other" ? (editCustomAppliance.trim() || "Other") : editAppliance
 
@@ -141,6 +143,18 @@ export function LeadsModule() {
   const [customerNotes, setCustomerNotes] = React.useState("")
   const [staffNotes, setStaffNotes] = React.useState("")
 
+  const [mobileError, setMobileError] = React.useState("")
+  const [editMobileError, setEditMobileError] = React.useState("")
+
+  // Reset errors
+  React.useEffect(() => {
+    if (!isAddOpen) setMobileError("")
+  }, [isAddOpen])
+
+  React.useEffect(() => {
+    if (!isEditOpen) setEditMobileError("")
+  }, [isEditOpen])
+
   // Filtered list
   const filteredLeads = leads.filter(l => {
     const searchString = `${l.id} ${l.name} ${l.mobile} ${l.requirement}`.toLowerCase()
@@ -154,9 +168,11 @@ export function LeadsModule() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!linkCustomer && !/^\d{10}$/.test(mobile)) {
+      setMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setMobileError("")
     
     const finalAppliance = appliance === "Other" ? (customAppliance.trim() || "Other") : appliance
 
@@ -499,10 +515,18 @@ export function LeadsModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9555112233"
                     value={mobile}
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setMobile(val)
+                      if (mobileError && /^\d{10}$/.test(val)) setMobileError("")
+                    }}
+                    className={mobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required
                     disabled={linkCustomer}
                   />
+                  {mobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{mobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}
@@ -815,10 +839,18 @@ export function LeadsModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9899001122"
                     value={editMobile}
-                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEditMobile(val)
+                      if (editMobileError && /^\d{10}$/.test(val)) setEditMobileError("")
+                    }}
+                    className={editMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required
                     disabled={editLinkCustomer}
                   />
+                  {editMobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{editMobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}

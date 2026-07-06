@@ -72,6 +72,13 @@ export function ComplaintsModule() {
   const [newCustName, setNewCustName] = React.useState("")
   const [newCustMobile, setNewCustMobile] = React.useState("")
   const [newCustAddress, setNewCustAddress] = React.useState("")
+
+  const [newCustMobileError, setNewCustMobileError] = React.useState("")
+
+  // Reset errors when drawer opens/closes
+  React.useEffect(() => {
+    if (!isLogOpen) setNewCustMobileError("")
+  }, [isLogOpen])
   const [newCustReferral, setNewCustReferral] = React.useState<any>("Ad")
   const [customAppliance, setCustomAppliance] = React.useState("General")
   const [customApplianceText, setCustomApplianceText] = React.useState("")
@@ -191,9 +198,11 @@ export function ComplaintsModule() {
           return
         }
         if (!/^\d{10}$/.test(newCustMobile.trim())) {
+          setNewCustMobileError("Mobile number must be exactly 10 digits.")
           toast.error("Mobile number must be exactly 10 digits.")
           return
         }
+        setNewCustMobileError("")
         const duplicate = customers.find(c => c.name.toLowerCase() === newCustName.toLowerCase() && c.mobile === newCustMobile)
         if (duplicate) {
           customerId = duplicate.id
@@ -254,6 +263,7 @@ export function ComplaintsModule() {
     setCustomerSearch("")
     setNewCustName("")
     setNewCustMobile("")
+    setNewCustMobileError("")
     setNewCustAddress("")
     setNewCustReferral("Ad")
     setCustomAppliance("General")
@@ -893,9 +903,16 @@ export function ComplaintsModule() {
                                 inputMode="numeric"
                                 placeholder="E.g. 9811223344" 
                                 value={newCustMobile} 
-                                onChange={(e) => setNewCustMobile(e.target.value.replace(/\D/g, ''))} 
-                                className="bg-background h-8 text-xs font-semibold"
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, '')
+                                  setNewCustMobile(val)
+                                  if (newCustMobileError && /^\d{10}$/.test(val)) setNewCustMobileError("")
+                                }} 
+                                className={newCustMobileError ? "bg-background h-8 text-xs font-semibold border-destructive focus-visible:ring-destructive" : "bg-background h-8 text-xs font-semibold"}
                               />
+                              {newCustMobileError && (
+                                <span className="text-[9px] text-destructive font-semibold mt-0.5">{newCustMobileError}</span>
+                              )}
                             </div>
                           </div>
                           

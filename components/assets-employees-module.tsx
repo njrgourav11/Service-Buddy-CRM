@@ -93,6 +93,18 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   const [editEmpDate, setEditEmpDate] = React.useState("")
   const [editEmpStatus, setEditEmpStatus] = React.useState<any>("Active")
 
+  const [mobileError, setMobileError] = React.useState("")
+  const [editMobileError, setEditMobileError] = React.useState("")
+
+  // Reset errors
+  React.useEffect(() => {
+    if (!isEmployeeOpen) setMobileError("")
+  }, [isEmployeeOpen])
+
+  React.useEffect(() => {
+    if (!isEditEmployeeOpen) setEditMobileError("")
+  }, [isEditEmployeeOpen])
+
   // Open Edit Asset Drawer
   const handleOpenEditAsset = (a: Asset) => {
     setSelectedAsset(a)
@@ -133,6 +145,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     setEditEmpSalary(emp.salary)
     setEditEmpDate(emp.joiningDate)
     setEditEmpStatus(emp.status)
+    setEditMobileError("")
     setIsEditEmployeeOpen(true)
   }
 
@@ -141,9 +154,11 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     e.preventDefault()
     if (!selectedEmployee) return
     if (!/^\d{10}$/.test(editEmpMobile)) {
+      setEditMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setEditMobileError("")
 
     updateEmployee(selectedEmployee.id, {
       name: editEmpName,
@@ -183,9 +198,11 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!/^\d{10}$/.test(empMobile)) {
+      setMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setMobileError("")
     
     addEmployee({
       name: empName,
@@ -199,6 +216,7 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     // Reset Form
     setEmpName("")
     setEmpMobile("")
+    setMobileError("")
     setEmpSalary(0)
     setIsEmployeeOpen(false)
   }
@@ -716,7 +734,23 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 {/* Mobile */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="emp-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
-                  <Input id="emp-phone" type="tel" inputMode="numeric" placeholder="E.g., 9899001122" value={empMobile} onChange={(e) => setEmpMobile(e.target.value.replace(/\D/g, ''))} required />
+                  <Input 
+                    id="emp-phone" 
+                    type="tel" 
+                    inputMode="numeric" 
+                    placeholder="E.g., 9899001122" 
+                    value={empMobile} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEmpMobile(val)
+                      if (mobileError && /^\d{10}$/.test(val)) setMobileError("")
+                    }} 
+                    className={mobileError ? "border-destructive focus-visible:ring-destructive" : ""}
+                    required 
+                  />
+                  {mobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{mobileError}</span>
+                  )}
                 </div>
               </div>
 
@@ -873,7 +907,23 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="edit-emp-phone" className="text-xs font-bold text-muted-foreground">Phone Number</Label>
-                  <Input id="edit-emp-phone" type="tel" inputMode="numeric" placeholder="E.g., 9899001122" value={editEmpMobile} onChange={(e) => setEditEmpMobile(e.target.value.replace(/\D/g, ''))} required />
+                  <Input 
+                    id="edit-emp-phone" 
+                    type="tel" 
+                    inputMode="numeric" 
+                    placeholder="E.g., 9899001122" 
+                    value={editEmpMobile} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEditEmpMobile(val)
+                      if (editMobileError && /^\d{10}$/.test(val)) setEditMobileError("")
+                    }} 
+                    className={editMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
+                    required 
+                  />
+                  {editMobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{editMobileError}</span>
+                  )}
                 </div>
               </div>
 

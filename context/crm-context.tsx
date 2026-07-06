@@ -67,6 +67,12 @@ export interface BookingSpare {
   qty: number
 }
 
+export interface BookingService {
+  name: string
+  qty: number
+  amount: number
+}
+
 export interface Booking {
   id: string // Auto-generated e.g., B-1001
   date: string
@@ -81,6 +87,8 @@ export interface Booking {
   serviceCharge: number // Service Fee (W)
   status: "Not Started" | "In Progress" | "Inspected" | "Completed" | "Cancelled"
   sparesUsed?: BookingSpare[]
+  servicesUsed?: BookingService[]
+  discountAmount?: number
   workCompletedDate?: string
   complaint?: string
   complaintDate?: string
@@ -101,7 +109,7 @@ export interface Booking {
   companyServiceCommission?: number // Y = W * 30%
   totalTechnicianAmount?: number // Total Tech = U + X
   totalCompanyAmount?: number // Total Company = V + Y
-  totalConsumerAmount?: number // Total Consumer = S + W
+  totalConsumerAmount?: number // Total Consumer = S + W - Discount
 }
 
 export interface Technician {
@@ -155,6 +163,7 @@ export interface Expense {
     | "Office expenses"
     | "Tools and subscriptions"
     | "Refunds"
+    | "Salary"
   amount: number
   beneficiary: string
   remarks: string
@@ -321,7 +330,7 @@ export interface CRMContextProps {
   deleteEmployee: (id: string) => void
 
   // Formula Calculations Helper
-  calculateBookingFinance: (spareCost: number, sparePrice: number, serviceCharge: number) => {
+  calculateBookingFinance: (spareCost: number, sparePrice: number, serviceCharge: number, discountAmount?: number) => {
     totalCommission: number
     technicianCommission: number
     companyCommission: number
@@ -423,7 +432,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 4. Financial Calculations Engine
   // ==========================================
 
-  const calculateBookingFinance = (spareCost: number, sparePrice: number, serviceCharge: number) => {
+  const calculateBookingFinance = (spareCost: number, sparePrice: number, serviceCharge: number, discountAmount: number = 0) => {
     const totalCommission = Math.max(0, sparePrice - spareCost)
     const technicianCommission = Math.round(totalCommission * 0.7 * 100) / 100
     const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
@@ -431,7 +440,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const companyServiceCommission = Math.round(serviceCharge * 0.3 * 100) / 100
     const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
     const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-    const totalConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
+    const totalConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission - discountAmount) * 100) / 100
 
     return {
       totalCommission,
@@ -446,7 +455,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const computeBookingFinance = (booking: Booking, forceRecalculate = false): Booking => {
-    const calculations = calculateBookingFinance(booking.spareCost || 0, booking.sparePrice || 0, booking.serviceCharge || 0)
+    const discount = booking.discountAmount || 0
+    const calculations = calculateBookingFinance(booking.spareCost || 0, booking.sparePrice || 0, booking.serviceCharge || 0, discount)
     
     const totalComm = booking.totalCommission !== undefined && booking.totalCommission !== null ? booking.totalCommission : calculations.totalCommission
     const techComm = booking.technicianCommission !== undefined && booking.technicianCommission !== null ? booking.technicianCommission : calculations.technicianCommission
@@ -456,7 +466,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const totalTech = Math.round((techComm + techServComm) * 100) / 100
     const totalComp = Math.round((compComm + compServComm) * 100) / 100
-    const totalConsumer = Math.round(((booking.spareCost || 0) + techComm + compComm + techServComm + compServComm) * 100) / 100
+    const totalConsumer = Math.round(((booking.spareCost || 0) + techComm + compComm + techServComm + compServComm - discount) * 100) / 100
 
     return {
       ...booking,
@@ -698,12 +708,14 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Listen to Firebase Auth state
     const authUnsub = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Retrieve active user role logged locally
-        const storedRole = localStorage.getItem("servicebuddy_role")
-        if (storedRole) {
-          setCurrentRole(storedRole as UserRole)
+        // Derive role dynamically from user email address
+        const emailLower = (user.email || "").toLowerCase()
+        if (emailLower === "manager@servicebuddy.in") {
+          setCurrentRole("Manager")
+          localStorage.setItem("servicebuddy_role", "Manager")
         } else {
           setCurrentRole("Admin")
+          localStorage.setItem("servicebuddy_role", "Admin")
         }
       } else {
         if (isFirebaseEnabled) {
@@ -863,14 +875,35 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
+    const current = customers.find(c => c.id === id)
+    if (!current) return
+
     if (updates.name !== undefined || updates.mobile !== undefined) {
-      const current = customers.find(c => c.id === id)
-      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
-      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const nameToCheck = (updates.name !== undefined ? updates.name : current.name).toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current.mobile).trim()
       const duplicate = customers.find(c => c.id !== id && c.name.toLowerCase().trim() === nameToCheck && c.mobile === mobileToCheck)
       if (duplicate) {
         toast.error(`Cannot update: Another customer "${duplicate.name}" with mobile ${duplicate.mobile} already exists!`)
         return
+      }
+    }
+
+    // Bidirectional sync: Find corresponding Contact record with matching old name and mobile
+    const oldName = current.name.toLowerCase().trim()
+    const oldMobile = current.mobile.trim()
+    const matchingContact = contacts.find(c => c.name.toLowerCase().trim() === oldName && c.mobile.trim() === oldMobile)
+
+    if (matchingContact) {
+      const contUpdates: Partial<Contact> = {}
+      if (updates.name !== undefined) contUpdates.name = updates.name
+      if (updates.mobile !== undefined) contUpdates.mobile = updates.mobile
+      if (updates.address !== undefined) contUpdates.address = updates.address
+      if (updates.notes !== undefined) contUpdates.notes = updates.notes
+
+      if (isFirebaseEnabled && db) {
+        updateDoc(doc(db, "contacts", matchingContact.id), contUpdates)
+      } else {
+        setContacts(prev => prev.map(c => c.id === matchingContact.id ? { ...c, ...contUpdates } : c))
       }
     }
 
@@ -1655,14 +1688,37 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateContact = (id: string, updates: Partial<Contact>) => {
+    const current = contacts.find(c => c.id === id)
+    if (!current) return
+
     if (updates.name !== undefined || updates.mobile !== undefined) {
-      const current = contacts.find(c => c.id === id)
-      const nameToCheck = (updates.name !== undefined ? updates.name : current?.name || "").toLowerCase().trim()
-      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current?.mobile || "").trim()
+      const nameToCheck = (updates.name !== undefined ? updates.name : current.name).toLowerCase().trim()
+      const mobileToCheck = (updates.mobile !== undefined ? updates.mobile : current.mobile).trim()
       const duplicate = contacts.find(c => c.id !== id && c.name.toLowerCase().trim() === nameToCheck && c.mobile === mobileToCheck)
       if (duplicate) {
         toast.error(`Cannot update: Another contact "${duplicate.name}" with mobile ${duplicate.mobile} already exists!`)
         return
+      }
+    }
+
+    // Bidirectional sync: Find corresponding Customer record with matching old name and mobile
+    const oldName = current.name.toLowerCase().trim()
+    const oldMobile = current.mobile.trim()
+    const matchingCustomer = customers.find(c => c.name.toLowerCase().trim() === oldName && c.mobile.trim() === oldMobile)
+
+    if (matchingCustomer) {
+      // Build updates for Customer
+      const custUpdates: Partial<Customer> = {}
+      if (updates.name !== undefined) custUpdates.name = updates.name
+      if (updates.mobile !== undefined) custUpdates.mobile = updates.mobile
+      if (updates.address !== undefined) custUpdates.address = updates.address
+      if (updates.notes !== undefined) custUpdates.notes = updates.notes
+
+      // Update the Customer record
+      if (isFirebaseEnabled && db) {
+        updateDoc(doc(db, "customers", matchingCustomer.id), custUpdates)
+      } else {
+        setCustomers(prev => prev.map(c => c.id === matchingCustomer.id ? { ...c, ...custUpdates } : c))
       }
     }
 

@@ -86,6 +86,7 @@ export function BookingModule() {
     customers, 
     technicians, 
     spares, 
+    contacts,
     addBooking, 
     addCustomer,
     updateCustomer,
@@ -182,6 +183,66 @@ export function BookingModule() {
   const [formDate, setFormDate] = React.useState(new Date().toISOString().split("T")[0])
   const [formWorkCompletedDate, setFormWorkCompletedDate] = React.useState("")
 
+  // Dynamic Services arrays
+  const [formServices, setFormServices] = React.useState<{ name: string; qty: number; amount: number }[]>([])
+  const [editServices, setEditServices] = React.useState<{ name: string; qty: number; amount: number }[]>([])
+
+  const [formDiscountAmount, setFormDiscountAmount] = React.useState(0)
+  const [editDiscountAmount, setEditDiscountAmount] = React.useState(0)
+
+  const [newCustMobileError, setNewCustMobileError] = React.useState("")
+  const [editCustMobileError, setEditCustMobileError] = React.useState("")
+
+  // Reset errors and arrays when dialogs open/close
+  React.useEffect(() => {
+    if (!isCreateOpen) {
+      setFormServices([])
+      setFormDiscountAmount(0)
+      setNewCustMobileError("")
+    }
+  }, [isCreateOpen])
+
+  React.useEffect(() => {
+    if (!isDetailsOpen) {
+      setEditServices([])
+      setEditDiscountAmount(0)
+      setEditCustMobileError("")
+    }
+  }, [isDetailsOpen])
+
+  const calculatedFormServiceCharge = React.useMemo(() => {
+    return formServices.reduce((sum, s) => sum + s.amount * s.qty, 0)
+  }, [formServices])
+
+  const calculatedEditServiceCharge = React.useMemo(() => {
+    return editServices.reduce((sum, s) => sum + s.amount * s.qty, 0)
+  }, [editServices])
+
+  React.useEffect(() => {
+    if (formServices.length > 0) {
+      setFormServiceCharge(calculatedFormServiceCharge)
+    }
+  }, [calculatedFormServiceCharge, formServices.length])
+
+  React.useEffect(() => {
+    if (editServices.length > 0) {
+      setEditServiceCharge(calculatedEditServiceCharge)
+    }
+  }, [calculatedEditServiceCharge, editServices.length])
+
+  const existingContact = React.useMemo(() => {
+    if (customerMode !== "new") return null
+    const nameStr = newCustName.trim().toLowerCase()
+    const phoneStr = newCustMobile.trim()
+    if (!nameStr && !phoneStr) return null
+    
+    return contacts.find(c => {
+      const matchName = nameStr && c.name.toLowerCase() === nameStr
+      const matchPhone = phoneStr && c.mobile === phoneStr
+      return matchName || matchPhone
+    })
+  }, [contacts, newCustName, newCustMobile, customerMode])
+
   // ==========================================
   // Form Auto-fill Logic for spares array
   // ==========================================
@@ -256,12 +317,12 @@ export function BookingModule() {
   React.useEffect(() => {
     const totalTech = Math.round((editTechnicianCommission + editTechnicianServiceCommission) * 100) / 100
     const totalComp = Math.round((editCompanyCommission + editCompanyServiceCommission) * 100) / 100
-    const totalConsumer = Math.round((editSpareCost + editTechnicianCommission + editCompanyCommission + editTechnicianServiceCommission + editCompanyServiceCommission) * 100) / 100
+    const totalConsumer = Math.round((editSpareCost + editTechnicianCommission + editCompanyCommission + editTechnicianServiceCommission + editCompanyServiceCommission - editDiscountAmount) * 100) / 100
 
     setEditTotalTechnicianAmount(totalTech)
     setEditTotalCompanyAmount(totalComp)
     setEditTotalConsumerAmount(totalConsumer)
-  }, [editSpareCost, editTechnicianCommission, editCompanyCommission, editTechnicianServiceCommission, editCompanyServiceCommission])
+  }, [editSpareCost, editTechnicianCommission, editCompanyCommission, editTechnicianServiceCommission, editCompanyServiceCommission, editDiscountAmount])
 
   // Helpers for multi-technician displays
   const getTechNames = (idString: string) => {
@@ -316,16 +377,20 @@ export function BookingModule() {
     setEditCustReview(b.review || "")
     setEditCustReviewStatus(b.reviewStatus || "Review not done")
 
+    setEditServices(b.servicesUsed || [])
+    setEditDiscountAmount(b.discountAmount || 0)
+
     // Seed calculations
     const spareCost = b.spareCost || 0
     const sparePrice = b.sparePrice || 0
     const serviceCharge = b.serviceCharge || 0
+    const discountAmount = b.discountAmount || 0
     const totalCommission = Math.max(0, sparePrice - spareCost)
     const technicianCommission = b.technicianCommission !== undefined ? b.technicianCommission : Math.round(totalCommission * 0.7 * 100) / 100
     const companyCommission = b.companyCommission !== undefined ? b.companyCommission : Math.round(totalCommission * 0.3 * 100) / 100
     const technicianServiceCommission = b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : Math.round(serviceCharge * 0.7 * 100) / 100
     const companyServiceCommission = b.companyServiceCommission !== undefined ? b.companyServiceCommission : Math.round(serviceCharge * 0.3 * 100) / 100
-    const calculatedConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
+    const calculatedConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission - discountAmount) * 100) / 100
 
     setEditTotalCommission(b.totalCommission !== undefined ? b.totalCommission : totalCommission)
     setEditTechnicianCommission(b.technicianCommission !== undefined ? b.technicianCommission : technicianCommission)
@@ -337,7 +402,7 @@ export function BookingModule() {
     setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : calculatedConsumerAmount)
 
     // Detect if split overrides differ from formula defaults
-    const calculations = calculateBookingFinance(spareCost, sparePrice, serviceCharge)
+    const calculations = calculateBookingFinance(spareCost, sparePrice, serviceCharge, discountAmount)
     const isOverridden = 
       (b.technicianCommission !== undefined && b.technicianCommission !== calculations.technicianCommission) ||
       (b.companyCommission !== undefined && b.companyCommission !== calculations.companyCommission) ||
@@ -358,9 +423,11 @@ export function BookingModule() {
     if (!selectedBooking) return
     
     if (editCustMobile && !/^\d{10}$/.test(editCustMobile.trim())) {
+      setEditCustMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Mobile number must be exactly 10 digits.")
       return
     }
+    setEditCustMobileError("")
     
     const finalTechId = selectedEditTechIds.join(",")
     const finalAppliance = editAppliance === "Other" ? (editCustomAppliance.trim() || "Other") : editAppliance
@@ -382,6 +449,8 @@ export function BookingModule() {
       serviceCharge: editServiceCharge,
       status: editStatus,
       sparesUsed: editSpares,
+      servicesUsed: editServices,
+      discountAmount: editDiscountAmount,
       totalCommission: editTotalCommission,
       technicianCommission: editTechnicianCommission,
       companyCommission: editCompanyCommission,
@@ -635,9 +704,11 @@ export function BookingModule() {
       }
       
       if (!/^\d{10}$/.test(newCustMobile.trim())) {
+        setNewCustMobileError("Mobile number must be exactly 10 digits.")
         toast.error("Mobile number must be exactly 10 digits.")
         return
       }
+      setNewCustMobileError("")
       
       const newCust = addCustomer({
         name: newCustName,
@@ -673,7 +744,9 @@ export function BookingModule() {
       sparePrice: formSparePrice,
       serviceCharge: formServiceCharge,
       status: "Not Started",
-      sparesUsed: formSpares
+      sparesUsed: formSpares,
+      servicesUsed: formServices,
+      discountAmount: formDiscountAmount
     })
 
     // Reset Form
@@ -683,6 +756,8 @@ export function BookingModule() {
     setNewCustMobile("")
     setNewCustAddress("")
     setNewCustReferral("Ad")
+    setFormServices([])
+    setFormDiscountAmount(0)
     setNewCustNotes("")
     setCustomerMode("existing")
     
@@ -1661,10 +1736,17 @@ export function BookingModule() {
                         type="tel"
                         inputMode="numeric"
                         value={editCustMobile} 
-                        onChange={(e) => setEditCustMobile(e.target.value.replace(/\D/g, ''))} 
-                        className="h-8 text-xs" 
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '')
+                          setEditCustMobile(val)
+                          if (editCustMobileError && /^\d{10}$/.test(val)) setEditCustMobileError("")
+                        }} 
+                        className={editCustMobileError ? "h-8 text-xs border-destructive focus-visible:ring-destructive" : "h-8 text-xs"} 
                         required
                       />
+                      {editCustMobileError && (
+                        <span className="text-[9px] text-destructive font-semibold mt-0.5">{editCustMobileError}</span>
+                      )}
                     </div>
                   </div>
 
@@ -1987,7 +2069,91 @@ export function BookingModule() {
 
                 {/* 4. Pricing inputs */}
                 <div className="rounded-lg border border-border bg-muted/40 p-3.5 flex flex-col gap-3">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Additional Workmanship Fees</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Additional Workmanship Fees</h4>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setEditServices([...editServices, { name: "", qty: 1, amount: 0 }])}
+                      className="h-6 text-[9px] font-bold cursor-pointer"
+                      disabled={isPayoutFieldsDisabled}
+                    >
+                      <HugeiconsIcon icon={PlusSignCircleIcon} className="size-3 mr-1" />
+                      Add Service
+                    </Button>
+                  </div>
+
+                  {editServices.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {editServices.map((srv, idx) => (
+                        <div key={idx} className="flex flex-col gap-1.5 p-2 rounded border border-border bg-background relative">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            onClick={() => setEditServices(editServices.filter((_, i) => i !== idx))}
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
+                            disabled={isPayoutFieldsDisabled}
+                          >
+                            ×
+                          </Button>
+                          
+                          <div className="grid grid-cols-1 gap-2">
+                            <div>
+                              <Label className="text-[9px] font-bold text-muted-foreground">Service Name</Label>
+                              <Input 
+                                placeholder="E.g. AC Servicing"
+                                value={srv.name}
+                                onChange={(e) => {
+                                  const updated = [...editServices]
+                                  updated[idx].name = e.target.value
+                                  setEditServices(updated)
+                                }}
+                                className="h-7 text-xs"
+                                required
+                                disabled={isPayoutFieldsDisabled}
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-[9px] font-bold text-muted-foreground">Qty</Label>
+                                <Input 
+                                  type="number"
+                                  min="1"
+                                  value={srv.qty}
+                                  onChange={(e) => {
+                                    const updated = [...editServices]
+                                    updated[idx].qty = parseInt(e.target.value) || 1
+                                    setEditServices(updated)
+                                  }}
+                                  className="h-7 text-xs tabular-nums"
+                                  required
+                                  disabled={isPayoutFieldsDisabled}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[9px] font-bold text-muted-foreground">Amount (₹)</Label>
+                                <Input 
+                                  type="number"
+                                  min="0"
+                                  value={srv.amount}
+                                  onChange={(e) => {
+                                    const updated = [...editServices]
+                                    updated[idx].amount = parseFloat(e.target.value) || 0
+                                    setEditServices(updated)
+                                  }}
+                                  className="h-7 text-xs tabular-nums"
+                                  required
+                                  disabled={isPayoutFieldsDisabled}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-svcharge" className="text-[10px] font-bold text-amber-600 uppercase">SV Charge (W)</Label>
@@ -1998,7 +2164,8 @@ export function BookingModule() {
                       value={editServiceCharge} 
                       onChange={(e) => setEditServiceCharge(parseFloat(e.target.value) || 0)} 
                       className="h-8 text-xs font-semibold tabular-nums text-amber-600"
-                      disabled={isPayoutFieldsDisabled}
+                      disabled={isPayoutFieldsDisabled || editServices.length > 0}
+                      readOnly={editServices.length > 0}
                     />
                   </div>
                 </div>
@@ -2044,7 +2211,7 @@ export function BookingModule() {
                         const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
                         const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
                         const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
-                        const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission) * 100) / 100
+                        const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission - editDiscountAmount) * 100) / 100
 
                         setEditTotalCommission(totalCommission)
                         setEditTechnicianCommission(technicianCommission)
@@ -2150,6 +2317,17 @@ export function BookingModule() {
                         onChange={(e) => setEditTotalConsumerAmount(parseFloat(e.target.value) || 0)} 
                         className="h-8 text-xs font-bold text-primary tabular-nums"
                         disabled={isPayoutFieldsDisabled || !overrideFormula}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-[9px] font-bold text-muted-foreground uppercase">Discount Amount (₹)</Label>
+                      <Input 
+                        type="number" 
+                        value={editDiscountAmount} 
+                        onChange={(e) => setEditDiscountAmount(parseFloat(e.target.value) || 0)} 
+                        className="h-8 text-xs font-semibold tabular-nums"
+                        disabled={isPayoutFieldsDisabled}
                       />
                     </div>
                   </div>
@@ -2369,9 +2547,23 @@ export function BookingModule() {
                         inputMode="numeric"
                         placeholder="E.g., 9911223344"
                         value={newCustMobile}
-                        onChange={(e) => setNewCustMobile(e.target.value.replace(/\D/g, ''))}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '')
+                          setNewCustMobile(val)
+                          if (newCustMobileError && /^\d{10}$/.test(val)) setNewCustMobileError("")
+                        }}
+                        className={newCustMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                       />
+                      {newCustMobileError && (
+                        <span className="text-[10px] text-destructive font-semibold">{newCustMobileError}</span>
+                      )}
                     </div>
+                    
+                    {existingContact && (
+                      <div className="text-amber-600 dark:text-amber-400 text-xs font-semibold bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                        ⚠️ Warning: A customer with this {existingContact.name.toLowerCase() === newCustName.trim().toLowerCase() ? "name" : "mobile number"} already exists in contacts ({existingContact.name} - {existingContact.mobile}).
+                      </div>
+                    )}
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="new-cust-addr" className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Service Address *</Label>
                       <Input 
@@ -2637,16 +2829,116 @@ export function BookingModule() {
                   </div>
                 </div>
 
-                {/* Service Charge (W) */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="serv-charge" className="text-xs font-bold text-muted-foreground">Technician Workmanship/Service Charge (W)</Label>
+                {/* Service Charge (W) & Services List */}
+                <div className="flex flex-col gap-2 p-3 rounded-lg border border-border/40 bg-muted/5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground uppercase tracking-wider">Services List (Optional)</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFormServices([...formServices, { name: "", qty: 1, amount: 0 }])}
+                      className="h-7 text-[10px] font-bold cursor-pointer"
+                    >
+                      <HugeiconsIcon icon={PlusSignCircleIcon} className="size-3 mr-1" />
+                      Add Service
+                    </Button>
+                  </div>
+                  
+                  {formServices.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {formServices.map((srv, idx) => (
+                        <div key={idx} className="flex flex-col gap-1.5 p-2 border rounded-lg bg-background relative">
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            onClick={() => setFormServices(formServices.filter((_, i) => i !== idx))}
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-destructive hover:bg-destructive/10 p-0 text-[10px]"
+                          >
+                            ×
+                          </Button>
+                          
+                          <div className="grid grid-cols-1 gap-2">
+                            <div>
+                              <Label className="text-[9px] font-bold text-muted-foreground">Service Name</Label>
+                              <Input 
+                                placeholder="E.g. AC Servicing"
+                                value={srv.name}
+                                onChange={(e) => {
+                                  const updated = [...formServices]
+                                  updated[idx].name = e.target.value
+                                  setFormServices(updated)
+                                }}
+                                className="h-7 text-xs"
+                                required
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-[9px] font-bold text-muted-foreground">Qty</Label>
+                                <Input 
+                                  type="number"
+                                  min="1"
+                                  value={srv.qty}
+                                  onChange={(e) => {
+                                    const updated = [...formServices]
+                                    updated[idx].qty = parseInt(e.target.value) || 1
+                                    setFormServices(updated)
+                                  }}
+                                  className="h-7 text-xs tabular-nums"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[9px] font-bold text-muted-foreground">Amount (₹)</Label>
+                                <Input 
+                                  type="number"
+                                  min="0"
+                                  value={srv.amount}
+                                  onChange={(e) => {
+                                    const updated = [...formServices]
+                                    updated[idx].amount = parseFloat(e.target.value) || 0
+                                    setFormServices(updated)
+                                  }}
+                                  className="h-7 text-xs tabular-nums"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    <Label htmlFor="serv-charge" className="text-xs font-bold text-muted-foreground">
+                      Technician Workmanship/Service Charge (W)
+                    </Label>
+                    <Input 
+                      type="number"
+                      id="serv-charge" 
+                      min="0"
+                      placeholder="Workmanship fee, e.g., 500"
+                      value={formServiceCharge}
+                      onChange={(e) => setFormServiceCharge(parseFloat(e.target.value) || 0)}
+                      readOnly={formServices.length > 0}
+                      className={formServices.length > 0 ? "bg-muted/40 text-muted-foreground cursor-not-allowed select-none" : "bg-background"}
+                    />
+                  </div>
+                </div>
+
+                {/* Discount Amount */}
+                <div className="flex flex-col gap-1.5 mt-2">
+                  <Label htmlFor="discount-amount" className="text-xs font-bold text-muted-foreground">Discount Amount (₹)</Label>
                   <Input 
                     type="number"
-                    id="serv-charge" 
+                    id="discount-amount" 
                     min="0"
-                    placeholder="Workmanship fee, e.g., 500"
-                    value={formServiceCharge}
-                    onChange={(e) => setFormServiceCharge(parseFloat(e.target.value) || 0)}
+                    placeholder="Enter discount if any, e.g., 100"
+                    value={formDiscountAmount}
+                    onChange={(e) => setFormDiscountAmount(parseFloat(e.target.value) || 0)}
                   />
                 </div>
 
@@ -2662,8 +2954,8 @@ export function BookingModule() {
                     <span className="font-semibold text-foreground">₹{(Math.max(0, formSparePrice - formSpareCost) * 0.7 + formServiceCharge * 0.7).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Consumer Grand Bill (S + W):</span>
-                    <span className="font-bold text-primary">₹{(formSparePrice + formServiceCharge).toFixed(2)}</span>
+                    <span>Consumer Grand Bill (S + W - Discount):</span>
+                    <span className="font-bold text-primary">₹{(formSparePrice + formServiceCharge - formDiscountAmount).toFixed(2)}</span>
                   </div>
                 </div>
 

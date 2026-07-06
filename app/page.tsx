@@ -16,8 +16,8 @@ type AuthMode = "signin" | "signup"
 
 export default function Home() {
   const [authMode, setAuthMode] = React.useState<AuthMode>("signin")
-  const [fullName, setFullName] = React.useState("ServiceBuddy Manager")
-  const [email, setEmail] = React.useState("admin@servicebuddy.com")
+  const [fullName, setFullName] = React.useState("ServiceBuddy Admin")
+  const [email, setEmail] = React.useState("admin@servicebuddy.in")
   const [password, setPassword] = React.useState("admin123")
   const [loading, setLoading] = React.useState(false)
 
@@ -52,6 +52,9 @@ export default function Home() {
     if (isFirebaseEnabled && auth) {
       const unsub = onAuthStateChanged(auth, (user) => {
         if (user) {
+          const emailLower = (user.email || "").toLowerCase()
+          const assignedRole = emailLower === "manager@servicebuddy.in" ? "Manager" : "Admin"
+          localStorage.setItem("servicebuddy_role", assignedRole)
           window.location.href = "/dashboard"
         }
       })
@@ -69,11 +72,19 @@ export default function Home() {
     e.preventDefault()
     setLoading(true)
 
-    // Automatically determine Account Role based on email prefix/domain
+    const emailLower = email.trim().toLowerCase()
+    if (emailLower !== "admin@servicebuddy.in" && emailLower !== "manager@servicebuddy.in") {
+      toast.error("Access Denied", { description: "Only admin@servicebuddy.in and manager@servicebuddy.in are allowed." })
+      setLoading(false)
+      return
+    }
+
     let assignedRole: SelectedRole = "Admin"
-    const emailLower = email.toLowerCase()
-    if (emailLower.includes("manager")) assignedRole = "Manager"
-    else assignedRole = "Admin"
+    if (emailLower === "manager@servicebuddy.in") {
+      assignedRole = "Manager"
+    } else {
+      assignedRole = "Admin"
+    }
 
     const authPromise = new Promise(async (resolve, reject) => {
       try {
@@ -186,31 +197,8 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Shadcn inspired auth switcher tabs */}
-        <div className="grid grid-cols-2 p-1 bg-zinc-950 rounded-lg border border-zinc-800 mb-6">
-          <button
-            type="button"
-            onClick={() => setAuthMode("signin")}
-            className={`py-1.5 text-xs font-semibold rounded-md cursor-pointer transition-all ${
-              authMode === "signin"
-                ? "bg-primary/20 text-primary shadow-xs border border-primary/30"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => setAuthMode("signup")}
-            className={`py-1.5 text-xs font-semibold rounded-md cursor-pointer transition-all ${
-              authMode === "signup"
-                ? "bg-primary/20 text-primary shadow-xs border border-primary/30"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
+        {/* Spacer */}
+        <div className="h-2" />
 
 
 

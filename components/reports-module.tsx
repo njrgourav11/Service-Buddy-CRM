@@ -32,7 +32,7 @@ import {
 } from "recharts"
 
 export function ReportsModule() {
-  const { bookings, expenses, technicians, spares, customers } = useCRM()
+  const { bookings, expenses, technicians, spares, customers, payouts } = useCRM()
 
   // ==========================================
   // Interactive Filters State
@@ -185,31 +185,30 @@ export function ReportsModule() {
   // ==========================================
   // Review Stats Calculations (Filtered Dynamically)
   // ==========================================
-  const filteredCustomersForSatisfaction = React.useMemo(() => {
-    if (applianceFilters.length === 0 && statusFilter === "ALL" && dateFilter === "ALL") {
-      return customers
-    }
-    const customerIds = new Set(filteredBookings.map(b => b.customerId))
-    return customers.filter(c => customerIds.has(c.id))
-  }, [customers, filteredBookings, applianceFilters, statusFilter, dateFilter])
+  // Satisfaction rate only on Completed and Inspected bookings
+  const relevantBookingsForSatisfaction = React.useMemo(() => {
+    return filteredBookings.filter(b => b.status === "Completed" || b.status === "Inspected")
+  }, [filteredBookings])
 
-  const totalCustomersCount = filteredCustomersForSatisfaction.length
-  const positiveReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Positive").length
-  const negativeReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Negative").length
-  const callNotReceived = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Call didn't receive").length
-  const reviewNotDone = filteredCustomersForSatisfaction.filter(c => !c.reviewStatus || c.reviewStatus === "Review not done").length
-  const cancelOrderReviews = filteredCustomersForSatisfaction.filter(c => c.reviewStatus === "Cancel Order").length
+  const positiveReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Positive").length, [relevantBookingsForSatisfaction])
+  const negativeReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Negative").length, [relevantBookingsForSatisfaction])
+  const callNotReceived = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Call didn't receive").length, [relevantBookingsForSatisfaction])
+  const cancelOrderReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Cancel Order").length, [relevantBookingsForSatisfaction])
+  const reviewNotDone = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => !b.reviewStatus || b.reviewStatus === "Review not done").length, [relevantBookingsForSatisfaction])
 
-  const totalReviewsDone = positiveReviews + negativeReviews + callNotReceived + cancelOrderReviews
-  const satisfactionRate = totalReviewsDone > 0 ? Math.round((positiveReviews / totalReviewsDone) * 100) : 0
+  const totalReviewsDone = React.useMemo(() => positiveReviews + negativeReviews + callNotReceived + cancelOrderReviews, [positiveReviews, negativeReviews, callNotReceived, cancelOrderReviews])
+  const satisfactionRate = React.useMemo(() => totalReviewsDone > 0 ? Math.round((positiveReviews / totalReviewsDone) * 100) : 0, [positiveReviews, totalReviewsDone])
+  const totalCustomersCount = relevantBookingsForSatisfaction.length
 
-  const reviewDistributionData = [
-    { name: "Positive", value: positiveReviews, color: "#10b981" },
-    { name: "Negative", value: negativeReviews, color: "#f43f5e" },
-    { name: "Call didn't receive", value: callNotReceived, color: "#f97316" },
-    { name: "Cancel Order", value: cancelOrderReviews, color: "#e11d48" },
-    { name: "Review not done", value: reviewNotDone, color: "#3b82f6" },
-  ].filter(d => d.value > 0)
+  const reviewDistributionData = React.useMemo(() => {
+    return [
+      { name: "Positive", value: positiveReviews, color: "#10b981" },
+      { name: "Negative", value: negativeReviews, color: "#f43f5e" },
+      { name: "Call didn't receive", value: callNotReceived, color: "#f97316" },
+      { name: "Cancel Order", value: cancelOrderReviews, color: "#e11d48" },
+      { name: "Review not done", value: reviewNotDone, color: "#3b82f6" },
+    ].filter(d => d.value > 0)
+  }, [positiveReviews, negativeReviews, callNotReceived, cancelOrderReviews, reviewNotDone])
 
   // ==========================================
   // Graph 1: Job Status Distribution
@@ -254,11 +253,32 @@ export function ReportsModule() {
         return sum + share
       }, 0)
       
-      const earnings = techBookings.reduce((sum, b) => {
-        const ids = b.assignedTechnicianId ? b.assignedTechnicianId.split(",").map(id => id.trim()) : []
-        const share = ids.length > 0 ? (b.totalTechnicianAmount || 0) / ids.length : 0
-        return sum + share
-      }, 0)
+      // Match the technician payouts from the payouts ledger
+      const techPayouts = payouts.filter(p => {
+        if (p.technicianId !== t.id) return false
+        
+        let matchesDate = true
+        if (dateFilter !== "ALL" && p.date) {
+          const pDate = new Date(p.date)
+          const now = new Date()
+          
+          if (dateFilter === "THIS_WEEK") {
+            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
+            startOfWeek.setHours(0, 0, 0, 0)
+            matchesDate = pDate >= startOfWeek
+          } else if (dateFilter === "THIS_MONTH") {
+            matchesDate = pDate.getMonth() === new Date().getMonth() && pDate.getFullYear() === new Date().getFullYear()
+          } else if (dateFilter === "CUSTOM") {
+            const s = new Date(customStartDate)
+            const e = new Date(customEndDate)
+            s.setHours(0, 0, 0, 0)
+            e.setHours(23, 59, 59, 999)
+            matchesDate = pDate >= s && pDate <= e
+          }
+        }
+        return matchesDate
+      })
+      const earnings = techPayouts.reduce((sum, p) => sum + (p.dailyEarnings || 0), 0)
 
       return {
         name: t.name,
@@ -267,7 +287,7 @@ export function ReportsModule() {
         Earnings: Math.round(earnings)
       }
     })
-  }, [technicians, filteredBookings])
+  }, [technicians, filteredBookings, payouts, dateFilter, customStartDate, customEndDate])
 
   // ==========================================
   // Graph 3: Spares Stock Availability Chart

@@ -61,7 +61,7 @@ interface CustomerModuleProps {
 }
 
 export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, currentRole, setActiveTab } = useCRM()
+  const { customers, bookings, addCustomer, updateCustomer, deleteCustomer, currentRole, setActiveTab } = useCRM()
   const [search, setSearch] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState("ALL")
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -94,6 +94,18 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const [editReview, setEditReview] = React.useState("")
   const [editReviewStatus, setEditReviewStatus] = React.useState<any>("Review not done")
   const [editStatus, setEditStatus] = React.useState<any>("Active")
+
+  const [mobileError, setMobileError] = React.useState("")
+  const [editMobileError, setEditMobileError] = React.useState("")
+
+  // Reset errors when dialog status changes
+  React.useEffect(() => {
+    if (!isAddOpen) setMobileError("")
+  }, [isAddOpen])
+
+  React.useEffect(() => {
+    if (!isEditOpen) setEditMobileError("")
+  }, [isEditOpen])
 
   // Customer database CSV Exporter
   const handleExportCSV = () => {
@@ -138,6 +150,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     setEditReview(c.review || "")
     setEditReviewStatus(c.reviewStatus || "Review not done")
     setEditStatus(c.status)
+    setEditMobileError("")
     setIsEditOpen(true)
   }
 
@@ -146,9 +159,11 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     e.preventDefault()
     if (!selectedCustomer) return
     if (!/^\d{10}$/.test(editMobile)) {
+      setEditMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setEditMobileError("")
 
     updateCustomer(selectedCustomer.id, {
       name: editName,
@@ -178,18 +193,22 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const stats = React.useMemo(() => {
     const total = filteredCustomers.length
     const active = filteredCustomers.filter(c => c.status === "Active").length
-    const repeat = filteredCustomers.filter(c => c.referralSource === "Repeat Consumer").length
+    const repeat = filteredCustomers.filter(c => bookings.filter(b => b.customerId === c.id).length > 1).length
     
-    const positive = filteredCustomers.filter(c => c.reviewStatus === "Positive").length
-    const negative = filteredCustomers.filter(c => c.reviewStatus === "Negative").length
-    const unreachable = filteredCustomers.filter(c => c.reviewStatus === "Call didn't receive").length
-    const cancelOrder = filteredCustomers.filter(c => c.reviewStatus === "Cancel Order").length
+    // Satisfaction rate only on Completed and Inspected bookings
+    const customerIds = new Set(filteredCustomers.map(c => c.id))
+    const relevantBookings = bookings.filter(b => customerIds.has(b.customerId) && (b.status === "Completed" || b.status === "Inspected"))
+    
+    const positive = relevantBookings.filter(b => b.reviewStatus === "Positive").length
+    const negative = relevantBookings.filter(b => b.reviewStatus === "Negative").length
+    const unreachable = relevantBookings.filter(b => b.reviewStatus === "Call didn't receive").length
+    const cancelOrder = relevantBookings.filter(b => b.reviewStatus === "Cancel Order").length
     
     const reviewsDone = positive + negative + unreachable + cancelOrder
     const satRate = reviewsDone > 0 ? Math.round((positive / reviewsDone) * 100) : 0
     
     return { total, active, repeat, satRate, reviewsDone }
-  }, [filteredCustomers])
+  }, [filteredCustomers, bookings])
 
   // Pagination Math
   const totalPages = Math.ceil(filteredCustomers.length / pageSize)
@@ -206,9 +225,11 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!/^\d{10}$/.test(mobile)) {
+      setMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setMobileError("")
     addCustomer({
       name,
       mobile,
@@ -661,9 +682,17 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                     inputMode="numeric"
                     placeholder="E.g., 9899001122" 
                     value={mobile} 
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setMobile(val)
+                      if (mobileError && /^\d{10}$/.test(val)) setMobileError("")
+                    }} 
+                    className={mobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {mobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{mobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}
@@ -786,9 +815,17 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                     inputMode="numeric"
                     placeholder="E.g., 9899001122" 
                     value={editMobile} 
-                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEditMobile(val)
+                      if (editMobileError && /^\d{10}$/.test(val)) setEditMobileError("")
+                    }} 
+                    className={editMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {editMobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{editMobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}

@@ -80,13 +80,27 @@ export function TechnicianModule() {
   const [editAdvanceTaken, setEditAdvanceTaken] = React.useState(0)
   const [editDueAmount, setEditDueAmount] = React.useState(0)
 
+  const [mobileError, setMobileError] = React.useState("")
+  const [editMobileError, setEditMobileError] = React.useState("")
+
+  // Reset errors
+  React.useEffect(() => {
+    if (!isAddOpen) setMobileError("")
+  }, [isAddOpen])
+
+  React.useEffect(() => {
+    if (!isEditOpen) setEditMobileError("")
+  }, [isEditOpen])
+
   // Submit Technician Add
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!/^\d{10}$/.test(mobile)) {
+      setMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setMobileError("")
     const skills = skillsString.split(",").map(s => s.trim()).filter(Boolean)
     addTechnician({
       name,
@@ -115,6 +129,7 @@ export function TechnicianModule() {
     setEditJoiningDate(t.joiningDate)
     setEditAdvanceTaken(t.advanceTaken)
     setEditDueAmount(t.dueAmount)
+    setEditMobileError("")
     setIsEditOpen(true)
   }
 
@@ -123,9 +138,11 @@ export function TechnicianModule() {
     e.preventDefault()
     if (!selectedTech) return
     if (!/^\d{10}$/.test(editMobile)) {
+      setEditMobileError("Mobile number must be exactly 10 digits.")
       toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
       return
     }
+    setEditMobileError("")
     const skills = editSkillsString.split(",").map(s => s.trim()).filter(Boolean)
     updateTechnician(selectedTech.id, {
       name: editName,
@@ -527,9 +544,17 @@ export function TechnicianModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9899001122" 
                     value={mobile} 
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setMobile(val)
+                      if (mobileError && /^\d{10}$/.test(val)) setMobileError("")
+                    }} 
+                    className={mobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {mobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{mobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}
@@ -620,9 +645,17 @@ export function TechnicianModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9899001122" 
                     value={editMobile} 
-                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEditMobile(val)
+                      if (editMobileError && /^\d{10}$/.test(val)) setEditMobileError("")
+                    }} 
+                    className={editMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {editMobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{editMobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}

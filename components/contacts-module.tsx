@@ -63,6 +63,18 @@ export function ContactsModule() {
   const [editNotes, setEditNotes] = React.useState("")
   const [editLastServiceDate, setEditLastServiceDate] = React.useState("")
 
+  const [mobileError, setMobileError] = React.useState("")
+  const [editMobileError, setEditMobileError] = React.useState("")
+
+  // Reset errors on dialog open/close
+  React.useEffect(() => {
+    if (!isAddOpen) setMobileError("")
+  }, [isAddOpen])
+
+  React.useEffect(() => {
+    if (!isEditOpen) setEditMobileError("")
+  }, [isEditOpen])
+
   // Contact database CSV Exporter
   const handleExportCSV = () => {
     const headers = ["Contact ID", "Contact Name", "Phone Line", "Address", "Client Type", "Timeline Check"]
@@ -104,6 +116,13 @@ export function ContactsModule() {
     e.preventDefault()
     if (!selectedContact) return
 
+    if (!/^\d{10}$/.test(editMobile)) {
+      setEditMobileError("Mobile number must be exactly 10 digits.")
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
+    setEditMobileError("")
+
     updateContact(selectedContact.id, {
       name: editName,
       mobile: editMobile,
@@ -135,6 +154,13 @@ export function ContactsModule() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (!/^\d{10}$/.test(mobile)) {
+      setMobileError("Mobile number must be exactly 10 digits.")
+      toast.error("Invalid Mobile Number", { description: "Mobile number must be exactly 10 digits." })
+      return
+    }
+    setMobileError("")
+
     addContact({
       name,
       mobile,
@@ -433,9 +459,17 @@ export function ContactsModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9911223344" 
                     value={mobile} 
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setMobile(val)
+                      if (mobileError && /^\d{10}$/.test(val)) setMobileError("")
+                    }} 
+                    className={mobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {mobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{mobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}
@@ -518,9 +552,17 @@ export function ContactsModule() {
                     inputMode="numeric"
                     placeholder="E.g., 9911223344" 
                     value={editMobile} 
-                    onChange={(e) => setEditMobile(e.target.value.replace(/\D/g, ''))} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      setEditMobile(val)
+                      if (editMobileError && /^\d{10}$/.test(val)) setEditMobileError("")
+                    }} 
+                    className={editMobileError ? "border-destructive focus-visible:ring-destructive" : ""}
                     required 
                   />
+                  {editMobileError && (
+                    <span className="text-[10px] text-destructive font-semibold">{editMobileError}</span>
+                  )}
                 </div>
 
                 {/* Address */}

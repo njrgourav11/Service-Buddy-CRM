@@ -99,35 +99,9 @@ export function SiteHeader() {
           </h1>
         </div>
  
-        {/* Right Side: Role Switcher and Alerts */}
+        {/* Right Side: Theme Switcher and Alerts */}
         <div className="flex items-center gap-3">
           
-          {/* User Role Switcher Selector */}
-          <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/40">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase px-1.5 hidden md:inline">Active Role:</span>
-            <Select value={currentRole} onValueChange={handleRoleChange}>
-              <SelectTrigger className="h-7 text-xs font-semibold py-0.5 px-2 bg-background border-border/50 select-none shadow-none w-28 md:w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end" className="w-40">
-                <SelectItem value="Admin">Admin</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-              </SelectContent>
-            </Select>
- 
-            {/* Role Badge Indicator */}
-            <Badge 
-              variant="outline"
-              className={`text-[9px] font-extrabold px-1.5 h-5 flex items-center shrink-0 uppercase tracking-wide select-none ${
-                currentRole === "Admin" 
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                  : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400"
-              }`}
-            >
-              {currentRole}
-            </Badge>
-          </div>
- 
           <Separator orientation="vertical" className="h-4 hidden sm:block" />
 
           {/* Theme Switcher Button */}

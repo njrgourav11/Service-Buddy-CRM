@@ -42,7 +42,8 @@ export const STANDARD_EXPENSE_CATEGORIES = [
   "Non beneficiary items",
   "Office expenses",
   "Tools and subscriptions",
-  "Refunds"
+  "Refunds",
+  "Salary"
 ]
 
 export function ExpenditureModule() {
