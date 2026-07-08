@@ -51,6 +51,9 @@ export function ExpenditureModule() {
   const { expenses, addExpense, updateExpense, deleteExpense, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -117,7 +120,39 @@ export function ExpenditureModule() {
     const matchesSearch = searchString.includes(search.toLowerCase())
     const matchesCategory = categoryFilter === "ALL" || e.category === categoryFilter
 
-    return matchesSearch && matchesCategory
+    // Date filtering logic
+    let matchesDate = true
+    const targetDate = e.date || ""
+    if (dateFilterType === "today") {
+      const todayStr = new Date().toISOString().split("T")[0]
+      matchesDate = targetDate === todayStr
+    } else if (dateFilterType === "yesterday") {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayStr = yesterday.toISOString().split("T")[0]
+      matchesDate = targetDate === yesterdayStr
+    } else if (dateFilterType === "this-week") {
+      const today = new Date()
+      const startOfWeek = new Date(today)
+      startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+      const startStr = startOfWeek.toISOString().split("T")[0]
+      matchesDate = targetDate >= startStr
+    } else if (dateFilterType === "this-month") {
+      const todayStr = new Date().toISOString().split("T")[0]
+      const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+      matchesDate = targetDate.startsWith(currentMonthPrefix)
+    } else if (dateFilterType === "previous-month") {
+      const now = new Date()
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const year = prevMonth.getFullYear()
+      const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+      const prevMonthPrefix = `${year}-${month}`
+      matchesDate = targetDate.startsWith(prevMonthPrefix)
+    } else if (dateFilterType === "custom") {
+      matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+    }
+
+    return matchesSearch && matchesCategory && matchesDate
   })
 
   // Bulk Delete
@@ -241,7 +276,7 @@ export function ExpenditureModule() {
             </CardHeader>
             <CardContent className="pb-3 pt-0">
               <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">
-                ₹{expenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                ₹{filteredExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </CardTitle>
               <span className="text-[10px] text-muted-foreground mt-1 block">Accumulated company administrative costs</span>
             </CardContent>
@@ -253,7 +288,7 @@ export function ExpenditureModule() {
             </CardHeader>
             <CardContent className="pb-3 pt-0">
               <CardTitle className="text-2xl font-bold tracking-tight tabular-nums">
-                ₹{expenses.filter(e => e.category === "Working expenses (beneficiary)").reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                ₹{filteredExpenses.filter(e => e.category === "Working expenses (beneficiary)").reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
               </CardTitle>
               <span className="text-[10px] text-muted-foreground mt-1 block">Spends targeting organic and beneficiary operations</span>
             </CardContent>
@@ -286,9 +321,51 @@ export function ExpenditureModule() {
                 Delete Selected ({selectedIds.length})
               </Button>
             )}
+            {/* Date Filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Select value={dateFilterType} onValueChange={(val: any) => {
+                setDateFilterType(val)
+                if (val !== "custom") {
+                  setStartDateFilter("")
+                  setEndDateFilter("")
+                }
+              }}>
+                <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="this-week">This Week</SelectItem>
+                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem value="previous-month">Previous Month</SelectItem>
+                  <SelectItem value="custom">Custom Range...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                  <span className="text-muted-foreground text-xs font-medium">to</span>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                </div>
+              )}
+            </div>
+
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Category:</Label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-48">
+              <SelectTrigger className="w-full md:w-48 h-8 text-xs bg-background">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
@@ -384,7 +461,11 @@ export function ExpenditureModule() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
-                                onClick={() => deleteExpense(e.id)}
+                                onClick={() => {
+                                  if (window.confirm("Are you sure you want to delete this expense log?")) {
+                                    deleteExpense(e.id)
+                                  }
+                                }}
                                 className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
                               >
                                 Delete

@@ -438,6 +438,13 @@ export function PayoutModule() {
     }
   }
 
+  // Bulk Status Update
+  const handleBulkStatusUpdate = (status: "Paid" | "Pending") => {
+    selectedIds.forEach(id => updatePayout(id, { paymentStatus: status }))
+    setSelectedIds([])
+    toast.success(`Updated ${selectedIds.length} payouts to ${status}.`)
+  }
+
   // Submit Payout
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -645,15 +652,33 @@ export function PayoutModule() {
 
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 {selectedIds.length > 0 && (
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={handleBulkDelete}
-                    className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
-                  >
-                    <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-                    Delete Selected ({selectedIds.length})
-                  </Button>
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleBulkStatusUpdate("Paid")}
+                      className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                    >
+                      Mark Paid
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleBulkStatusUpdate("Pending")}
+                      className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                    >
+                      Mark Unpaid
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={handleBulkDelete}
+                      className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                      Delete Selected ({selectedIds.length})
+                    </Button>
+                  </>
                 )}
 
                 {/* Date Filter */}
@@ -1095,7 +1120,7 @@ export function PayoutModule() {
                 </div>
 
                 {/* Customer Name & CIN */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="pay-cust-name" className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
                       Customer Name
@@ -1130,7 +1155,7 @@ export function PayoutModule() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Advance Deductions */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="pay-adv" className="text-xs font-bold text-muted-foreground">Advance Reclaimed</Label>
@@ -1329,7 +1354,7 @@ export function PayoutModule() {
                 </div>
 
                 {/* Customer Name & CIN */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-pay-cust-name" className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
                       Customer Name
@@ -1364,7 +1389,7 @@ export function PayoutModule() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Advance Deductions */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-pay-adv" className="text-xs font-bold text-muted-foreground">Advance Reclaimed</Label>

@@ -1821,7 +1821,7 @@ export function BookingModule() {
                 <div className="rounded-lg bg-indigo-50/10 dark:bg-indigo-950/5 p-3.5 border border-indigo-200/30 flex flex-col gap-3">
                   <h4 className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Customer & CRM Fields</h4>
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-cust-name" className="text-[10px] font-bold text-muted-foreground uppercase">Client Name</Label>
                       <Input 
@@ -1865,7 +1865,7 @@ export function BookingModule() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-cust-ref" className="text-[10px] font-bold text-muted-foreground uppercase">Referral Source</Label>
                       <Select value={editCustReferral} onValueChange={setEditCustReferral}>
@@ -1925,7 +1925,7 @@ export function BookingModule() {
                 <div className="rounded-lg bg-purple-50/10 dark:bg-purple-950/5 p-3.5 border border-purple-200/30 flex flex-col gap-3">
                   <h4 className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Booking & Appliance Fields</h4>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-date" className="text-[10px] font-bold text-muted-foreground uppercase">Booking Date</Label>
                       <Input
@@ -1949,7 +1949,7 @@ export function BookingModule() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-appliance" className="text-[10px] font-bold text-muted-foreground uppercase">Appliance</Label>
                       <Select value={editAppliance} onValueChange={setEditAppliance}>
@@ -2108,7 +2108,7 @@ export function BookingModule() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div>
                               <Label className="text-[10px] font-bold text-muted-foreground">Cost (R)</Label>
                               <Input 
@@ -2219,7 +2219,7 @@ export function BookingModule() {
                               />
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div>
                                 <Label className="text-[9px] font-bold text-muted-foreground">Qty</Label>
                                 <Input 
@@ -2330,7 +2330,7 @@ export function BookingModule() {
                     )}
                   </span>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
                       <Label className="text-[9px] font-bold text-muted-foreground uppercase">Spare Comm (T = S-R)</Label>
                       <Input 
@@ -2466,7 +2466,7 @@ export function BookingModule() {
                   </div>
 
                   {editComplaint && (
-                    <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
                       <div className="flex flex-col gap-1">
                         <Label htmlFor="edit-complaint-date" className="text-[10px] font-bold text-muted-foreground uppercase">Date Logged</Label>
                         <Input 
@@ -2873,7 +2873,7 @@ export function BookingModule() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div>
                               <Label className="text-[10px] font-bold text-muted-foreground">Cost (R)</Label>
                               <Input 
@@ -2978,7 +2978,7 @@ export function BookingModule() {
                               />
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div>
                                 <Label className="text-[9px] font-bold text-muted-foreground">Qty</Label>
                                 <Input 

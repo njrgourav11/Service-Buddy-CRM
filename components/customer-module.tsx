@@ -65,6 +65,9 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const { customers, bookings, addCustomer, updateCustomer, deleteCustomer, currentRole, setActiveTab } = useCRM()
   const [search, setSearch] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -188,7 +191,39 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
       const matchesSearch = searchString.includes(search.toLowerCase())
       const matchesSource = sourceFilter === "ALL" || c.referralSource === sourceFilter
 
-      return matchesSearch && matchesSource
+      // Date filtering logic
+      let matchesDate = true
+      const targetDate = c.createdAt || ""
+      if (dateFilterType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        matchesDate = targetDate === todayStr
+      } else if (dateFilterType === "yesterday") {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split("T")[0]
+        matchesDate = targetDate === yesterdayStr
+      } else if (dateFilterType === "this-week") {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+        const startStr = startOfWeek.toISOString().split("T")[0]
+        matchesDate = targetDate >= startStr
+      } else if (dateFilterType === "this-month") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+        matchesDate = targetDate.startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "previous-month") {
+        const now = new Date()
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const year = prevMonth.getFullYear()
+        const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+        const prevMonthPrefix = `${year}-${month}`
+        matchesDate = targetDate.startsWith(prevMonthPrefix)
+      } else if (dateFilterType === "custom") {
+        matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+      }
+
+      return matchesSearch && matchesSource && matchesDate
     }).sort((a, b) => compareIdsNumerically(a.id, b.id))
   }, [customers, search, sourceFilter])
 
@@ -315,7 +350,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
       )}
 
       {/* Analytics: Customer directory parameters */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Card className="border-border/60">
           <CardHeader className="py-3">
             <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Directory</CardDescription>
@@ -400,6 +435,48 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
               >
                 Card View
               </Button>
+            </div>
+
+            {/* Date Filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Select value={dateFilterType} onValueChange={(val: any) => {
+                setDateFilterType(val)
+                if (val !== "custom") {
+                  setStartDateFilter("")
+                  setEndDateFilter("")
+                }
+              }}>
+                <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="this-week">This Week</SelectItem>
+                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem value="previous-month">Previous Month</SelectItem>
+                  <SelectItem value="custom">Custom Range...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                  <span className="text-muted-foreground text-xs font-medium">to</span>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5 flex-1 md:flex-initial">
@@ -531,7 +608,11 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem 
-                                      onClick={() => deleteCustomer(c.id)}
+                                      onClick={() => {
+                                        if (window.confirm("Are you sure you want to delete this customer?")) {
+                                          deleteCustomer(c.id)
+                                        }
+                                      }}
                                       className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
                                     >
                                       Delete
@@ -650,7 +731,11 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                       {currentRole === "Admin" && (
                         <Button 
                           variant="ghost" 
-                          onClick={() => deleteCustomer(c.id)}
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this customer?")) {
+                              deleteCustomer(c.id)
+                            }
+                          }}
                           className="h-8 text-xs font-bold text-destructive hover:bg-destructive/10 cursor-pointer"
                         >
                           Delete Customer

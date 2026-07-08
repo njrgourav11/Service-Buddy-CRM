@@ -396,7 +396,7 @@ export function InventoryModule() {
 
               <div className="flex flex-col gap-4">
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Supplier Cost R */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="spare-unit" className="text-xs font-bold text-muted-foreground">Supplier Cost (R)</Label>
@@ -524,7 +524,7 @@ export function InventoryModule() {
 
               <div className="flex flex-col gap-4">
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Supplier Cost R */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-spare-unit" className="text-xs font-bold text-muted-foreground">Supplier Cost (R)</Label>

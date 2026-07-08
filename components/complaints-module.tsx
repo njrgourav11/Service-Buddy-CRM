@@ -52,6 +52,9 @@ export function ComplaintsModule() {
   // State managers
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(8)
 
@@ -127,9 +130,42 @@ export function ComplaintsModule() {
       const matchesSearch = searchString.includes(search.toLowerCase())
       
       const matchesStatus = statusFilter === "ALL" || b.complaintStatus === statusFilter
-      return matchesSearch && matchesStatus
+
+      // Date filtering logic
+      let matchesDate = true
+      const targetDate = b.complaintDate || ""
+      if (dateFilterType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        matchesDate = targetDate === todayStr
+      } else if (dateFilterType === "yesterday") {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split("T")[0]
+        matchesDate = targetDate === yesterdayStr
+      } else if (dateFilterType === "this-week") {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+        const startStr = startOfWeek.toISOString().split("T")[0]
+        matchesDate = targetDate >= startStr
+      } else if (dateFilterType === "this-month") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+        matchesDate = targetDate.startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "previous-month") {
+        const now = new Date()
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const year = prevMonth.getFullYear()
+        const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+        const prevMonthPrefix = `${year}-${month}`
+        matchesDate = targetDate.startsWith(prevMonthPrefix)
+      } else if (dateFilterType === "custom") {
+        matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+      }
+
+      return matchesSearch && matchesStatus && matchesDate
     }).sort((a, b) => (b.complaintDate || "").localeCompare(a.complaintDate || ""))
-  }, [bookingsWithComplaints, customers, search, statusFilter])
+  }, [bookingsWithComplaints, customers, search, statusFilter, dateFilterType, startDateFilter, endDateFilter])
 
   // Pagination
   const totalPages = Math.ceil(filteredComplaints.length / pageSize)
@@ -400,7 +436,7 @@ export function ComplaintsModule() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card 
           onClick={() => setStatusFilter("ALL")}
           className={`border-border/60 shadow-xs bg-card/45 backdrop-blur-xs cursor-pointer hover:bg-muted/30 transition-colors select-none ${statusFilter === "ALL" ? "ring-2 ring-primary border-transparent" : ""}`}
@@ -481,6 +517,48 @@ export function ComplaintsModule() {
           </div>
 
           <div className="flex items-center gap-1.5 w-full md:w-auto">
+            {/* Date Filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Select value={dateFilterType} onValueChange={(val: any) => {
+                setDateFilterType(val)
+                if (val !== "custom") {
+                  setStartDateFilter("")
+                  setEndDateFilter("")
+                }
+              }}>
+                <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="this-week">This Week</SelectItem>
+                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem value="previous-month">Previous Month</SelectItem>
+                  <SelectItem value="custom">Custom Range...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                  <span className="text-muted-foreground text-xs font-medium">to</span>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                </div>
+              )}
+            </div>
+
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status Filter:</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-44">
@@ -884,7 +962,7 @@ export function ComplaintsModule() {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-3.5 border border-border/40 rounded-lg p-3 bg-muted/5">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="flex flex-col gap-1">
                               <Label htmlFor="new-cust-name" className="text-[10px] font-bold text-muted-foreground uppercase">Client Name *</Label>
                               <Input
@@ -971,7 +1049,7 @@ export function ComplaintsModule() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor="custom-tech" className="text-xs font-bold text-muted-foreground">Assigned Technician</Label>
                         <Select value={customTechId} onValueChange={setCustomTechId}>

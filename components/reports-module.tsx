@@ -13,8 +13,11 @@ import {
   Menu01Icon,
   Analytics01Icon,
   Alert02Icon,
-  FilterIcon
+  FilterIcon,
+  PrinterIcon,
+  Download01Icon
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -189,20 +192,15 @@ export function ReportsModule() {
   // ==========================================
   // Review Stats Calculations (Filtered Dynamically)
   // ==========================================
-  // Satisfaction rate only on Completed and Inspected bookings
-  const relevantBookingsForSatisfaction = React.useMemo(() => {
-    return filteredBookings.filter(b => b.status === "Completed" || b.status === "Inspected")
-  }, [filteredBookings])
-
-  const positiveReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Positive").length, [relevantBookingsForSatisfaction])
-  const negativeReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Negative").length, [relevantBookingsForSatisfaction])
-  const callNotReceived = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Call didn't receive").length, [relevantBookingsForSatisfaction])
-  const cancelOrderReviews = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => b.reviewStatus === "Cancel Order").length, [relevantBookingsForSatisfaction])
-  const reviewNotDone = React.useMemo(() => relevantBookingsForSatisfaction.filter(b => !b.reviewStatus || b.reviewStatus === "Review not done").length, [relevantBookingsForSatisfaction])
+  const positiveReviews = React.useMemo(() => filteredBookings.filter(b => b.reviewStatus === "Positive").length, [filteredBookings])
+  const negativeReviews = React.useMemo(() => filteredBookings.filter(b => b.reviewStatus === "Negative").length, [filteredBookings])
+  const callNotReceived = React.useMemo(() => filteredBookings.filter(b => b.reviewStatus === "Call didn't receive").length, [filteredBookings])
+  const cancelOrderReviews = React.useMemo(() => filteredBookings.filter(b => b.reviewStatus === "Cancel Order").length, [filteredBookings])
+  const reviewNotDone = React.useMemo(() => filteredBookings.filter(b => !b.reviewStatus || b.reviewStatus === "Review not done").length, [filteredBookings])
 
   const totalReviewsDone = React.useMemo(() => positiveReviews + negativeReviews + callNotReceived + cancelOrderReviews, [positiveReviews, negativeReviews, callNotReceived, cancelOrderReviews])
   const satisfactionRate = React.useMemo(() => totalReviewsDone > 0 ? Math.round((positiveReviews / totalReviewsDone) * 100) : 0, [positiveReviews, totalReviewsDone])
-  const totalCustomersCount = relevantBookingsForSatisfaction.length
+  const totalCustomersCount = filteredBookings.length
 
   const reviewDistributionData = React.useMemo(() => {
     return [
@@ -312,6 +310,70 @@ export function ReportsModule() {
     Limit: s.reorderLevel
   }))
 
+  // ==========================================
+  // Export Functions
+  // ==========================================
+  const handleExportCSV = () => {
+    try {
+      const csvRows: any[][] = []
+      
+      const totalCost = totalExpenses + totalTechLiability
+      const netMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0
+      const totalJobs = filteredBookings.length
+      const completedJobsCount = filteredBookings.filter(b => b.status === "Completed").length
+      
+      csvRows.push(["--- KPI OVERVIEW ---"])
+      csvRows.push(["Gross Billing", "Total Costs", "Net Profit", "Net Margin", "Total Jobs", "Completed", "Satisfaction Rate"])
+      csvRows.push([totalRevenue, totalCost, netProfit, `${netMargin}%`, totalJobs, completedJobsCount, `${satisfactionRate}%`])
+      csvRows.push([])
+      
+      csvRows.push(["--- TECHNICIAN PERFORMANCE ---"])
+      csvRows.push(["Technician Name", "Jobs Completed", "Commission Generated", "Earnings Paid"])
+      techPerformanceData.forEach(t => {
+        csvRows.push([t.name, t.Jobs, t.Commission, t.Earnings])
+      })
+      csvRows.push([])
+
+      csvRows.push(["--- JOB STATUS DISTRIBUTION ---"])
+      csvRows.push(["Status", "Count"])
+      statusDistributionData.forEach(s => {
+        csvRows.push([s.name, s.value])
+      })
+      csvRows.push([])
+
+      csvRows.push(["--- CUSTOMER SATISFACTION ---"])
+      csvRows.push(["Review", "Count"])
+      reviewDistributionData.forEach(r => {
+        csvRows.push([r.name, r.value])
+      })
+      csvRows.push([])
+
+      csvRows.push(["--- SPARES INVENTORY ---"])
+      csvRows.push(["Part Name", "Stock Available", "Reorder Limit"])
+      sparesStockData.forEach(s => {
+        csvRows.push([s.name, s.Available, s.Limit])
+      })
+
+      const csvContent = "\uFEFF" + csvRows.map(e => e.join(",")).join("\n")
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", `ServiceBuddy_CRM_Reports_${new Date().toISOString().split("T")[0]}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast.success("Reports exported to CSV!")
+    } catch (error) {
+      toast.error("Failed to export reports")
+    }
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
       
@@ -320,6 +382,16 @@ export function ReportsModule() {
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">CRM Reports & Performance Analytics</h2>
           <p className="text-sm text-muted-foreground">Inspect multi-dimensional financial charts, calculate gross net margins, and analyze technician KPIs.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handlePrint} variant="outline" size="sm" className="h-9 gap-1.5 cursor-pointer hidden sm:flex">
+            <HugeiconsIcon icon={PrinterIcon} className="size-4" />
+            Print Report
+          </Button>
+          <Button onClick={handleExportCSV} variant="outline" size="sm" className="h-9 gap-1.5 cursor-pointer">
+            <HugeiconsIcon icon={Download01Icon} className="size-4" />
+            Export CSV
+          </Button>
         </div>
       </div>
 

@@ -46,6 +46,9 @@ export function LeadsModule() {
   const [search, setSearch] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   
   // Add modal state
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -163,7 +166,39 @@ export function LeadsModule() {
     const matchesSearch = searchString.includes(search.toLowerCase())
     const matchesStatus = statusFilter === "ALL" || l.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    // Date filtering logic
+    let matchesDate = true
+    const targetDate = l.createdAt || ""
+    if (dateFilterType === "today") {
+      const todayStr = new Date().toISOString().split("T")[0]
+      matchesDate = targetDate === todayStr
+    } else if (dateFilterType === "yesterday") {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayStr = yesterday.toISOString().split("T")[0]
+      matchesDate = targetDate === yesterdayStr
+    } else if (dateFilterType === "this-week") {
+      const today = new Date()
+      const startOfWeek = new Date(today)
+      startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+      const startStr = startOfWeek.toISOString().split("T")[0]
+      matchesDate = targetDate >= startStr
+    } else if (dateFilterType === "this-month") {
+      const todayStr = new Date().toISOString().split("T")[0]
+      const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+      matchesDate = targetDate.startsWith(currentMonthPrefix)
+    } else if (dateFilterType === "previous-month") {
+      const now = new Date()
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const year = prevMonth.getFullYear()
+      const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+      const prevMonthPrefix = `${year}-${month}`
+      matchesDate = targetDate.startsWith(prevMonthPrefix)
+    } else if (dateFilterType === "custom") {
+      matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+    }
+
+    return matchesSearch && matchesStatus && matchesDate
   })
 
   // Bulk Delete
@@ -273,6 +308,49 @@ export function LeadsModule() {
                 Delete Selected ({selectedIds.length})
               </Button>
             )}
+            
+            {/* Date Filter */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Select value={dateFilterType} onValueChange={(val: any) => {
+                setDateFilterType(val)
+                if (val !== "custom") {
+                  setStartDateFilter("")
+                  setEndDateFilter("")
+                }
+              }}>
+                <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                  <SelectValue placeholder="All Dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="this-week">This Week</SelectItem>
+                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem value="previous-month">Previous Month</SelectItem>
+                  <SelectItem value="custom">Custom Range...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                  <Input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                  <span className="text-muted-foreground text-xs font-medium">to</span>
+                  <Input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="h-8 text-xs w-32 bg-background"
+                  />
+                </div>
+              )}
+            </div>
+
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full md:w-44">
@@ -418,7 +496,11 @@ export function LeadsModule() {
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
-                                  onClick={() => deleteLead(l.id)}
+                                  onClick={() => {
+                                    if (window.confirm("Are you sure you want to delete this lead?")) {
+                                      deleteLead(l.id)
+                                    }
+                                  }}
                                   className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer font-semibold"
                                 >
                                   Delete
@@ -607,7 +689,7 @@ export function LeadsModule() {
 
               <div className="flex flex-col gap-4">
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Lead Source */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="lead-source" className="text-xs font-bold text-muted-foreground">Acquisition Channel</Label>
@@ -948,7 +1030,7 @@ export function LeadsModule() {
 
               <div className="flex flex-col gap-4">
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Lead Source */}
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="edit-lead-source" className="text-xs font-bold text-muted-foreground">Acquisition Channel</Label>
