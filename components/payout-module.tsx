@@ -404,8 +404,8 @@ export function PayoutModule() {
   }, [filteredPayouts])
 
   const totalPendingPayout = React.useMemo(() => {
-    return filteredTechnicians.reduce((sum, t) => sum + (t.dueAmount || 0), 0)
-  }, [filteredTechnicians])
+    return totalEarningsVal - totalAdvanceVal
+  }, [totalEarningsVal, totalAdvanceVal])
 
   const sortedPayouts = React.useMemo(() => {
     return [...filteredPayouts].sort((a, b) => {
