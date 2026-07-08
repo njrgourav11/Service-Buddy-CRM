@@ -39,13 +39,15 @@ import {
   CheckmarkCircle01Icon,
   Loading03Icon,
   MoreHorizontalCircle01Icon,
-  SearchIcon
+  SearchIcon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 export function TechnicianModule() {
   const { technicians, bookings, payouts, addPayout, addTechnician, updateTechnician, deleteTechnician, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [statusFilter, setStatusFilter] = React.useState("ALL")
   const [currentPage, setCurrentPage] = React.useState(1)
   const pageSize = 8
@@ -211,6 +213,15 @@ export function TechnicianModule() {
     return filteredTechnicians.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   }, [filteredTechnicians, currentPage])
 
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected technicians?`)) {
+      selectedIds.forEach(id => deleteTechnician(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} technicians.`)
+    }
+  }
+
   // Filtered payout sum removed
 
   const filteredDuesSum = React.useMemo(() => {
@@ -324,7 +335,18 @@ export function TechnicianModule() {
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 w-full md:w-auto">
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                {selectedIds.length > 0 && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={handleBulkDelete}
+                    className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                    Delete Selected ({selectedIds.length})
+                  </Button>
+                )}
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full md:w-44">
@@ -347,6 +369,20 @@ export function TechnicianModule() {
                 <Table>
                   <TableHeader className="bg-muted/60 border-b border-border/50">
                     <TableRow>
+                      <TableHead className="px-4 py-3 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.length === paginatedTechnicians.length && paginatedTechnicians.length > 0}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(paginatedTechnicians.map(x => x.id))
+                            } else {
+                              setSelectedIds([])
+                            }
+                          }}
+                        />
+                      </TableHead>
                       <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">ID</TableHead>
                       <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Technician Name</TableHead>
                       <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Mobile</TableHead>
@@ -362,7 +398,7 @@ export function TechnicianModule() {
                   <TableBody>
                     {paginatedTechnicians.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-12 text-muted-foreground font-medium">
+                        <TableCell colSpan={11} className="text-center py-12 text-muted-foreground font-medium">
                           No technicians match the query.
                         </TableCell>
                       </TableRow>
@@ -376,6 +412,20 @@ export function TechnicianModule() {
 
                         return (
                           <TableRow key={t.id} className="hover:bg-muted/20 transition-colors">
+                            <TableCell className="px-4 py-4 w-10 text-center">
+                              <input 
+                                type="checkbox" 
+                                className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                                checked={selectedIds.includes(t.id)}
+                                onChange={(evt) => {
+                                  if (evt.target.checked) {
+                                    setSelectedIds(prev => [...prev, t.id])
+                                  } else {
+                                    setSelectedIds(prev => prev.filter(id => id !== t.id))
+                                  }
+                                }}
+                              />
+                            </TableCell>
                             <TableCell className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{t.id}</TableCell>
                             <TableCell className="px-4 py-4 font-semibold text-xs text-foreground">
                               <div className="flex items-center gap-2.5">

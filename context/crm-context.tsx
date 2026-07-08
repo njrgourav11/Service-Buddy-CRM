@@ -438,8 +438,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
     const technicianServiceCommission = Math.round(serviceCharge * 0.7 * 100) / 100
     const companyServiceCommission = Math.round(serviceCharge * 0.3 * 100) / 100
-    const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
-    const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
+    const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission - discountAmount * 0.7) * 100) / 100
+    const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission - discountAmount * 0.3) * 100) / 100
     const totalConsumerAmount = Math.round((spareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission - discountAmount) * 100) / 100
 
     return {
@@ -464,8 +464,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const techServComm = booking.technicianServiceCommission !== undefined && booking.technicianServiceCommission !== null ? booking.technicianServiceCommission : calculations.technicianServiceCommission
     const compServComm = booking.companyServiceCommission !== undefined && booking.companyServiceCommission !== null ? booking.companyServiceCommission : calculations.companyServiceCommission
 
-    const totalTech = Math.round((techComm + techServComm) * 100) / 100
-    const totalComp = Math.round((compComm + compServComm) * 100) / 100
+    const totalTech = Math.round((techComm + techServComm - discount * 0.7) * 100) / 100
+    const totalComp = Math.round((compComm + compServComm - discount * 0.3) * 100) / 100
     const totalConsumer = Math.round(((booking.spareCost || 0) + techComm + compComm + techServComm + compServComm - discount) * 100) / 100
 
     return {

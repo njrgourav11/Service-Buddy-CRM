@@ -21,7 +21,8 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { 
   PlusSignCircleIcon, 
   SearchIcon,
-  MoreHorizontalCircle01Icon
+  MoreHorizontalCircle01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -48,6 +49,8 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
 
   const [search, setSearch] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"table" | "cards">("table")
+  const [selectedAssetIds, setSelectedAssetIds] = React.useState<string[]>([])
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<string[]>([])
   
   // Creation state
   const [isAssetOpen, setIsAssetOpen] = React.useState(false)
@@ -232,6 +235,23 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
     return str.includes(search.toLowerCase())
   })
 
+  // Bulk Delete
+  const handleBulkDeleteAssets = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedAssetIds.length} selected assets?`)) {
+      selectedAssetIds.forEach(id => deleteAsset(id))
+      setSelectedAssetIds([])
+      toast.success(`Deleted ${selectedAssetIds.length} assets.`)
+    }
+  }
+
+  const handleBulkDeleteEmployees = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedEmployeeIds.length} selected employees?`)) {
+      selectedEmployeeIds.forEach(id => deleteEmployee(id))
+      setSelectedEmployeeIds([])
+      toast.success(`Deleted ${selectedEmployeeIds.length} employees.`)
+    }
+  }
+
   // Asset stats
   const totalAssets = assets.length
   const activeAssets = assets.filter(a => a.status === "Active").length
@@ -256,19 +276,45 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {initialSubTab === "assets" ? (
-            currentRole === "Admin" && (
-              <Button onClick={() => setIsAssetOpen(true)} className="h-9 text-xs">
-                <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-                Register Asset
-              </Button>
-            )
+            <>
+              {selectedAssetIds.length > 0 && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleBulkDeleteAssets}
+                  className="h-9 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                  Delete Selected ({selectedAssetIds.length})
+                </Button>
+              )}
+              {currentRole === "Admin" && (
+                <Button onClick={() => setIsAssetOpen(true)} className="h-9 text-xs">
+                  <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+                  Register Asset
+                </Button>
+              )}
+            </>
           ) : (
-            (currentRole === "Admin" || currentRole === "Manager") && (
-              <Button onClick={() => setIsEmployeeOpen(true)} className="h-9 text-xs">
-                <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
-                Onboard Staff
-              </Button>
-            )
+            <>
+              {selectedEmployeeIds.length > 0 && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleBulkDeleteEmployees}
+                  className="h-9 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                  Delete Selected ({selectedEmployeeIds.length})
+                </Button>
+              )}
+              {(currentRole === "Admin" || currentRole === "Manager") && (
+                <Button onClick={() => setIsEmployeeOpen(true)} className="h-9 text-xs">
+                  <HugeiconsIcon icon={PlusSignCircleIcon} strokeWidth={2} />
+                  Onboard Staff
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -359,6 +405,20 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                     <tr>
+                      <th className="px-4 py-3 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedAssetIds.length === filteredAssets.length && filteredAssets.length > 0}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedAssetIds(filteredAssets.map(x => x.id))
+                            } else {
+                              setSelectedAssetIds([])
+                            }
+                          }}
+                        />
+                      </th>
                       <th className="px-4 py-3">Asset ID</th>
                       <th className="px-4 py-3">Asset Description</th>
                       <th className="px-4 py-3">Type</th>
@@ -373,13 +433,27 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                   <tbody className="divide-y divide-border/40">
                     {filteredAssets.length === 0 ? (
                       <tr>
-                        <td colSpan={currentRole === "Admin" ? 9 : 8} className="text-center py-12 text-muted-foreground font-medium">
+                        <td colSpan={currentRole === "Admin" ? 10 : 9} className="text-center py-12 text-muted-foreground font-medium">
                           No company assets cataloged.
                         </td>
                       </tr>
                     ) : (
                       filteredAssets.map((a) => (
                         <tr key={a.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-4 w-10 text-center">
+                            <input 
+                              type="checkbox" 
+                              className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                              checked={selectedAssetIds.includes(a.id)}
+                              onChange={(evt) => {
+                                if (evt.target.checked) {
+                                  setSelectedAssetIds(prev => [...prev, a.id])
+                                } else {
+                                  setSelectedAssetIds(prev => prev.filter(id => id !== a.id))
+                                }
+                              }}
+                            />
+                          </td>
                           <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{a.id}</td>
                           <td className="px-4 py-4 font-semibold text-xs text-foreground">{a.name}</td>
                           <td className="px-4 py-4">
@@ -531,6 +605,20 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
               <table className="w-full text-left text-sm">
                 <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                   <tr>
+                    <th className="px-4 py-3 w-10 text-center">
+                      <input 
+                        type="checkbox" 
+                        className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                        checked={selectedEmployeeIds.length === filteredEmployees.length && filteredEmployees.length > 0}
+                        onChange={(evt) => {
+                          if (evt.target.checked) {
+                            setSelectedEmployeeIds(filteredEmployees.map(x => x.id))
+                          } else {
+                            setSelectedEmployeeIds([])
+                          }
+                        }}
+                      />
+                    </th>
                     <th className="px-4 py-3">Employee ID</th>
                     <th className="px-4 py-3">Full Name</th>
                     <th className="px-4 py-3">Role</th>
@@ -544,13 +632,27 @@ export function AssetsEmployeesModule({ initialSubTab = "assets" }: { initialSub
                 <tbody className="divide-y divide-border/40">
                   {filteredEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                      <td colSpan={currentRole === "Admin" ? 9 : 8} className="text-center py-12 text-muted-foreground font-medium">
                         No employees onboarding files found.
                       </td>
                     </tr>
                   ) : (
                     filteredEmployees.map((emp) => (
                       <tr key={emp.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-4 w-10 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                            checked={selectedEmployeeIds.includes(emp.id)}
+                            onChange={(evt) => {
+                              if (evt.target.checked) {
+                                setSelectedEmployeeIds(prev => [...prev, emp.id])
+                              } else {
+                                setSelectedEmployeeIds(prev => prev.filter(id => id !== emp.id))
+                              }
+                            }}
+                          />
+                        </td>
                         <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{emp.id}</td>
                         <td className="px-4 py-4 font-semibold text-xs text-foreground">{emp.name}</td>
                         <td className="px-4 py-4">

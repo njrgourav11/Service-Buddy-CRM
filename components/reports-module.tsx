@@ -39,7 +39,7 @@ export function ReportsModule() {
   // ==========================================
   const [applianceFilters, setApplianceFilters] = React.useState<string[]>([])
   const [statusFilter, setStatusFilter] = React.useState("ALL")
-  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_WEEK" | "THIS_MONTH" | "CUSTOM">("ALL")
+  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_WEEK" | "THIS_MONTH" | "PREVIOUS_MONTH" | "CUSTOM">("THIS_MONTH")
   const [customStartDate, setCustomStartDate] = React.useState<string>(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -64,8 +64,9 @@ export function ReportsModule() {
       const matchesStatus = statusFilter === "ALL" || b.status === statusFilter
       
       let matchesDate = true
-      if (dateFilter !== "ALL" && b.date) {
-        const bDate = new Date(b.date)
+      const targetDateStr = b.workCompletedDate || b.date
+      if (dateFilter !== "ALL" && targetDateStr) {
+        const bDate = new Date(targetDateStr)
         const now = new Date()
         
         if (dateFilter === "THIS_WEEK") {
@@ -74,6 +75,9 @@ export function ReportsModule() {
           matchesDate = bDate >= startOfWeek
         } else if (dateFilter === "THIS_MONTH") {
           matchesDate = bDate.getMonth() === new Date().getMonth() && bDate.getFullYear() === new Date().getFullYear()
+        } else if (dateFilter === "PREVIOUS_MONTH") {
+          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          matchesDate = bDate.getMonth() === prevMonth.getMonth() && bDate.getFullYear() === prevMonth.getFullYear()
         } else if (dateFilter === "CUSTOM") {
           const s = new Date(customStartDate)
           const e = new Date(customEndDate)
@@ -258,8 +262,15 @@ export function ReportsModule() {
         if (p.technicianId !== t.id) return false
         
         let matchesDate = true
-        if (dateFilter !== "ALL" && p.date) {
-          const pDate = new Date(p.date)
+        let targetDateStr = p.date
+        if (p.bookingId) {
+          const linkedBooking = bookings.find(b => b.id === p.bookingId)
+          if (linkedBooking) {
+            targetDateStr = linkedBooking.workCompletedDate || linkedBooking.date || p.date
+          }
+        }
+        if (dateFilter !== "ALL" && targetDateStr) {
+          const pDate = new Date(targetDateStr)
           const now = new Date()
           
           if (dateFilter === "THIS_WEEK") {
@@ -268,6 +279,9 @@ export function ReportsModule() {
             matchesDate = pDate >= startOfWeek
           } else if (dateFilter === "THIS_MONTH") {
             matchesDate = pDate.getMonth() === new Date().getMonth() && pDate.getFullYear() === new Date().getFullYear()
+          } else if (dateFilter === "PREVIOUS_MONTH") {
+            const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+            matchesDate = pDate.getMonth() === prevMonth.getMonth() && pDate.getFullYear() === prevMonth.getFullYear()
           } else if (dateFilter === "CUSTOM") {
             const s = new Date(customStartDate)
             const e = new Date(customEndDate)
@@ -392,6 +406,7 @@ export function ReportsModule() {
                   <SelectItem value="ALL">All Time</SelectItem>
                   <SelectItem value="THIS_WEEK">This Week</SelectItem>
                   <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                  <SelectItem value="PREVIOUS_MONTH">Previous Month</SelectItem>
                   <SelectItem value="CUSTOM">Custom Range</SelectItem>
                 </SelectContent>
               </Select>

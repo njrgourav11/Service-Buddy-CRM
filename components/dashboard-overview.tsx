@@ -138,7 +138,7 @@ export function DashboardOverview() {
   // Breakdown state managers: Initial states are null so no detailed breakdown is shown by default
   const [activeBreakdown, setActiveBreakdown] = React.useState<"revenue" | "balance" | "expenses" | "operations" | null>(null)
   const [activeManagerBreakdown, setActiveManagerBreakdown] = React.useState<"bookings" | "clients" | "resources" | null>(null)
-  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "CUSTOM">("ALL")
+  const [dateFilter, setDateFilter] = React.useState<"ALL" | "THIS_MONTH" | "PREVIOUS_MONTH" | "LAST_30_DAYS" | "THIS_YEAR" | "CUSTOM" >("THIS_MONTH")
   const [customStartDate, setCustomStartDate] = React.useState<string>(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -166,7 +166,15 @@ export function DashboardOverview() {
     const currentMonth = now.getMonth() // 0-indexed
     
     return items.filter(item => {
-      const itemDateStr = item.date || item.createdAt
+      let itemDateStr = item.date || item.createdAt
+      if (item.issue && item.customerId) {
+        itemDateStr = item.workCompletedDate || item.date || item.createdAt
+      } else if (item.bookingId) {
+        const linkedBooking = bookings.find(b => b.id === item.bookingId)
+        if (linkedBooking) {
+          itemDateStr = linkedBooking.workCompletedDate || linkedBooking.date || item.date || item.createdAt
+        }
+      }
       if (!itemDateStr) return false
       
       if (dateFilter === "CUSTOM") {
@@ -180,6 +188,10 @@ export function DashboardOverview() {
       if (dateFilter === "THIS_MONTH") {
         return itemDate.getFullYear() === currentYear && itemDate.getMonth() === currentMonth
       }
+      if (dateFilter === "PREVIOUS_MONTH") {
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        return itemDate.getFullYear() === prevMonth.getFullYear() && itemDate.getMonth() === prevMonth.getMonth()
+      }
       if (dateFilter === "THIS_YEAR") {
         return itemDate.getFullYear() === currentYear
       }
@@ -190,7 +202,7 @@ export function DashboardOverview() {
       }
       return true
     })
-  }, [dateFilter, customStartDate, customEndDate])
+  }, [dateFilter, customStartDate, customEndDate, bookings])
 
   const filteredBookings = React.useMemo(() => getFilteredData(bookings), [bookings, getFilteredData])
   const filteredExpenses = React.useMemo(() => getFilteredData(expenses), [expenses, getFilteredData])
@@ -391,6 +403,7 @@ export function DashboardOverview() {
               >
                 <option value="ALL">All Time</option>
                 <option value="THIS_MONTH">This Month</option>
+                <option value="PREVIOUS_MONTH">Previous Month</option>
                 <option value="LAST_30_DAYS">Last 30 Days</option>
                 <option value="THIS_YEAR">This Year</option>
                 <option value="CUSTOM">Custom Range</option>
@@ -726,8 +739,8 @@ export function DashboardOverview() {
                               {b.serviceType}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
-                            {getDisplayNotes(cust?.notes || b.notes) || "—"}
+                          <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(b.notes) || ""}>
+                            {getDisplayNotes(b.notes) || "—"}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
@@ -866,6 +879,7 @@ export function DashboardOverview() {
             >
               <option value="ALL">All Time</option>
               <option value="THIS_MONTH">This Month</option>
+              <option value="PREVIOUS_MONTH">Previous Month</option>
               <option value="LAST_30_DAYS">Last 30 Days</option>
               <option value="THIS_YEAR">This Year</option>
               <option value="CUSTOM">Custom Range</option>
@@ -1332,8 +1346,8 @@ export function DashboardOverview() {
                         <td className="px-4 py-3 font-bold text-xs tabular-nums text-foreground">
                           ₹{(b.serviceCharge || 0).toLocaleString("en-IN")}
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
-                          {getDisplayNotes(cust?.notes || b.notes) || "—"}
+                        <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate" title={getDisplayNotes(b.notes) || ""}>
+                          {getDisplayNotes(b.notes) || "—"}
                         </td>
                         <td className="px-4 py-3">
                           <Badge

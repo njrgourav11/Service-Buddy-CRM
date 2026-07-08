@@ -26,7 +26,8 @@ import {
   HelpCircleIcon,
   InvoiceIcon,
   Database01Icon,
-  MoreHorizontalCircle01Icon
+  MoreHorizontalCircle01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -64,6 +65,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   const { customers, bookings, addCustomer, updateCustomer, deleteCustomer, currentRole, setActiveTab } = useCRM()
   const [search, setSearch] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState("ALL")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null)
@@ -216,6 +218,15 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
     return filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   }, [filteredCustomers, currentPage, pageSize])
 
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected customers?`)) {
+      selectedIds.forEach(id => deleteCustomer(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} customers.`)
+    }
+  }
+
   // Reset page when filter or search changes
   React.useEffect(() => {
     setCurrentPage(1)
@@ -360,6 +371,17 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            {selectedIds.length > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleBulkDelete}
+                className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                Delete Selected ({selectedIds.length})
+              </Button>
+            )}
             {/* View Mode Segmented Toggler */}
             <div className="flex bg-muted/40 p-1 rounded-lg border border-border/40 shrink-0">
               <Button
@@ -408,6 +430,20 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
               <Table>
                 <TableHeader className="bg-muted/60 border-b border-border/50">
                   <TableRow>
+                    <TableHead className="px-4 py-3 w-10 text-center">
+                      <input 
+                        type="checkbox" 
+                        className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                        checked={selectedIds.length === paginatedCustomers.length && paginatedCustomers.length > 0}
+                        onChange={(evt) => {
+                          if (evt.target.checked) {
+                            setSelectedIds(paginatedCustomers.map(x => x.id))
+                          } else {
+                            setSelectedIds([])
+                          }
+                        }}
+                      />
+                    </TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">CIN</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Name</TableHead>
                     <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Mobile Number</TableHead>
@@ -421,13 +457,27 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
                 <TableBody>
                   {paginatedCustomers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                      <TableCell colSpan={currentRole === "Admin" ? 9 : 8} className="text-center py-12 text-muted-foreground font-medium">
                         No customer files match query.
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginatedCustomers.map((c) => (
                       <TableRow key={c.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="px-4 py-4 w-10 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={(evt) => {
+                              if (evt.target.checked) {
+                                setSelectedIds(prev => [...prev, c.id])
+                              } else {
+                                setSelectedIds(prev => prev.filter(id => id !== c.id))
+                              }
+                            }}
+                          />
+                        </TableCell>
                         <TableCell className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{c.id}</TableCell>
                         <TableCell className="px-4 py-4 text-xs font-semibold text-foreground">{c.name}</TableCell>
                         <TableCell className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{c.mobile}</TableCell>

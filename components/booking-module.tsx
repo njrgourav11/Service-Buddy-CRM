@@ -48,7 +48,8 @@ import {
   Analytics01Icon,
   Alert02Icon,
   MoreHorizontalCircle01Icon,
-  Cancel01Icon
+  Cancel01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -102,10 +103,11 @@ export function BookingModule() {
 
   // State managers
   const [search, setSearch] = React.useState("")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [applianceFilter, setApplianceFilter] = React.useState("ALL")
   const [statusFilter, setStatusFilter] = React.useState("ALL")
   const [reviewFilter, setReviewFilter] = React.useState("ALL")
-  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "custom">("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
   const [startDateFilter, setStartDateFilter] = React.useState("")
   const [endDateFilter, setEndDateFilter] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"sheet" | "table">("table")
@@ -315,8 +317,8 @@ export function BookingModule() {
 
   // Synchronize totals in real-time when individual overrides or costs change
   React.useEffect(() => {
-    const totalTech = Math.round((editTechnicianCommission + editTechnicianServiceCommission) * 100) / 100
-    const totalComp = Math.round((editCompanyCommission + editCompanyServiceCommission) * 100) / 100
+    const totalTech = Math.round((editTechnicianCommission + editTechnicianServiceCommission - editDiscountAmount * 0.7) * 100) / 100
+    const totalComp = Math.round((editCompanyCommission + editCompanyServiceCommission - editDiscountAmount * 0.3) * 100) / 100
     const totalConsumer = Math.round((editSpareCost + editTechnicianCommission + editCompanyCommission + editTechnicianServiceCommission + editCompanyServiceCommission - editDiscountAmount) * 100) / 100
 
     setEditTotalTechnicianAmount(totalTech)
@@ -373,7 +375,7 @@ export function BookingModule() {
     setEditCustMobile(cust?.mobile || "")
     setEditCustAddress(cust?.address || "")
     setEditCustReferral(cust?.referralSource || "Ad")
-    setEditCustNotes(getDisplayNotes(cust?.notes || b.notes) || "")
+    setEditCustNotes(getDisplayNotes(b.notes) || "")
     setEditCustReview(b.review || "")
     setEditCustReviewStatus(b.reviewStatus || "Review not done")
 
@@ -397,8 +399,8 @@ export function BookingModule() {
     setEditCompanyCommission(b.companyCommission !== undefined ? b.companyCommission : companyCommission)
     setEditTechnicianServiceCommission(b.technicianServiceCommission !== undefined ? b.technicianServiceCommission : technicianServiceCommission)
     setEditCompanyServiceCommission(b.companyServiceCommission !== undefined ? b.companyServiceCommission : companyServiceCommission)
-    setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((technicianCommission + technicianServiceCommission) * 100) / 100)
-    setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((companyCommission + companyServiceCommission) * 100) / 100)
+    setEditTotalTechnicianAmount(b.totalTechnicianAmount !== undefined ? b.totalTechnicianAmount : Math.round((technicianCommission + technicianServiceCommission - discountAmount * 0.7) * 100) / 100)
+    setEditTotalCompanyAmount(b.totalCompanyAmount !== undefined ? b.totalCompanyAmount : Math.round((companyCommission + companyServiceCommission - discountAmount * 0.3) * 100) / 100)
     setEditTotalConsumerAmount(b.totalConsumerAmount !== undefined ? b.totalConsumerAmount : calculatedConsumerAmount)
 
     // Detect if split overrides differ from formula defaults
@@ -469,10 +471,7 @@ export function BookingModule() {
       name: editCustName,
       mobile: editCustMobile,
       address: editCustAddress,
-      referralSource: editCustReferral,
-      notes: editCustNotes,
-      review: editCustReview,
-      reviewStatus: editCustReviewStatus as any
+      referralSource: editCustReferral
     })
     
     setIsDetailsOpen(false)
@@ -553,31 +552,39 @@ export function BookingModule() {
 
       // Date filtering logic
       let matchesDate = true
+      const targetDate = b.workCompletedDate || b.date || ""
       if (dateFilterType === "today") {
         const todayStr = new Date().toISOString().split("T")[0]
-        matchesDate = b.date === todayStr
+        matchesDate = targetDate === todayStr
       } else if (dateFilterType === "yesterday") {
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const yesterdayStr = yesterday.toISOString().split("T")[0]
-        matchesDate = b.date === yesterdayStr
+        matchesDate = targetDate === yesterdayStr
       } else if (dateFilterType === "this-week") {
         const today = new Date()
         const startOfWeek = new Date(today)
         startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
         const startStr = startOfWeek.toISOString().split("T")[0]
-        matchesDate = b.date >= startStr
+        matchesDate = targetDate >= startStr
       } else if (dateFilterType === "this-month") {
         const todayStr = new Date().toISOString().split("T")[0]
         const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
-        matchesDate = (b.date || "").startsWith(currentMonthPrefix)
+        matchesDate = targetDate.startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "previous-month") {
+        const now = new Date()
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const year = prevMonth.getFullYear()
+        const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+        const prevMonthPrefix = `${year}-${month}`
+        matchesDate = targetDate.startsWith(prevMonthPrefix)
       } else if (dateFilterType === "custom") {
         if (startDateFilter && endDateFilter) {
-          matchesDate = b.date >= startDateFilter && b.date <= endDateFilter
+          matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
         } else if (startDateFilter) {
-          matchesDate = b.date >= startDateFilter
+          matchesDate = targetDate >= startDateFilter
         } else if (endDateFilter) {
-          matchesDate = b.date <= endDateFilter
+          matchesDate = targetDate <= endDateFilter
         }
       }
 
@@ -610,6 +617,15 @@ export function BookingModule() {
     })
   }, [bookings, customers, technicians, search, applianceFilter, statusFilter, reviewFilter, dateFilterType, startDateFilter, endDateFilter])
 
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected bookings?`)) {
+      selectedIds.forEach(id => deleteBooking(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} bookings.`)
+    }
+  }
+
   // Filter Bookings for Stats calculation (ignores the status filter itself so cards don't drop to 0)
   const filteredBookingsForStats = React.useMemo(() => {
     return bookings.filter((b) => {
@@ -623,31 +639,39 @@ export function BookingModule() {
 
       // Date filtering logic
       let matchesDate = true
+      const targetDate = b.workCompletedDate || b.date || ""
       if (dateFilterType === "today") {
         const todayStr = new Date().toISOString().split("T")[0]
-        matchesDate = b.date === todayStr
+        matchesDate = targetDate === todayStr
       } else if (dateFilterType === "yesterday") {
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
         const yesterdayStr = yesterday.toISOString().split("T")[0]
-        matchesDate = b.date === yesterdayStr
+        matchesDate = targetDate === yesterdayStr
       } else if (dateFilterType === "this-week") {
         const today = new Date()
         const startOfWeek = new Date(today)
         startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
         const startStr = startOfWeek.toISOString().split("T")[0]
-        matchesDate = b.date >= startStr
+        matchesDate = targetDate >= startStr
       } else if (dateFilterType === "this-month") {
         const todayStr = new Date().toISOString().split("T")[0]
         const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
-        matchesDate = (b.date || "").startsWith(currentMonthPrefix)
+        matchesDate = targetDate.startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "previous-month") {
+        const now = new Date()
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const year = prevMonth.getFullYear()
+        const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+        const prevMonthPrefix = `${year}-${month}`
+        matchesDate = targetDate.startsWith(prevMonthPrefix)
       } else if (dateFilterType === "custom") {
         if (startDateFilter && endDateFilter) {
-          matchesDate = b.date >= startDateFilter && b.date <= endDateFilter
+          matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
         } else if (startDateFilter) {
-          matchesDate = b.date >= startDateFilter
+          matchesDate = targetDate >= startDateFilter
         } else if (endDateFilter) {
-          matchesDate = b.date <= endDateFilter
+          matchesDate = targetDate <= endDateFilter
         }
       }
 
@@ -965,6 +989,17 @@ export function BookingModule() {
           {/* Control Panel: Filters & Search */}
           <Card className="border-border/60">
             <CardContent className="p-3 flex flex-row items-center gap-3 overflow-x-auto scrollbar-none w-full flex-nowrap">
+              {selectedIds.length > 0 && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleBulkDelete}
+                  className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                  Delete Selected ({selectedIds.length})
+                </Button>
+              )}
               <div className="relative w-72 shrink-0">
                 <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input 
@@ -994,6 +1029,7 @@ export function BookingModule() {
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="this-week">This Week</SelectItem>
                     <SelectItem value="this-month">This Month</SelectItem>
+                    <SelectItem value="previous-month">Previous Month</SelectItem>
                     <SelectItem value="custom">Custom Range...</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1134,6 +1170,17 @@ export function BookingModule() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  {selectedIds.length > 0 && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={handleBulkDelete}
+                      className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                      Delete Selected ({selectedIds.length})
+                    </Button>
+                  )}
                   {/* Appliance Filter */}
                   <div className="flex items-center gap-1.5 flex-1 md:flex-none">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Appliance:</Label>
@@ -1194,8 +1241,22 @@ export function BookingModule() {
                   <thead className="bg-muted/95 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground sticky top-0 z-20 border-b border-border/50 select-none">
                     <tr>
                       {/* Frozen left headers */}
-                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-24 text-left">CIN (Booking)</th>
-                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-24 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-40 text-left">Customer Name</th>
+                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.length === filteredBookings.length && filteredBookings.length > 0}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(filteredBookings.map(x => x.id))
+                            } else {
+                              setSelectedIds([])
+                            }
+                          }}
+                        />
+                      </th>
+                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-[40px] z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-24 text-left">CIN (Booking)</th>
+                      <th className="px-3 py-3 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 sticky left-[136px] z-30 shadow-[2px_0_5px_rgba(0,0,0,0.05)] border-r border-border/40 w-40 text-left">Customer Name</th>
                       
                       {/* Customer details headers */}
                       <th className="px-3 py-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 w-28 text-left">Phone Number</th>
@@ -1237,7 +1298,7 @@ export function BookingModule() {
                   <tbody className="divide-y divide-border/40">
                     {filteredBookings.length === 0 ? (
                       <tr>
-                        <td colSpan={25} className="text-center py-12 text-muted-foreground font-medium bg-card">
+                        <td colSpan={26} className="text-center py-12 text-muted-foreground font-medium bg-card">
                           No matching service bookings logged.
                         </td>
                       </tr>
@@ -1261,13 +1322,28 @@ export function BookingModule() {
  
                         return (
                           <tr key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
+                            {/* Checkbox cell */}
+                            <td className={`px-3 py-2.5 sticky left-0 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 text-center w-10 ${stickyBgClass}`}>
+                              <input 
+                                type="checkbox" 
+                                className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                                checked={selectedIds.includes(b.id)}
+                                onChange={(evt) => {
+                                  if (evt.target.checked) {
+                                    setSelectedIds(prev => [...prev, b.id])
+                                  } else {
+                                    setSelectedIds(prev => prev.filter(id => id !== b.id))
+                                  }
+                                }}
+                              />
+                            </td>
                             {/* Frozen columns CIN */}
-                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-0 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 ${stickyBgClass}`}>
+                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-[40px] border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 ${stickyBgClass}`}>
                               {b.id}
                             </td>
                             
                             {/* Frozen customer name */}
-                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-24 border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px] ${stickyBgClass}`}>
+                            <td className={`px-3 py-2.5 font-bold text-foreground sticky left-[136px] border-r border-border/40 shadow-[2px_0_5px_rgba(0,0,0,0.05)] z-10 truncate max-w-[150px] ${stickyBgClass}`}>
                               {cust?.name || "Unknown"}
                             </td>
  
@@ -1312,8 +1388,8 @@ export function BookingModule() {
                                 </SelectContent>
                               </Select>
                             </td>
-                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(cust?.notes || b.notes)}>
-                              {getDisplayNotes(cust?.notes || b.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
+                            <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[200px]" title={getDisplayNotes(b.notes)}>
+                              {getDisplayNotes(b.notes) || <span className="text-[9px] text-muted-foreground/45">None</span>}
                             </td>
  
                             {/* Booking columns */}
@@ -1449,6 +1525,20 @@ export function BookingModule() {
                   <Table>
                     <TableHeader className="bg-muted/60 border-b border-border/50">
                       <TableRow>
+                        <TableHead className="px-4 py-3 w-10 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                            checked={selectedIds.length === paginatedBookings.length && paginatedBookings.length > 0}
+                            onChange={(evt) => {
+                              if (evt.target.checked) {
+                                setSelectedIds(paginatedBookings.map(x => x.id))
+                              } else {
+                                setSelectedIds([])
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">CIN</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Date</TableHead>
                         <TableHead className="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Work Completed Date</TableHead>
@@ -1470,7 +1560,7 @@ export function BookingModule() {
                     <TableBody>
                       {paginatedBookings.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={16} className="text-center py-12 text-muted-foreground font-medium">
+                          <TableCell colSpan={17} className="text-center py-12 text-muted-foreground font-medium">
                             No service bookings match query.
                           </TableCell>
                         </TableRow>
@@ -1488,6 +1578,20 @@ export function BookingModule() {
 
                           return (
                             <TableRow key={b.id} className={`transition-colors text-xs ${rowBgClass}`}>
+                              <TableCell className="px-4 py-4 w-10 text-center">
+                                <input 
+                                  type="checkbox" 
+                                  className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                                  checked={selectedIds.includes(b.id)}
+                                  onChange={(evt) => {
+                                    if (evt.target.checked) {
+                                      setSelectedIds(prev => [...prev, b.id])
+                                    } else {
+                                      setSelectedIds(prev => prev.filter(id => id !== b.id))
+                                    }
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell className="px-4 py-4 font-bold text-foreground tabular-nums">{b.id}</TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">{b.date}</TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-muted-foreground tabular-nums">
@@ -1550,8 +1654,8 @@ export function BookingModule() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(cust?.notes || b.notes) || ""}>
-                                {getDisplayNotes(cust?.notes || b.notes) || <span className="text-muted-foreground/45">None</span>}
+                              <TableCell className="px-4 py-4 max-w-[150px] truncate font-medium text-muted-foreground" title={getDisplayNotes(b.notes) || ""}>
+                                {getDisplayNotes(b.notes) || <span className="text-muted-foreground/45">None</span>}
                               </TableCell>
                               <TableCell className="px-4 py-4 font-semibold text-foreground">
                                 {getTechNames(b.assignedTechnicianId)}
@@ -2209,8 +2313,8 @@ export function BookingModule() {
                         const companyCommission = Math.round(totalCommission * 0.3 * 100) / 100
                         const technicianServiceCommission = Math.round(editServiceCharge * 0.7 * 100) / 100
                         const companyServiceCommission = Math.round(editServiceCharge * 0.3 * 100) / 100
-                        const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission) * 100) / 100
-                        const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission) * 100) / 100
+                        const totalTechnicianAmount = Math.round((technicianCommission + technicianServiceCommission - editDiscountAmount * 0.7) * 100) / 100
+                        const totalCompanyAmount = Math.round((companyCommission + companyServiceCommission - editDiscountAmount * 0.3) * 100) / 100
                         const totalConsumerAmount = Math.round((editSpareCost + technicianCommission + companyCommission + technicianServiceCommission + companyServiceCommission - editDiscountAmount) * 100) / 100
 
                         setEditTotalCommission(totalCommission)

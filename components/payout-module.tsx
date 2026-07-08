@@ -26,7 +26,8 @@ import {
   Loading03Icon,
   CreditCardIcon,
   MoreHorizontalCircle01Icon,
-  Cancel01Icon
+  Cancel01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -40,9 +41,13 @@ import {
 export function PayoutModule() {
   const { payouts, technicians, bookings, customers, addPayout, updatePayout, deletePayout, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [techFilter, setTechFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [activeSubTab, setActiveSubTab] = React.useState<"payouts" | "dailyEarnings">("payouts")
-  const [monthFilter, setMonthFilter] = React.useState("ALL")
+  const [monthFilter, setMonthFilter] = React.useState(() => new Date().toISOString().slice(0, 7))
 
   const formatYearMonth = (ym: string) => {
     const [year, month] = ym.split("-")
@@ -196,7 +201,7 @@ export function PayoutModule() {
   const [formTotalPayout, setFormTotalPayout] = React.useState(0)
   const [formAdvance, setFormAdvance] = React.useState(0)
   const [formExtra, setFormExtra] = React.useState(0)
-  const [formStatus, setFormStatus] = React.useState<any>("Paid")
+  const [formStatus, setFormStatus] = React.useState<any>("Pending")
 
   // Edit Form State
   const [editTechId, setEditTechId] = React.useState("")
@@ -208,7 +213,7 @@ export function PayoutModule() {
   const [editTotalPayout, setEditTotalPayout] = React.useState(0)
   const [editAdvance, setEditAdvance] = React.useState(0)
   const [editExtra, setEditExtra] = React.useState(0)
-  const [editStatus, setEditStatus] = React.useState<any>("Paid")
+  const [editStatus, setEditStatus] = React.useState<any>("Pending")
 
   // Reset booking link selection when technician changes
   React.useEffect(() => {
@@ -330,9 +335,54 @@ export function PayoutModule() {
       const matchesSearch = searchString.includes(search.toLowerCase())
       const matchesTech = techFilter === "ALL" || p.technicianId === techFilter
 
-      return matchesSearch && matchesTech
+      // Date filtering based on workCompletedDate of linked booking
+      let matchesDate = true
+      let targetDate = p.date
+      if (p.bookingId) {
+        const linkedBooking = bookings.find(b => b.id === p.bookingId)
+        if (linkedBooking) {
+          targetDate = linkedBooking.workCompletedDate || linkedBooking.date || p.date
+        }
+      }
+
+      if (dateFilterType === "today") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        matchesDate = targetDate === todayStr
+      } else if (dateFilterType === "yesterday") {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = yesterday.toISOString().split("T")[0]
+        matchesDate = targetDate === yesterdayStr
+      } else if (dateFilterType === "this-week") {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+        const startStr = startOfWeek.toISOString().split("T")[0]
+        matchesDate = targetDate >= startStr
+      } else if (dateFilterType === "this-month") {
+        const todayStr = new Date().toISOString().split("T")[0]
+        const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+        matchesDate = targetDate.startsWith(currentMonthPrefix)
+      } else if (dateFilterType === "previous-month") {
+        const now = new Date()
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const year = prevMonth.getFullYear()
+        const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+        const prevMonthPrefix = `${year}-${month}`
+        matchesDate = targetDate.startsWith(prevMonthPrefix)
+      } else if (dateFilterType === "custom") {
+        if (startDateFilter && endDateFilter) {
+          matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+        } else if (startDateFilter) {
+          matchesDate = targetDate >= startDateFilter
+        } else if (endDateFilter) {
+          matchesDate = targetDate <= endDateFilter
+        }
+      }
+
+      return matchesSearch && matchesTech && matchesDate
     })
-  }, [payouts, technicians, techFilter, search])
+  }, [payouts, technicians, bookings, techFilter, search, dateFilterType, startDateFilter, endDateFilter])
 
   // Dashboard calculations
   const totalMonthlyPayout = React.useMemo(() => {
@@ -350,8 +400,8 @@ export function PayoutModule() {
   }, [filteredPayouts])
 
   const totalAdvanceVal = React.useMemo(() => {
-    return filteredTechnicians.reduce((sum, t) => sum + (t.advanceTaken || 0), 0)
-  }, [filteredTechnicians])
+    return filteredPayouts.reduce((sum, p) => sum + (p.advance || 0), 0)
+  }, [filteredPayouts])
 
   const totalPendingPayout = React.useMemo(() => {
     return filteredTechnicians.reduce((sum, t) => sum + (t.dueAmount || 0), 0)
@@ -379,6 +429,15 @@ export function PayoutModule() {
     })
   }, [filteredPayouts, ledgerSortCol, ledgerSortDir, technicians])
 
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected payouts?`)) {
+      selectedIds.forEach(id => deletePayout(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} payouts.`)
+    }
+  }
+
   // Submit Payout
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -393,10 +452,10 @@ export function PayoutModule() {
       technicianId: formTechId,
       date: formDate,
       dailyEarnings: formDailyEarnings,
-      totalPayout: calculatedTotalPayout,
+      totalPayout: 0,
       advance: formAdvance,
       extra: formExtra,
-      paymentStatus: "Paid",
+      paymentStatus: "Pending",
       customerName: formCustomerName || undefined,
       cinNumber: formCinNumber || undefined,
       bookingId: formBookingId !== "None" ? formBookingId : undefined
@@ -411,7 +470,7 @@ export function PayoutModule() {
     setFormTotalPayout(0)
     setFormAdvance(0)
     setFormExtra(0)
-    setFormStatus("Paid")
+    setFormStatus("Pending")
     setBookingSearchText("")
     setIsPayOpen(false)
   }
@@ -584,10 +643,67 @@ export function PayoutModule() {
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                {selectedIds.length > 0 && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={handleBulkDelete}
+                    className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                    Delete Selected ({selectedIds.length})
+                  </Button>
+                )}
+
+                {/* Date Filter */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Date:</Label>
+                  <Select value={dateFilterType} onValueChange={(val: any) => {
+                    setDateFilterType(val)
+                    if (val !== "custom") {
+                      setStartDateFilter("")
+                      setEndDateFilter("")
+                    }
+                  }}>
+                    <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                      <SelectValue placeholder="All Dates" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="this-week">This Week</SelectItem>
+                      <SelectItem value="this-month">This Month</SelectItem>
+                      <SelectItem value="previous-month">Previous Month</SelectItem>
+                      <SelectItem value="custom">Custom Range...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {dateFilterType === "custom" && (
+                  <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-1 duration-150 shrink-0">
+                    <Input
+                      type="date"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="Start"
+                    />
+                    <span className="text-muted-foreground text-[10px] font-semibold">to</span>
+                    <Input
+                      type="date"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="End"
+                    />
+                  </div>
+                )}
+
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Technician:</Label>
                 <Select value={techFilter} onValueChange={setTechFilter}>
-                  <SelectTrigger className="w-full md:w-48">
+                  <SelectTrigger className="w-full md:w-48 h-8 text-xs bg-background">
                     <SelectValue placeholder="All Technicians" />
                   </SelectTrigger>
                   <SelectContent>
@@ -608,6 +724,20 @@ export function PayoutModule() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                     <tr>
+                      <th className="px-4 py-3 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.length === sortedPayouts.length && sortedPayouts.length > 0}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(sortedPayouts.map(x => x.id))
+                            } else {
+                              setSelectedIds([])
+                            }
+                          }}
+                        />
+                      </th>
                       {renderSortableHeader("Transaction ID", "id", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
                       {renderSortableHeader("Technician", "tech", ledgerSortCol, ledgerSortDir, setLedgerSortCol, setLedgerSortDir)}
                       <th className="px-4 py-3">Customer Name</th>
@@ -624,7 +754,7 @@ export function PayoutModule() {
                   <tbody className="divide-y divide-border/40">
                     {sortedPayouts.length === 0 ? (
                       <tr>
-                        <td colSpan={(currentRole === "Admin" || currentRole === "Manager") ? 11 : 10} className="text-center py-12 text-muted-foreground font-medium">
+                        <td colSpan={(currentRole === "Admin" || currentRole === "Manager") ? 12 : 11} className="text-center py-12 text-muted-foreground font-medium">
                           No payout logs found.
                         </td>
                       </tr>
@@ -634,6 +764,20 @@ export function PayoutModule() {
 
                         return (
                           <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-4 w-10 text-center">
+                              <input 
+                                type="checkbox" 
+                                className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                                checked={selectedIds.includes(p.id)}
+                                onChange={(evt) => {
+                                  if (evt.target.checked) {
+                                    setSelectedIds(prev => [...prev, p.id])
+                                  } else {
+                                    setSelectedIds(prev => prev.filter(id => id !== p.id))
+                                  }
+                                }}
+                              />
+                            </td>
                             <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{p.id}</td>
                             <td className="px-4 py-4 font-semibold text-xs text-foreground">{tech?.name || "Unknown Technician"}</td>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{p.customerName || "—"}</td>

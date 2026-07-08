@@ -22,7 +22,8 @@ import {
   PlusSignCircleIcon, 
   SearchIcon, 
   CreditCardIcon,
-  MoreHorizontalCircle01Icon
+  MoreHorizontalCircle01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -50,6 +51,7 @@ export function ExpenditureModule() {
   const { expenses, addExpense, updateExpense, deleteExpense, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState("ALL")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedExpense, setSelectedExpense] = React.useState<Expense | null>(null)
@@ -117,6 +119,15 @@ export function ExpenditureModule() {
 
     return matchesSearch && matchesCategory
   })
+
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected expense vouchers?`)) {
+      selectedIds.forEach(id => deleteExpense(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} expense vouchers.`)
+    }
+  }
 
   // Submit Expense
   const handleSubmit = (e: React.FormEvent) => {
@@ -263,7 +274,18 @@ export function ExpenditureModule() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 w-full md:w-auto">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {selectedIds.length > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleBulkDelete}
+                className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                Delete Selected ({selectedIds.length})
+              </Button>
+            )}
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Category:</Label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full md:w-48">
@@ -287,6 +309,20 @@ export function ExpenditureModule() {
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                 <tr>
+                  <th className="px-4 py-3 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                      checked={selectedIds.length === filteredExpenses.length && filteredExpenses.length > 0}
+                      onChange={(evt) => {
+                        if (evt.target.checked) {
+                          setSelectedIds(filteredExpenses.map(x => x.id))
+                        } else {
+                          setSelectedIds([])
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-4 py-3">Voucher ID</th>
                   <th className="px-4 py-3">Voucher Date</th>
                   <th className="px-4 py-3">Item Description</th>
@@ -300,13 +336,27 @@ export function ExpenditureModule() {
               <tbody className="divide-y divide-border/40">
                 {filteredExpenses.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 9 : 8} className="text-center py-12 text-muted-foreground font-medium">
                       No expense vouchers found.
                     </td>
                   </tr>
                 ) : (
                   filteredExpenses.map((e) => (
                     <tr key={e.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-4 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.includes(e.id)}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(prev => [...prev, e.id])
+                            } else {
+                              setSelectedIds(prev => prev.filter(id => id !== e.id))
+                            }
+                          }}
+                        />
+                      </td>
                       <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{e.id}</td>
                       <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{e.date}</td>
                       <td className="px-4 py-4 text-xs font-semibold text-foreground">{e.item}</td>

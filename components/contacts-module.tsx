@@ -23,7 +23,8 @@ import {
   SearchIcon,
   UserCircle02Icon,
   InvoiceIcon,
-  MoreHorizontalCircle01Icon
+  MoreHorizontalCircle01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -38,6 +39,7 @@ export function ContactsModule() {
   const { contacts, addContact, updateContact, deleteContact, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState("ALL")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [currentPage, setCurrentPage] = React.useState(1)
   const pageSize = 8
 
@@ -149,6 +151,15 @@ export function ContactsModule() {
   const paginatedContacts = React.useMemo(() => {
     return filteredContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   }, [filteredContacts, currentPage])
+
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected contacts?`)) {
+      selectedIds.forEach(id => deleteContact(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} contacts.`)
+    }
+  }
 
   // Submit Contact
   const handleSubmit = (e: React.FormEvent) => {
@@ -276,7 +287,18 @@ export function ContactsModule() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 w-full md:w-auto">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {selectedIds.length > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleBulkDelete}
+                className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+                Delete Selected ({selectedIds.length})
+              </Button>
+            )}
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Type:</Label>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-full md:w-44">
@@ -300,6 +322,20 @@ export function ContactsModule() {
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                 <tr>
+                  <th className="px-4 py-3 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                      checked={selectedIds.length === paginatedContacts.length && paginatedContacts.length > 0}
+                      onChange={(evt) => {
+                        if (evt.target.checked) {
+                          setSelectedIds(paginatedContacts.map(x => x.id))
+                        } else {
+                          setSelectedIds([])
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-4 py-3">Contact ID</th>
                   <th className="px-4 py-3">Contact Name</th>
                   <th className="px-4 py-3">Phone Line</th>
@@ -312,13 +348,27 @@ export function ContactsModule() {
               <tbody className="divide-y divide-border/40">
                 {paginatedContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" || currentRole === "Manager" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" || currentRole === "Manager" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                       No business contacts recorded.
                     </td>
                   </tr>
                 ) : (
                   paginatedContacts.map((c) => (
                     <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-4 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.includes(c.id)}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(prev => [...prev, c.id])
+                            } else {
+                              setSelectedIds(prev => prev.filter(id => id !== c.id))
+                            }
+                          }}
+                        />
+                      </td>
                       <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{c.id}</td>
                       <td className="px-4 py-4 font-semibold text-xs text-foreground">{c.name}</td>
                       <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{c.mobile}</td>

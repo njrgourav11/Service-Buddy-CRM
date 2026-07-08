@@ -23,7 +23,8 @@ import {
   SearchIcon,
   CheckmarkCircle01Icon,
   Loading03Icon,
-  MoreHorizontalCircle01Icon
+  MoreHorizontalCircle01Icon,
+  Delete02Icon
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import {
@@ -37,6 +38,7 @@ import {
 export function OutstandingModule() {
   const { outstandingDues, addOutstandingDue, updateOutstandingDue, deleteOutstandingDue, currentRole } = useCRM()
   const [search, setSearch] = React.useState("")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
   const [selectedDue, setSelectedDue] = React.useState<OutstandingDue | null>(null)
@@ -87,6 +89,15 @@ export function OutstandingModule() {
     return searchString.includes(search.toLowerCase())
   })
 
+  // Bulk Delete
+  const handleBulkDelete = () => {
+    if (window.confirm(`⚠️ WARNING: This action is irreversible. Are you sure you want to delete the ${selectedIds.length} selected outstanding dues?`)) {
+      selectedIds.forEach(id => deleteOutstandingDue(id))
+      setSelectedIds([])
+      toast.success(`Deleted ${selectedIds.length} outstanding dues.`)
+    }
+  }
+
   // Submit Outstanding
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -131,8 +142,8 @@ export function OutstandingModule() {
 
       {/* Grid: Search and List */}
       <Card className="border-border/60">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div className="relative w-full max-w-md">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:max-w-md">
             <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input 
               placeholder="Search dues by recipient or reason..." 
@@ -141,6 +152,17 @@ export function OutstandingModule() {
               className="pl-9 bg-muted/20 border-border/60 focus:bg-background"
             />
           </div>
+          {selectedIds.length > 0 && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={handleBulkDelete}
+              className="h-8 text-xs font-bold flex items-center gap-1.5 cursor-pointer w-full md:w-auto"
+            >
+              <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -151,6 +173,20 @@ export function OutstandingModule() {
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                 <tr>
+                  <th className="px-4 py-3 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                      checked={selectedIds.length === filteredDues.length && filteredDues.length > 0}
+                      onChange={(evt) => {
+                        if (evt.target.checked) {
+                          setSelectedIds(filteredDues.map(x => x.id))
+                        } else {
+                          setSelectedIds([])
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-4 py-3">Due ID</th>
                   <th className="px-4 py-3">Date Generated</th>
                   <th className="px-4 py-3">Recipient Party</th>
@@ -163,13 +199,27 @@ export function OutstandingModule() {
               <tbody className="divide-y divide-border/40">
                 {filteredDues.length === 0 ? (
                   <tr>
-                    <td colSpan={currentRole === "Admin" ? 7 : 6} className="text-center py-12 text-muted-foreground font-medium">
+                    <td colSpan={currentRole === "Admin" ? 8 : 7} className="text-center py-12 text-muted-foreground font-medium">
                       No outstanding dues logged.
                     </td>
                   </tr>
                 ) : (
                   filteredDues.map((d) => (
                     <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-4 w-10 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded-sm border-primary text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer accent-primary"
+                          checked={selectedIds.includes(d.id)}
+                          onChange={(evt) => {
+                            if (evt.target.checked) {
+                              setSelectedIds(prev => [...prev, d.id])
+                            } else {
+                              setSelectedIds(prev => prev.filter(id => id !== d.id))
+                            }
+                          }}
+                        />
+                      </td>
                       <td className="px-4 py-4 font-semibold text-xs tabular-nums text-foreground">{d.id}</td>
                       <td className="px-4 py-4 text-xs font-medium text-muted-foreground tabular-nums">{d.date}</td>
                       <td className="px-4 py-4 font-semibold text-xs text-foreground">{d.recipient}</td>
