@@ -194,12 +194,12 @@ export function ExpenditureModule() {
   // ==========================================
   const categoryTotals = React.useMemo(() => {
     const map: Record<string, number> = {}
-    expenses.forEach(e => {
+    filteredExpenses.forEach(e => {
       map[e.category] = (map[e.category] || 0) + e.amount
     })
     
     return Object.entries(map).map(([name, value]) => ({ name, value }))
-  }, [expenses])
+  }, [filteredExpenses])
 
   const uniqueCategories = React.useMemo(() => {
     const set = new Set(STANDARD_EXPENSE_CATEGORIES)
