@@ -235,15 +235,13 @@ export function DashboardOverview() {
   const toolsSubscriptions     = sumCat("Tools and subscriptions")
   const refunds                = sumCat("Refunds")
   const nonBeneficiaryExpenses = sumCat("Non beneficiary items")
-  
+
   // Bind outstandingAmount to outstanding dues array (status === "Pending")
   const outstandingAmount = filteredOutstandingDues
     .filter((d) => d.status === "Pending")
     .reduce((s, d) => s + (d.amount || 0), 0)
 
-  const totalExpenditure =
-    workingExpenses + expItems + toolsMaintenance + officeExpenses +
-    toolsSubscriptions + refunds + nonBeneficiaryExpenses
+  const totalExpenditure = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0)
 
   // ════════════════════════════════════════════
   // PROFIT CALCULATIONS

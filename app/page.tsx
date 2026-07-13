@@ -16,9 +16,9 @@ type AuthMode = "signin" | "signup"
 
 export default function Home() {
   const [authMode, setAuthMode] = React.useState<AuthMode>("signin")
-  const [fullName, setFullName] = React.useState("ServiceBuddy Admin")
-  const [email, setEmail] = React.useState("admin@servicebuddy.in")
-  const [password, setPassword] = React.useState("admin123")
+  const [fullName, setFullName] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [password, setPassword] = React.useState("")
   const [loading, setLoading] = React.useState(false)
 
   const [isOnline, setIsOnline] = React.useState(() => {

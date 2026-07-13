@@ -49,12 +49,15 @@ export function TechnicianModule() {
   const [search, setSearch] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [statusFilter, setStatusFilter] = React.useState("ALL")
+  const [dateFilterType, setDateFilterType] = React.useState<"ALL" | "today" | "yesterday" | "this-week" | "this-month" | "previous-month" | "custom">("this-month")
+  const [startDateFilter, setStartDateFilter] = React.useState("")
+  const [endDateFilter, setEndDateFilter] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const pageSize = 8
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter])
+  }, [search, statusFilter, dateFilterType, startDateFilter, endDateFilter])
 
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [isEditOpen, setIsEditOpen] = React.useState(false)
@@ -222,15 +225,138 @@ export function TechnicianModule() {
     }
   }
 
-  // Filtered payout sum removed
+  const techMetrics = React.useMemo(() => {
+    const metrics: Record<string, { due: number, advance: number, completedJobs: number, pendingJobs: number }> = {}
+
+    technicians.forEach(t => {
+      let totalDue = 0
+      let totalAdvance = 0
+      let compJobs = 0
+      let pendJobs = 0
+
+      // Filter payouts for this technician based on date
+      const techPayouts = payouts.filter(p => {
+        if (p.technicianId !== t.id) return false
+
+        let matchesDate = true
+        let targetDate = p.date
+        if (p.bookingId) {
+          const linkedBooking = bookings.find(b => b.id === p.bookingId)
+          if (linkedBooking) {
+            targetDate = linkedBooking.workCompletedDate || linkedBooking.date || p.date
+          }
+        }
+
+        if (dateFilterType === "today") {
+          const todayStr = new Date().toISOString().split("T")[0]
+          matchesDate = targetDate === todayStr
+        } else if (dateFilterType === "yesterday") {
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const yesterdayStr = yesterday.toISOString().split("T")[0]
+          matchesDate = targetDate === yesterdayStr
+        } else if (dateFilterType === "this-week") {
+          const today = new Date()
+          const startOfWeek = new Date(today)
+          startOfWeek.setDate(today.getDate() - today.getDay()) // Sunday
+          const startStr = startOfWeek.toISOString().split("T")[0]
+          matchesDate = targetDate >= startStr
+        } else if (dateFilterType === "this-month") {
+          const todayStr = new Date().toISOString().split("T")[0]
+          const currentMonthPrefix = todayStr.substring(0, 7) // YYYY-MM
+          matchesDate = targetDate.startsWith(currentMonthPrefix)
+        } else if (dateFilterType === "previous-month") {
+          const now = new Date()
+          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          const year = prevMonth.getFullYear()
+          const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+          const prevMonthPrefix = `${year}-${month}`
+          matchesDate = targetDate.startsWith(prevMonthPrefix)
+        } else if (dateFilterType === "custom") {
+          if (startDateFilter && endDateFilter) {
+            matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+          } else if (startDateFilter) {
+            matchesDate = targetDate >= startDateFilter
+          } else if (endDateFilter) {
+            matchesDate = targetDate <= endDateFilter
+          }
+        }
+
+        return matchesDate
+      })
+
+      techPayouts.forEach(p => {
+        totalDue += (p.dailyEarnings || 0) - (p.advance || 0)
+        totalAdvance += (p.advance || 0)
+      })
+
+      // Filter bookings for this technician based on date (for jobs count)
+      const techBookings = bookings.filter(b => {
+        const assigned = (b.assignedTechnicianId || "").split(",").map(id => id.trim())
+        if (!assigned.includes(t.id)) return false
+        
+        let targetDate = b.workCompletedDate || b.date
+        let matchesDate = true
+
+        if (dateFilterType === "today") {
+          const todayStr = new Date().toISOString().split("T")[0]
+          matchesDate = targetDate === todayStr
+        } else if (dateFilterType === "yesterday") {
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const yesterdayStr = yesterday.toISOString().split("T")[0]
+          matchesDate = targetDate === yesterdayStr
+        } else if (dateFilterType === "this-week") {
+          const today = new Date()
+          const startOfWeek = new Date(today)
+          startOfWeek.setDate(today.getDate() - today.getDay())
+          const startStr = startOfWeek.toISOString().split("T")[0]
+          matchesDate = targetDate >= startStr
+        } else if (dateFilterType === "this-month") {
+          const todayStr = new Date().toISOString().split("T")[0]
+          const currentMonthPrefix = todayStr.substring(0, 7)
+          matchesDate = targetDate.startsWith(currentMonthPrefix)
+        } else if (dateFilterType === "previous-month") {
+          const now = new Date()
+          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          const year = prevMonth.getFullYear()
+          const month = String(prevMonth.getMonth() + 1).padStart(2, '0')
+          const prevMonthPrefix = `${year}-${month}`
+          matchesDate = targetDate.startsWith(prevMonthPrefix)
+        } else if (dateFilterType === "custom") {
+          if (startDateFilter && endDateFilter) {
+            matchesDate = targetDate >= startDateFilter && targetDate <= endDateFilter
+          } else if (startDateFilter) {
+            matchesDate = targetDate >= startDateFilter
+          } else if (endDateFilter) {
+            matchesDate = targetDate <= endDateFilter
+          }
+        }
+
+        return matchesDate
+      })
+
+      compJobs = techBookings.filter(b => b.status === "Completed" || b.status === "Inspected").length
+      pendJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
+
+      metrics[t.id] = {
+        due: totalDue,
+        advance: totalAdvance,
+        completedJobs: compJobs,
+        pendingJobs: pendJobs
+      }
+    })
+
+    return metrics
+  }, [technicians, payouts, bookings, dateFilterType, startDateFilter, endDateFilter])
 
   const filteredDuesSum = React.useMemo(() => {
-    return filteredTechnicians.reduce((sum, t) => sum + t.dueAmount, 0)
-  }, [filteredTechnicians])
+    return filteredTechnicians.reduce((sum, t) => sum + (techMetrics[t.id]?.due || 0), 0)
+  }, [filteredTechnicians, techMetrics])
 
   const filteredAdvancesSum = React.useMemo(() => {
-    return filteredTechnicians.reduce((sum, t) => sum + t.advanceTaken, 0)
-  }, [filteredTechnicians])
+    return filteredTechnicians.reduce((sum, t) => sum + (techMetrics[t.id]?.advance || 0), 0)
+  }, [filteredTechnicians, techMetrics])
 
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 animate-in fade-in duration-200">
@@ -335,7 +461,7 @@ export function TechnicianModule() {
                 />
               </div>
 
-              <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 {selectedIds.length > 0 && (
                   <Button 
                     variant="destructive" 
@@ -347,17 +473,65 @@ export function TechnicianModule() {
                     Delete Selected ({selectedIds.length})
                   </Button>
                 )}
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full md:w-44">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Statuses</SelectItem>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+                
+                {/* Date Filter */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Date:</Label>
+                  <Select value={dateFilterType} onValueChange={(val: any) => {
+                    setDateFilterType(val)
+                    if (val !== "custom") {
+                      setStartDateFilter("")
+                      setEndDateFilter("")
+                    }
+                  }}>
+                    <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                      <SelectValue placeholder="All Dates" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="this-week">This Week</SelectItem>
+                      <SelectItem value="this-month">This Month</SelectItem>
+                      <SelectItem value="previous-month">Previous Month</SelectItem>
+                      <SelectItem value="custom">Custom Range...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {dateFilterType === "custom" && (
+                  <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-1 duration-150 shrink-0">
+                    <Input
+                      type="date"
+                      value={startDateFilter}
+                      onChange={(e) => setStartDateFilter(e.target.value)}
+                      className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="Start"
+                    />
+                    <span className="text-muted-foreground text-[10px] font-semibold">to</span>
+                    <Input
+                      type="date"
+                      value={endDateFilter}
+                      onChange={(e) => setEndDateFilter(e.target.value)}
+                      className="h-8 text-xs w-28 bg-muted/20 border-border/60 focus:bg-background"
+                      placeholder="End"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:inline">Status:</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-28 md:w-32 h-8 text-xs bg-background">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Statuses</SelectItem>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -404,11 +578,9 @@ export function TechnicianModule() {
                       </TableRow>
                     ) : (
                       paginatedTechnicians.map((t) => {
-                        const techBookings = bookings.filter(b => 
-                          (b.assignedTechnicianId || "").split(",").map(id => id.trim()).includes(t.id)
-                        )
-                        const completedJobs = techBookings.filter(b => b.status === "Completed" || b.status === "Inspected").length
-                        const pendingJobs = techBookings.filter(b => b.status === "In Progress" || b.status === "Not Started").length
+                        const m = techMetrics[t.id] || { due: 0, advance: 0, completedJobs: 0, pendingJobs: 0 }
+                        const completedJobs = m.completedJobs
+                        const pendingJobs = m.pendingJobs
 
                         return (
                           <TableRow key={t.id} className="hover:bg-muted/20 transition-colors">
@@ -450,10 +622,10 @@ export function TechnicianModule() {
                               {completedJobs} / {pendingJobs}
                             </TableCell>
                             <TableCell className="px-4 py-4 text-right text-xs font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-                              ₹{t.dueAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              ₹{m.due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </TableCell>
                             <TableCell className="px-4 py-4 text-right text-xs font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-                              ₹{t.advanceTaken.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              ₹{m.advance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </TableCell>
                             <TableCell className="px-4 py-4 text-center">
                               <Badge 
