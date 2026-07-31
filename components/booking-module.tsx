@@ -542,12 +542,19 @@ export function BookingModule() {
       const matchesSearch = searchString.includes(search.toLowerCase())
       
       const matchesAppliance = applianceFilter === "ALL" || b.appliance === applianceFilter
+      
+      const hasActiveComplaint = !!b.complaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+      
+      const isPending = (b.status !== "Completed" && b.status !== "Cancelled" && b.status !== "Inspected") || hasActiveComplaint
+      const isClosed = (b.status === "Completed" || b.status === "Inspected") && !hasActiveComplaint
+
       const matchesStatus = statusFilter === "ALL" || 
         (statusFilter === "PENDING" 
-          ? (b.status !== "Completed" && b.status !== "Cancelled" && b.status !== "Inspected") 
+          ? isPending 
           : statusFilter === "CLOSED"
-          ? (b.status === "Completed" || b.status === "Inspected")
+          ? isClosed
           : b.status === statusFilter)
+          
       const matchesReview = reviewFilter === "ALL" || (b.reviewStatus || "Review not done") === reviewFilter
 
       // Date filtering logic
@@ -905,7 +912,10 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {filteredBookingsForStats.filter(b => b.status === "Completed" || b.status === "Inspected").length}
+                    {filteredBookingsForStats.filter(b => {
+                      const hasActiveComplaint = !!b.complaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed";
+                      return (b.status === "Completed" || b.status === "Inspected") && !hasActiveComplaint;
+                    }).length}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium font-bold text-emerald-600">closed</span>
                 </div>
@@ -928,7 +938,10 @@ export function BookingModule() {
               <CardContent className="pb-3 pt-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-                    {filteredBookingsForStats.filter(b => b.status === "In Progress" || b.status === "Not Started").length}
+                    {filteredBookingsForStats.filter(b => {
+                      const hasActiveComplaint = !!b.complaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed";
+                      return (b.status !== "Completed" && b.status !== "Cancelled" && b.status !== "Inspected") || hasActiveComplaint;
+                    }).length}
                   </span>
                   <span className="text-xs text-muted-foreground font-medium font-bold text-amber-600">pending jobs</span>
                 </div>

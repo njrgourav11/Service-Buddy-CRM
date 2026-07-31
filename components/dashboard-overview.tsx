@@ -217,7 +217,10 @@ export function DashboardOverview() {
   const technicianRevenue = filteredBookings.reduce((s, b) => s + (b.totalTechnicianAmount || 0), 0)
   const companyRevenue = filteredBookings.reduce((s, b) => s + (b.totalCompanyAmount || 0), 0)
   const totalRevenue = filteredBookings.reduce((s, b) => s + (b.totalConsumerAmount || 0), 0)
-  const completedJobs = filteredBookings.filter((b) => b.status === "Completed").length
+  const completedJobs = filteredBookings.filter((b) => {
+    const hasActiveComplaint = !!b.complaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+    return b.status === "Completed" && !hasActiveComplaint
+  }).length
   const avgBookingValue = filteredBookings.length > 0 ? totalRevenue / filteredBookings.length : 0
 
   // ════════════════════════════════════════════
@@ -256,7 +259,10 @@ export function DashboardOverview() {
   // OPERATIONS METRICS
   // ════════════════════════════════════════════
   const totalBookings  = filteredBookings.length
-  const pendingJobs    = filteredBookings.filter((b) => b.status !== "Completed" && b.status !== "Inspected").length
+  const pendingJobs    = filteredBookings.filter((b) => {
+    const hasActiveComplaint = !!b.complaint && b.complaintStatus !== "Resolved" && b.complaintStatus !== "Dismissed"
+    return (b.status !== "Completed" && b.status !== "Inspected") || hasActiveComplaint
+  }).length
   const completionRate = totalBookings > 0 ? (completedJobs / totalBookings) * 100 : 0
 
   // ════════════════════════════════════════════

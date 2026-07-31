@@ -225,7 +225,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
 
       return matchesSearch && matchesSource && matchesDate
     }).sort((a, b) => compareIdsNumerically(a.id, b.id))
-  }, [customers, search, sourceFilter])
+  }, [customers, search, sourceFilter, dateFilterType, startDateFilter, endDateFilter])
 
   const stats = React.useMemo(() => {
     const total = filteredCustomers.length
@@ -265,7 +265,7 @@ export function CustomerModule({ hideHeader = false }: CustomerModuleProps) {
   // Reset page when filter or search changes
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [search, sourceFilter])
+  }, [search, sourceFilter, dateFilterType, startDateFilter, endDateFilter])
 
   // Submit Customer Add
   const handleSubmit = (e: React.FormEvent) => {

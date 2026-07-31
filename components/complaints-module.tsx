@@ -173,6 +173,10 @@ export function ComplaintsModule() {
     return filteredComplaints.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   }, [filteredComplaints, currentPage, pageSize])
 
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, dateFilterType, startDateFilter, endDateFilter])
+
   // Bookings filter for adding complaints
   const availableBookingsForComplaint = React.useMemo(() => {
     return bookings.filter(b => {
