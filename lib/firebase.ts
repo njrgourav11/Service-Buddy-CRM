@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
-import { getFirestore } from "firebase/firestore"
+import { 
+  getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore"
 
 // ==========================================
 // Firebase Client Auto-Detection & Config
@@ -29,11 +34,28 @@ let isFirebaseEnabled = false
 
 if (isConfigured) {
   try {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig)
+      if (typeof window !== "undefined") {
+        try {
+          db = initializeFirestore(app, {
+            localCache: persistentLocalCache({
+              tabManager: persistentMultipleTabManager()
+            })
+          })
+        } catch {
+          db = getFirestore(app)
+        }
+      } else {
+        db = getFirestore(app)
+      }
+    } else {
+      app = getApp()
+      db = getFirestore(app)
+    }
     auth = getAuth(app)
-    db = getFirestore(app)
     isFirebaseEnabled = true
-    console.log("🔥 ServiceBuddy: Firebase Auth & Cloud Firestore initialized successfully!")
+    console.log("🔥 ServiceBuddy: Firebase Auth & Cloud Firestore initialized successfully with persistent multi-tab cache!")
   } catch (error) {
     console.error("❌ ServiceBuddy: Firebase initialization error:", error)
   }

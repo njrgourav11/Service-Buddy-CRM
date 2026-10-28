@@ -13,7 +13,6 @@ import {
   updateDoc as firestoreUpdateDoc, 
   deleteDoc, 
   onSnapshot,
-  getDocs,
   writeBatch
 } from "firebase/firestore"
 
@@ -525,11 +524,21 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const handleListenerError = (error: any, collectionName: string) => {
       console.warn(`⚠️ Firestore onSnapshot "${collectionName}" listener failed:`, error)
       
-      if (error.code === "permission-denied" || error.message?.toLowerCase().includes("permission")) {
+      const isPermissionOrQuota = 
+        error.code === "permission-denied" || 
+        error.code === "resource-exhausted" ||
+        error.message?.toLowerCase().includes("permission") ||
+        error.message?.toLowerCase().includes("quota") ||
+        error.message?.toLowerCase().includes("exhausted")
+
+      if (isPermissionOrQuota) {
         if (!hasAlertedPermission) {
           hasAlertedPermission = true
-          toast.error("Firestore Access Denied", {
-            description: "Missing or insufficient permissions. Falling back to local offline mode.",
+          const isQuota = error.code === "resource-exhausted" || error.message?.toLowerCase().includes("quota") || error.message?.toLowerCase().includes("exhausted")
+          toast.error(isQuota ? "Firestore Quota Exceeded" : "Firestore Access Denied", {
+            description: isQuota 
+              ? "Daily read quota reached. Falling back safely to local cached database so your CRM keeps working."
+              : "Missing permissions. Falling back to local offline mode.",
             duration: 8000
           })
         }
@@ -546,7 +555,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (collectionName === "customers") setCustomers(loadCollectionState("customers", INITIAL_CUSTOMERS))
         if (collectionName === "bookings") {
           const loaded = loadCollectionState("bookings", INITIAL_BOOKINGS)
-          setBookings(loaded.map(b => computeBookingFinance(b)).sort((a, b) => compareIdsNumerically(b.id, a.id)))
+          setBookings(loaded.map(b => computeBookingFinance(b)).sort(sortBookingsByCompletedDate))
         }
         if (collectionName === "technicians") setTechnicians(loadCollectionState("technicians", INITIAL_TECHNICIANS))
         if (collectionName === "payouts") setPayouts(loadCollectionState("payouts", INITIAL_PAYOUTS))
@@ -557,6 +566,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (collectionName === "contacts") setContacts(loadCollectionState("contacts", INITIAL_CONTACTS))
         if (collectionName === "assets") setAssets(loadCollectionState("assets", INITIAL_ASSETS))
         if (collectionName === "employees") setEmployees(loadCollectionState("employees", INITIAL_EMPLOYEES))
+        if (collectionName === "reminders") setReminders(loadCollectionState("reminders", []))
       }
     }
 
@@ -564,156 +574,84 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       onSnapshot(collection(db, "customers"), (snap) => {
         const list: Customer[] = []
         snap.forEach(d => list.push(d.data() as Customer))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setCustomers(list)
-        } else {
-          setCustomers([])
-          localStorage.setItem("servicebuddy_customers", JSON.stringify([]))
-          // Auto-seed collection if completely empty
-          INITIAL_CUSTOMERS.forEach(c => setDoc(doc(db!, "customers", c.id), c))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setCustomers(list)
       }, (err) => handleListenerError(err, "customers")),
 
       onSnapshot(collection(db, "bookings"), (snap) => {
         const list: Booking[] = []
         snap.forEach(d => list.push(computeBookingFinance(d.data() as Booking)))
-        if (list.length > 0) {
-          list.sort(sortBookingsByCompletedDate)
-          setBookings(list)
-        } else {
-          setBookings([])
-          localStorage.setItem("servicebuddy_bookings", JSON.stringify([]))
-          INITIAL_BOOKINGS.forEach(b => setDoc(doc(db!, "bookings", b.id), b))
-        }
+        list.sort(sortBookingsByCompletedDate)
+        setBookings(list)
       }, (err) => handleListenerError(err, "bookings")),
 
       onSnapshot(collection(db, "technicians"), (snap) => {
         const list: Technician[] = []
         snap.forEach(d => list.push(d.data() as Technician))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setTechnicians(list)
-        } else {
-          setTechnicians([])
-          localStorage.setItem("servicebuddy_technicians", JSON.stringify([]))
-          INITIAL_TECHNICIANS.forEach(t => setDoc(doc(db!, "technicians", t.id), t))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setTechnicians(list)
       }, (err) => handleListenerError(err, "technicians")),
 
       onSnapshot(collection(db, "payouts"), (snap) => {
         const list: Payout[] = []
         snap.forEach(d => list.push(d.data() as Payout))
-        if (list.length > 0) {
-          list.sort((a,b) => b.date.localeCompare(a.date))
-          setPayouts(list)
-        } else {
-          setPayouts([])
-          localStorage.setItem("servicebuddy_payouts", JSON.stringify([]))
-          INITIAL_PAYOUTS.forEach(p => setDoc(doc(db!, "payouts", p.id), p))
-        }
+        list.sort((a,b) => b.date.localeCompare(a.date))
+        setPayouts(list)
       }, (err) => handleListenerError(err, "payouts")),
 
       onSnapshot(collection(db, "spares"), (snap) => {
         const list: Spare[] = []
         snap.forEach(d => list.push(d.data() as Spare))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setSpares(list)
-        } else {
-          setSpares([])
-          localStorage.setItem("servicebuddy_spares", JSON.stringify([]))
-          INITIAL_SPARES.forEach(s => setDoc(doc(db!, "spares", s.id), s))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setSpares(list)
       }, (err) => handleListenerError(err, "spares")),
 
       onSnapshot(collection(db, "expenses"), (snap) => {
         const list: Expense[] = []
         snap.forEach(d => list.push(d.data() as Expense))
-        if (list.length > 0) {
-          list.sort((a,b) => b.date.localeCompare(a.date))
-          setExpenses(list)
-        } else {
-          setExpenses([])
-          localStorage.setItem("servicebuddy_expenses", JSON.stringify([]))
-          INITIAL_EXPENSES.forEach(e => setDoc(doc(db!, "expenses", e.id), e))
-        }
+        list.sort((a,b) => b.date.localeCompare(a.date))
+        setExpenses(list)
       }, (err) => handleListenerError(err, "expenses")),
 
       onSnapshot(collection(db, "outstanding"), (snap) => {
         const list: OutstandingDue[] = []
         snap.forEach(d => list.push(d.data() as OutstandingDue))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setOutstandingDues(list)
-        } else {
-          setOutstandingDues([])
-          localStorage.setItem("servicebuddy_outstanding", JSON.stringify([]))
-          INITIAL_OUTSTANDING.forEach(o => setDoc(doc(db!, "outstanding", o.id), o))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setOutstandingDues(list)
       }, (err) => handleListenerError(err, "outstanding")),
 
       onSnapshot(collection(db, "leads"), (snap) => {
         const list: Lead[] = []
         snap.forEach(d => list.push(d.data() as Lead))
-        if (list.length > 0) {
-          list.sort((a,b) => b.createdAt.localeCompare(a.createdAt))
-          setLeads(list)
-        } else {
-          setLeads([])
-          localStorage.setItem("servicebuddy_leads", JSON.stringify([]))
-          INITIAL_LEADS.forEach(l => setDoc(doc(db!, "leads", l.id), l))
-        }
+        list.sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+        setLeads(list)
       }, (err) => handleListenerError(err, "leads")),
 
       onSnapshot(collection(db, "contacts"), (snap) => {
         const list: Contact[] = []
         snap.forEach(d => list.push(d.data() as Contact))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setContacts(list)
-        } else {
-          setContacts([])
-          localStorage.setItem("servicebuddy_contacts", JSON.stringify([]))
-          INITIAL_CONTACTS.forEach(c => setDoc(doc(db!, "contacts", c.id), c))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setContacts(list)
       }, (err) => handleListenerError(err, "contacts")),
 
       onSnapshot(collection(db, "assets"), (snap) => {
         const list: Asset[] = []
         snap.forEach(d => list.push(d.data() as Asset))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setAssets(list)
-        } else {
-          setAssets([])
-          localStorage.setItem("servicebuddy_assets", JSON.stringify([]))
-          INITIAL_ASSETS.forEach(a => setDoc(doc(db!, "assets", a.id), a))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setAssets(list)
       }, (err) => handleListenerError(err, "assets")),
 
       onSnapshot(collection(db, "employees"), (snap) => {
         const list: Employee[] = []
         snap.forEach(d => list.push(d.data() as Employee))
-        if (list.length > 0) {
-          list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-          setEmployees(list)
-        } else {
-          setEmployees([])
-          localStorage.setItem("servicebuddy_employees", JSON.stringify([]))
-          INITIAL_EMPLOYEES.forEach(e => setDoc(doc(db!, "employees", e.id), e))
-        }
+        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
+        setEmployees(list)
       }, (err) => handleListenerError(err, "employees")),
 
       onSnapshot(collection(db, "reminders"), (snap) => {
         const list: Reminder[] = []
         snap.forEach(d => list.push(d.data() as Reminder))
-        if (list.length > 0) {
-          setReminders(list)
-        } else {
-          setReminders([])
-          localStorage.setItem("servicebuddy_reminders", JSON.stringify([]))
-        }
+        setReminders(list)
       }, (err) => handleListenerError(err, "reminders"))
     ]
 
@@ -783,16 +721,6 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem("servicebuddy_role", currentRole)
   }, [currentRole])
-
-  // Auto-heal corrupted "Paid" payouts with 0 totalPayout
-  useEffect(() => {
-    payouts.forEach(p => {
-      if (p.paymentStatus === "Paid" && p.totalPayout === 0) {
-        updatePayout(p.id, { paymentStatus: "Paid" })
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payouts])
 
   // ==========================================
   // 6. CRUD Database Operations Handlers
