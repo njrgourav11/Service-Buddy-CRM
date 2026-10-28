@@ -13,8 +13,13 @@ import {
   updateDoc as firestoreUpdateDoc, 
   deleteDoc, 
   onSnapshot,
+  query,
+  limit,
+  orderBy,
+  documentId,
   writeBatch
 } from "firebase/firestore"
+import type { DocumentData, QuerySnapshot } from "firebase/firestore"
 
 // Helper to remove undefined properties from objects so Firestore doesn't throw errors
 function cleanUndefined<T extends object>(obj: T): T {
@@ -390,10 +395,55 @@ export const sortBookingsByCompletedDate = (a: Booking, b: Booking) => {
 
 const CRMContext = createContext<CRMContextProps | undefined>(undefined)
 
+type FirestoreCollection =
+  | "customers" | "bookings" | "technicians" | "payouts" | "spares" | "expenses"
+  | "outstanding" | "leads" | "contacts" | "assets" | "employees" | "reminders"
+
+// Keep listener reads predictable. Large historical datasets must be loaded through
+// paginated queries rather than by subscribing to an entire collection.
+const REALTIME_DOCUMENT_LIMIT = 250
+
+const COLLECTION_ORDER: Record<FirestoreCollection, string | null> = {
+  customers: "createdAt",
+  bookings: "date",
+  technicians: "joiningDate",
+  payouts: "date",
+  spares: null,
+  expenses: "date",
+  outstanding: "date",
+  leads: "createdAt",
+  contacts: null,
+  assets: "purchaseDate",
+  employees: "joiningDate",
+  reminders: "date",
+}
+
+// A module only keeps live listeners for data it renders or needs to edit. This
+// avoids paying for every CRM collection whenever the dashboard is open.
+const COLLECTIONS_BY_TAB: Record<string, FirestoreCollection[]> = {
+  overview: ["customers", "bookings", "technicians", "payouts", "spares", "expenses", "outstanding", "leads", "reminders"],
+  bookings: ["bookings", "customers", "technicians", "spares", "payouts"],
+  customers: ["customers", "bookings"],
+  complaints: ["bookings", "customers", "technicians"],
+  leads: ["leads", "technicians", "customers"],
+  contacts: ["contacts"],
+  expenditures: ["expenses"],
+  outstanding: ["outstanding"],
+  payouts: ["payouts", "technicians", "bookings", "customers"],
+  inventory: ["spares"],
+  assets: ["assets"],
+  employees: ["employees"],
+  technicians: ["technicians", "bookings", "payouts"],
+  reminders: ["reminders"],
+  reports: ["bookings", "expenses", "technicians", "spares", "customers", "payouts"],
+  import: ["customers", "bookings", "technicians", "payouts", "spares", "expenses", "outstanding", "leads", "contacts", "assets", "employees", "reminders"],
+}
+
 export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Global View Navigation
   const [activeTab, setActiveTab] = useState<string>("overview")
   const [currentRole, setCurrentRole] = useState<UserRole>("Admin")
+  const [isDataSubscriptionReady, setIsDataSubscriptionReady] = useState(false)
 
   // Core Module States
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -416,9 +466,13 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.location.href = "/"
     } else {
       const savedTab = localStorage.getItem("servicebuddy_active_tab")
-      if (savedTab) {
-        setActiveTab(savedTab)
-      }
+      // Wait until the persisted tab is restored before opening billable listeners.
+      // This prevents an unnecessary overview subscription on every page load.
+      const timer = window.setTimeout(() => {
+        if (savedTab) setActiveTab(savedTab)
+        setIsDataSubscriptionReady(true)
+      }, 0)
+      return () => window.clearTimeout(timer)
     }
   }, [])
 
@@ -485,6 +539,8 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ==========================================
 
   useEffect(() => {
+    if (!isDataSubscriptionReady) return
+
     if (!isFirebaseEnabled || !db) {
       // Offline fallback: load from local storage
       const loadState = <T,>(key: string, initial: T[]): T[] => {
@@ -570,90 +626,64 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const unsubscribes = [
-      onSnapshot(collection(db, "customers"), (snap) => {
-        const list: Customer[] = []
-        snap.forEach(d => list.push(d.data() as Customer))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setCustomers(list)
-      }, (err) => handleListenerError(err, "customers")),
+    const applySnapshot = (collectionName: FirestoreCollection, snap: QuerySnapshot<DocumentData>) => {
+      const list = snap.docs.map((item) => item.data())
 
-      onSnapshot(collection(db, "bookings"), (snap) => {
-        const list: Booking[] = []
-        snap.forEach(d => list.push(computeBookingFinance(d.data() as Booking)))
-        list.sort(sortBookingsByCompletedDate)
-        setBookings(list)
-      }, (err) => handleListenerError(err, "bookings")),
+      switch (collectionName) {
+        case "customers":
+          setCustomers((list as Customer[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "bookings":
+          setBookings((list as Booking[]).map((b) => computeBookingFinance(b)).sort(sortBookingsByCompletedDate))
+          break
+        case "technicians":
+          setTechnicians((list as Technician[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "payouts":
+          setPayouts((list as Payout[]).sort((a, b) => b.date.localeCompare(a.date)))
+          break
+        case "spares":
+          setSpares((list as Spare[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "expenses":
+          setExpenses((list as Expense[]).sort((a, b) => b.date.localeCompare(a.date)))
+          break
+        case "outstanding":
+          setOutstandingDues((list as OutstandingDue[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "leads":
+          setLeads((list as Lead[]).sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+          break
+        case "contacts":
+          setContacts((list as Contact[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "assets":
+          setAssets((list as Asset[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "employees":
+          setEmployees((list as Employee[]).sort((a, b) => compareIdsNumerically(a.id, b.id)))
+          break
+        case "reminders":
+          setReminders(list as Reminder[])
+          break
+      }
+    }
 
-      onSnapshot(collection(db, "technicians"), (snap) => {
-        const list: Technician[] = []
-        snap.forEach(d => list.push(d.data() as Technician))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setTechnicians(list)
-      }, (err) => handleListenerError(err, "technicians")),
+    const activeCollections = COLLECTIONS_BY_TAB[activeTab] ?? COLLECTIONS_BY_TAB.overview
+    const unsubscribes = activeCollections.map((collectionName) => {
+      const sortField = COLLECTION_ORDER[collectionName]
+      const collectionQuery = query(
+        collection(db, collectionName),
+        sortField ? orderBy(sortField, "desc") : orderBy(documentId()),
+        limit(REALTIME_DOCUMENT_LIMIT)
+      )
 
-      onSnapshot(collection(db, "payouts"), (snap) => {
-        const list: Payout[] = []
-        snap.forEach(d => list.push(d.data() as Payout))
-        list.sort((a,b) => b.date.localeCompare(a.date))
-        setPayouts(list)
-      }, (err) => handleListenerError(err, "payouts")),
-
-      onSnapshot(collection(db, "spares"), (snap) => {
-        const list: Spare[] = []
-        snap.forEach(d => list.push(d.data() as Spare))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setSpares(list)
-      }, (err) => handleListenerError(err, "spares")),
-
-      onSnapshot(collection(db, "expenses"), (snap) => {
-        const list: Expense[] = []
-        snap.forEach(d => list.push(d.data() as Expense))
-        list.sort((a,b) => b.date.localeCompare(a.date))
-        setExpenses(list)
-      }, (err) => handleListenerError(err, "expenses")),
-
-      onSnapshot(collection(db, "outstanding"), (snap) => {
-        const list: OutstandingDue[] = []
-        snap.forEach(d => list.push(d.data() as OutstandingDue))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setOutstandingDues(list)
-      }, (err) => handleListenerError(err, "outstanding")),
-
-      onSnapshot(collection(db, "leads"), (snap) => {
-        const list: Lead[] = []
-        snap.forEach(d => list.push(d.data() as Lead))
-        list.sort((a,b) => b.createdAt.localeCompare(a.createdAt))
-        setLeads(list)
-      }, (err) => handleListenerError(err, "leads")),
-
-      onSnapshot(collection(db, "contacts"), (snap) => {
-        const list: Contact[] = []
-        snap.forEach(d => list.push(d.data() as Contact))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setContacts(list)
-      }, (err) => handleListenerError(err, "contacts")),
-
-      onSnapshot(collection(db, "assets"), (snap) => {
-        const list: Asset[] = []
-        snap.forEach(d => list.push(d.data() as Asset))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setAssets(list)
-      }, (err) => handleListenerError(err, "assets")),
-
-      onSnapshot(collection(db, "employees"), (snap) => {
-        const list: Employee[] = []
-        snap.forEach(d => list.push(d.data() as Employee))
-        list.sort((a,b) => compareIdsNumerically(a.id, b.id))
-        setEmployees(list)
-      }, (err) => handleListenerError(err, "employees")),
-
-      onSnapshot(collection(db, "reminders"), (snap) => {
-        const list: Reminder[] = []
-        snap.forEach(d => list.push(d.data() as Reminder))
-        setReminders(list)
-      }, (err) => handleListenerError(err, "reminders"))
-    ]
+      return onSnapshot(
+        collectionQuery,
+        (snap) => applySnapshot(collectionName, snap),
+        (err) => handleListenerError(err, collectionName)
+      )
+    })
 
     // Listen to Firebase Auth state
     const authUnsub = onAuthStateChanged(auth, (user) => {
@@ -679,7 +709,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribes.forEach(unsub => unsub())
       authUnsub()
     }
-  }, [])
+  }, [activeTab, isDataSubscriptionReady])
 
   // Sync to LocalStorage for local caching and offline recovery
   useEffect(() => {
